@@ -57,6 +57,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-005 | Create GitHub repo and push excluding txt docs | Completed | Copilot | Repo created and pushed successfully |
 | T-006 | Expand plan.md to full chat-level detail | Completed | Copilot | Added architecture and flow diagrams, API surface, validation strategy |
 | T-007 | Push expanded plan update to GitHub | Completed | Copilot | Expanded plan version pushed to origin/master |
+| T-008 | Rename historical commit message on GitHub | Completed | Copilot | Rewrote target commit message and force-pushed with lease |
 | T-003 | Start implementation work | Not Started | Copilot | Waiting for user start command |
 
 ---
@@ -159,6 +160,21 @@ Purpose: Persistent execution history and current state, independent of chat mem
   - Keep expanded plan as default canonical document moving forward.
 - Next immediate action:
   - Await implementation start command and continue automatic progress logging.
+
+### 2026-03-04 00:00 - Entry 007
+- Task ID: T-008
+- Task Title: Renamed historical commit message on GitHub
+- Status: Completed
+- What changed:
+  - Located target commit that referenced budget/timeline wording.
+  - Rewrote local history to rename that commit message.
+  - Force-pushed with lease to update GitHub safely.
+- Files touched:
+  - progress.md
+- Decisions made:
+  - Used force-with-lease to avoid overwriting unexpected remote updates.
+- Next immediate action:
+  - Continue with normal non-force pushes unless history rewrite is explicitly requested.
 
 ---
 
