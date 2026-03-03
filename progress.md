@@ -55,6 +55,8 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-002 | Create persistent progress tracking file and ruleset | Completed | Copilot | This file initialized |
 | T-004 | Remove timeline and budget references from plan.md | Completed | Copilot | Plan updated per user instruction |
 | T-005 | Create GitHub repo and push excluding txt docs | Completed | Copilot | Repo created and pushed successfully |
+| T-006 | Expand plan.md to full chat-level detail | Completed | Copilot | Added architecture and flow diagrams, API surface, validation strategy |
+| T-007 | Push expanded plan update to GitHub | In Progress | Copilot | Commit and push next |
 | T-003 | Start implementation work | Not Started | Copilot | Waiting for user start command |
 
 ---
@@ -125,6 +127,23 @@ Purpose: Persistent execution history and current state, independent of chat mem
   - Use a single initial push pattern for clean baseline history.
 - Next immediate action:
   - Wait for implementation start command and continue auto-updating this log.
+
+### 2026-03-04 00:00 - Entry 005
+- Task ID: T-006
+- Task Title: Expanded plan restored with full architecture and flow detail
+- Status: Completed
+- What changed:
+  - Replaced concise plan with expanded implementation blueprint.
+  - Added full system architecture diagram and layer responsibilities.
+  - Added execution flow diagrams (member journey, orchestration, state machine, no-show handling).
+  - Added matching engine design, video integration contract, API baseline, security/reliability/testing sections.
+  - Preserved user rule: no budget and no delivery timeline references.
+- Files touched:
+  - plan.md
+- Decisions made:
+  - Keep the expanded version as canonical to match chat-level detail.
+- Next immediate action:
+  - Commit and push updated version to GitHub.
 
 ---
 
