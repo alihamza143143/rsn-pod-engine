@@ -53,6 +53,8 @@ Purpose: Persistent execution history and current state, independent of chat mem
 |---|---|---|---|---|
 | T-001 | Consolidate all requirement docs into one actionable roadmap | Completed | Copilot | Completed in plan.md |
 | T-002 | Create persistent progress tracking file and ruleset | Completed | Copilot | This file initialized |
+| T-004 | Remove timeline and budget references from plan.md | Completed | Copilot | Plan updated per user instruction |
+| T-005 | Create GitHub repo and push excluding txt docs | Completed | Copilot | Repo created and pushed successfully |
 | T-003 | Start implementation work | Not Started | Copilot | Waiting for user start command |
 
 ---
@@ -89,6 +91,40 @@ Purpose: Persistent execution history and current state, independent of chat mem
   - No historical deletion; append-only model enforced.
 - Next immediate action:
   - Add a new entry at every completed task from implementation onward.
+
+### 2026-03-04 00:00 - Entry 003
+- Task ID: T-004
+- Task Title: Plan sanitized for no timeline and no budget references
+- Status: Completed
+- What changed:
+  - Removed budget references from milestone headings.
+  - Removed schedule-oriented wording in operating rhythm and maintenance phrasing.
+  - Kept technical scope and milestone logic intact.
+- Files touched:
+  - plan.md
+- Decisions made:
+  - Preserve milestone structure while removing explicit budget/timeline references.
+- Next immediate action:
+  - Initialize and push repository with txt files excluded.
+
+### 2026-03-04 00:00 - Entry 004
+- Task ID: T-005
+- Task Title: GitHub repository created and initial push completed
+- Status: Completed
+- What changed:
+  - Initialized local git repository.
+  - Added `.gitignore` rule to exclude `.txt` documents.
+  - Committed and pushed tracked files.
+  - Created remote repository and linked origin.
+- Files touched:
+  - .gitignore
+  - plan.md
+  - progress.md
+- Decisions made:
+  - Exclude all `.txt` source documents from version control as requested.
+  - Use a single initial push pattern for clean baseline history.
+- Next immediate action:
+  - Wait for implementation start command and continue auto-updating this log.
 
 ---
 
