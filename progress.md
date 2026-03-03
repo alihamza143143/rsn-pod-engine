@@ -58,6 +58,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-006 | Expand plan.md to full chat-level detail | Completed | Copilot | Added architecture and flow diagrams, API surface, validation strategy |
 | T-007 | Push expanded plan update to GitHub | Completed | Copilot | Expanded plan version pushed to origin/master |
 | T-008 | Rename historical commit message on GitHub | Completed | Copilot | Rewrote target commit message and force-pushed with lease |
+| T-009 | Add deployment strategy TBD items | Completed | Copilot | Added pending decisions for dev/testing deployment stack |
 | T-003 | Start implementation work | Not Started | Copilot | Waiting for user start command |
 
 ---
@@ -175,6 +176,32 @@ Purpose: Persistent execution history and current state, independent of chat mem
   - Used force-with-lease to avoid overwriting unexpected remote updates.
 - Next immediate action:
   - Continue with normal non-force pushes unless history rewrite is explicitly requested.
+
+### 2026-03-04 00:00 - Entry 008
+- Task ID: T-009
+- Task Title: Deployment strategy captured as TBD
+- Status: Completed
+- What changed:
+  - Added explicit deployment decision items as TBD for development/testing phase.
+  - Captured current recommendation split: frontend on Vercel, backend on Railway/Fly, Postgres + Redis managed services.
+- Files touched:
+  - progress.md
+- Decisions made:
+  - Keep deployment choices as pending until implementation kickoff.
+- Next immediate action:
+  - Finalize deployment matrix and environment variables when implementation starts.
+
+---
+
+## Deployment TBD (Dev/Testing)
+
+- TBD-DEP-001: Frontend hosting decision (Vercel recommended).
+- TBD-DEP-002: Backend hosting decision for Express + Socket.IO (Railway or Fly.io recommended).
+- TBD-DEP-003: Managed PostgreSQL provider selection.
+- TBD-DEP-004: Managed Redis provider selection.
+- TBD-DEP-005: Staging domain and environment variable matrix.
+- TBD-DEP-006: CI/CD branch-to-environment mapping (`staging` -> staging, `main` -> production).
+- TBD-DEP-007: Observability setup baseline (error tracking + uptime monitors).
 
 ---
 
