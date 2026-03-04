@@ -2,9 +2,9 @@
 // Tests the API routes using supertest with fully mocked services.
 // These tests validate: routing, validation, auth checks, and response shapes.
 
-import express from 'express';
-import request from 'supertest';
-import jwt from 'jsonwebtoken';
+import express = require('express');
+import request = require('supertest');
+import * as jwt from 'jsonwebtoken';
 import { UserRole, SessionStatus, PodType, DEFAULT_SESSION_CONFIG, InviteType, InviteStatus } from '@rsn/shared';
 
 // ─── Mock all dependencies before importing routes ──────────────────────────

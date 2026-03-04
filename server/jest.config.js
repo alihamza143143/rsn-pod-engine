@@ -11,7 +11,10 @@ module.exports = {
   },
   transform: {
     '^.+\\.ts$': ['ts-jest', {
-      tsconfig: '<rootDir>/tsconfig.json',
+      tsconfig: {
+        esModuleInterop: true,
+        allowSyntheticDefaultImports: true,
+      },
     }],
   },
   collectCoverage: true,
