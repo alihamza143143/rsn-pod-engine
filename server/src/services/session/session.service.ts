@@ -378,18 +378,18 @@ export async function generateLiveKitToken(sessionId: string, userId: string): P
   const session = await getSessionById(sessionId);
 
   // Verify user is a participant or host
-  const participant = await query<SessionParticipant>(
+  const participantResult = await query<SessionParticipant>(
     `SELECT * FROM session_participants WHERE session_id = $1 AND user_id = $2`,
     [sessionId, userId]
   );
 
-  if (!participant && session.hostUserId !== userId) {
+  if (participantResult.rows.length === 0 && session.hostUserId !== userId) {
     throw new ForbiddenError('User is not a participant in this session');
   }
 
   try {
     // Generate LiveKit access token
-    const at = new AccessToken(config.liveKitApiKey, config.liveKitApiSecret, {
+    const at = new AccessToken(config.livekitApiKey, config.livekitApiSecret, {
       identity: userId,
       ttl: 3600,
     });
@@ -404,6 +404,6 @@ export async function generateLiveKitToken(sessionId: string, userId: string): P
     return { token, livekitUrl: config.livekitUrl };
   } catch (err) {
     logger.error('Failed to generate LiveKit token:', err);
-    throw new AppError('Failed to generate video room access token');
+    throw new AppError(500, 'LIVEKIT_TOKEN_ERROR', 'Failed to generate video room access token');
   }
 }

@@ -42,6 +42,11 @@ const io = new SocketServer(server, {
       if (!origin) return callback(null, true);
       const allowedOrigins = [config.clientUrl];
       if (config.isDev) allowedOrigins.push('http://localhost:5173', 'http://localhost:3000');
+      // Allow Vercel preview/production domains
+      try {
+        const isVercelOrigin = /\.vercel\.app$/i.test(new URL(origin).hostname);
+        if (isVercelOrigin) return callback(null, true);
+      } catch {}
       callback(null, allowedOrigins.includes(origin));
     },
     methods: ['GET', 'POST'],
