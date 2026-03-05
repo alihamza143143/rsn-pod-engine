@@ -80,9 +80,16 @@ app.use(cors({
   origin: function(origin, callback) {
     // Allow requests with no origin (mobile apps, curl, etc.)
     if (!origin) return callback(null, true);
+
     const allowedOrigins = [config.clientUrl];
-    if (config.isDev) allowedOrigins.push('http://localhost:5173', 'http://localhost:3000');
-    if (allowedOrigins.includes(origin)) {
+    if (config.isDev) {
+      allowedOrigins.push('http://localhost:5173', 'http://localhost:3000');
+    }
+
+    // Allow Vercel preview/production domains during no-card deployment setup.
+    const isVercelOrigin = /\.vercel\.app$/i.test(new URL(origin).hostname);
+
+    if (allowedOrigins.includes(origin) || isVercelOrigin) {
       callback(null, true);
     } else {
       callback(null, false);
