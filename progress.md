@@ -41,10 +41,10 @@ Purpose: Persistent execution history and current state, independent of chat mem
 ## Current Phase Snapshot
 
 - Active Phase: Implementation
-- Active Milestone: **Milestone 1 (Foundation) — COMPLETE ✅**
-- Next Milestone: Milestone 2 (Integration & Real-time Layer)
-- Overall Build Status: Ready for Milestone 2
-- Last Updated: March 5, 2026
+- Active Milestone: **Milestone 2 (Frontend & Real-time Layer) — IN PROGRESS**
+- Next Milestone: Milestone 3 (Admin, Analytics & Growth)
+- Overall Build Status: Frontend built, live session flow complete
+- Last Updated: March 6, 2026
 
 ---
 
@@ -61,6 +61,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-008 | Rename historical commit message on GitHub | Completed | Copilot | Rewrote target commit message and force-pushed with lease |
 | T-009 | Add deployment strategy TBD items | Completed | Copilot | Added pending decisions for dev/testing deployment stack |
 | T-003 | Milestone 1 Implementation | Completed | Copilot | Full backend foundation built from scratch |
+| T-014 | Milestone 2 — Frontend & Real-time | In Progress | Copilot | Full React frontend + live session UI built |
 
 ---
 
@@ -462,6 +463,76 @@ User inquired about required external services for M2 development:
 
 **Implementation Plan:**
 - Create redis-mock.ts (in-memory key-value store)
+
+### 2026-03-06 — Entry: Milestone 2 Frontend Build
+- Task ID: T-014
+- Task Title: Milestone 2 — Frontend & Real-time Layer
+- Status: In Progress (Phases A–F complete, Phase G ongoing)
+- What changed:
+
+**Phase A — Backend Mocks (Complete):**
+- Created MockVideoProvider (`server/src/services/video/mock.provider.ts`)
+- Updated VideoService to auto-detect mock vs LiveKit based on env config
+- Created in-memory Redis mock (`server/src/db/redis-mock.ts`)
+
+**Phase B — Frontend Project Setup (Complete):**
+- Created `client/` workspace with Vite + React 18 + TypeScript
+- Configured Tailwind CSS 3.4 with custom dark theme (brand/surface colors)
+- Set up path aliases (@/*), proxy config, PostCSS
+- Added to monorepo workspaces in root package.json
+
+**Phase C — Feature Pages (Complete):**
+- **Design System Components:** Button (5 variants, 3 sizes, loading), Input, Card (glass), Avatar (initials/image), Badge (6 variants), Modal (animated), Spinner/PageLoader/Skeleton, Toast container, EmptyState
+- **Layout:** AppLayout (header, desktop sidebar, mobile drawer, bottom nav), ProtectedRoute (auth guard)
+- **Auth Module:** LoginPage (magic link), VerifyPage (token verification)
+- **Profile Module:** ProfilePage (view/edit with tag editors for interests, languages, reasons)
+- **Pods Module:** PodsPage (grid/list, search, create modal), PodDetailPage (sessions, members, host controls), CreatePodModal
+- **Sessions Module:** SessionsPage (listing), SessionDetailPage (register, config, participants), CreateSessionPage (full form)
+- **Invites Module:** InvitesPage (listing, copy link), CreateInviteModal, InviteAcceptPage (auto-accept with redirect)
+- **Home Module:** HomePage (welcome hero, stats, upcoming sessions, my pods, quick actions)
+- **App.tsx:** Full route config with protected + public routes
+
+**Phase D — Live Session Experience (Complete):**
+- Created `useSessionSocket` hook — wires all Socket.IO events to Zustand session store (timer, match, rating, broadcast, participant count)
+- LiveSessionPage — orchestrator rendering Lobby/VideoRoom/RatingPrompt/SessionComplete based on state
+- Lobby — animated waiting screen with participant mosaic, timer, ready button, host broadcast display
+- VideoRoom — split video layout with timer progress bar, icebreaker prompts, mic/video controls
+- RatingPrompt — star rating with meet-again toggle, optional feedback, animated submission
+- SessionComplete — celebration view with stats (people met, mutual matches, avg rating), person list
+- HostControls — collapsible bottom panel with start/pause/resume/end, broadcast, remove participant
+
+**Phase E — Host Dashboard (Complete):**
+- HostDashboardPage — dedicated management page with stats cards, session controls (start/pause/resume/end), participant list, session details
+
+**Phase F — Polish (Complete):**
+- Enhanced CSS: smooth scrolling, selection styling, focus rings, page transitions, glow effects, shimmer skeleton
+- NotFoundPage with animated 404 display
+- Antialiased text, improved scrollbar styling
+
+- Files touched:
+  - `server/src/services/video/mock.provider.ts` (new)
+  - `server/src/services/video/video.service.ts` (modified)
+  - `server/src/db/redis-mock.ts` (new)
+  - `client/` — entire new workspace (~35 files)
+  - `package.json` (root, updated workspaces + scripts)
+
+- Decisions made:
+  - Feature-based folder structure (features/auth, features/pods, etc.)
+  - Zustand for auth + session state, TanStack Query for server state
+  - Framer Motion for all animations
+  - Dark theme with glassmorphism design language
+  - Socket events wired through a single hook per session
+  - Host controls as overlay on live session view
+
+- Verification:
+  - TypeScript compiles clean (0 errors)
+  - Vite production build succeeds (555KB JS, 30KB CSS gzipped)
+  - All 136 backend tests pass (13 suites)
+
+- Next immediate action:
+  - Start Vite dev server and verify UI renders
+  - Test auth flow end-to-end
+  - Test live session flow with mock backend
 - Create mock.provider.ts (mock video provider)
 - Update video.service.ts (auto-detect and use mock if no credentials)
 - Update .env configuration comments
