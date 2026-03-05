@@ -14,7 +14,7 @@ export default function PodDetailPage() {
 
   const { data: pod, isLoading } = useQuery({
     queryKey: ['pod', podId],
-    queryFn: () => api.get(`/pods/${podId}`).then(r => r.data.pod || r.data),
+    queryFn: () => api.get(`/pods/${podId}`).then(r => r.data.data),
   });
 
   if (isLoading) return <PageLoader />;

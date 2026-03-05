@@ -14,12 +14,12 @@ export default function HomePage() {
 
   const { data: pods, isLoading: podsLoading } = useQuery({
     queryKey: ['my-pods'],
-    queryFn: () => api.get('/pods').then(r => r.data.pods),
+    queryFn: () => api.get('/pods').then(r => r.data.data ?? []),
   });
 
   const { data: sessions, isLoading: sessionsLoading } = useQuery({
     queryKey: ['my-sessions'],
-    queryFn: () => api.get('/sessions').then(r => r.data.sessions),
+    queryFn: () => api.get('/sessions').then(r => r.data.data ?? []),
   });
 
   if (podsLoading || sessionsLoading) return <PageLoader />;

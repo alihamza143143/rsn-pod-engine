@@ -21,7 +21,7 @@ export default function CreateSessionPage() {
 
   const { data: pods } = useQuery({
     queryKey: ['my-pods'],
-    queryFn: () => api.get('/pods').then(r => r.data.pods),
+    queryFn: () => api.get('/pods').then(r => r.data.data ?? []),
   });
 
   const { register, handleSubmit, formState: { errors } } = useForm<SessionForm>({

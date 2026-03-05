@@ -13,7 +13,7 @@ export default function InvitesPage() {
   const [showCreate, setShowCreate] = useState(false);
   const { data, isLoading } = useQuery({
     queryKey: ['my-invites'],
-    queryFn: () => api.get('/invites').then(r => r.data.invites),
+    queryFn: () => api.get('/invites').then(r => r.data.data ?? []),
   });
 
   if (isLoading) return <PageLoader />;

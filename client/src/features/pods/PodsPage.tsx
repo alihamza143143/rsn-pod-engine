@@ -15,7 +15,7 @@ export default function PodsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const { data, isLoading } = useQuery({
     queryKey: ['my-pods'],
-    queryFn: () => api.get('/pods').then(r => r.data.pods),
+    queryFn: () => api.get('/pods').then(r => r.data.data ?? []),
   });
 
   if (isLoading) return <PageLoader />;

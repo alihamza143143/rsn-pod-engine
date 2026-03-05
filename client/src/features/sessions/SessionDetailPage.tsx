@@ -13,7 +13,7 @@ export default function SessionDetailPage() {
 
   const { data: session, isLoading } = useQuery({
     queryKey: ['session', sessionId],
-    queryFn: () => api.get(`/sessions/${sessionId}`).then(r => r.data.session || r.data),
+    queryFn: () => api.get(`/sessions/${sessionId}`).then(r => r.data.data),
   });
 
   if (isLoading) return <PageLoader />;

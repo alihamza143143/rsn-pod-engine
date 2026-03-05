@@ -12,7 +12,7 @@ export default function SessionsPage() {
   const navigate = useNavigate();
   const { data, isLoading } = useQuery({
     queryKey: ['my-sessions'],
-    queryFn: () => api.get('/sessions').then(r => r.data.sessions),
+    queryFn: () => api.get('/sessions').then(r => r.data.data ?? []),
   });
 
   if (isLoading) return <PageLoader />;

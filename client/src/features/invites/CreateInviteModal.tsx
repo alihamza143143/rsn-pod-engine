@@ -11,7 +11,7 @@ interface Props { open: boolean; onClose: () => void; }
 export default function CreateInviteModal({ open, onClose }: Props) {
   const qc = useQueryClient();
   const { addToast } = useToastStore();
-  const { data: pods } = useQuery({ queryKey: ['my-pods'], queryFn: () => api.get('/pods').then(r => r.data.pods) });
+  const { data: pods } = useQuery({ queryKey: ['my-pods'], queryFn: () => api.get('/pods').then(r => r.data.data ?? []) });
   const { register, handleSubmit, reset, formState: { errors } } = useForm<{ pod_id: string; max_uses: number }>();
 
   const mutation = useMutation({

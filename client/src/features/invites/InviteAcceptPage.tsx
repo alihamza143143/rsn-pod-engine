@@ -17,7 +17,7 @@ export default function InviteAcceptPage() {
   const [accepting, setAccepting] = useState(false);
 
   useEffect(() => {
-    api.get(`/invites/${code}`).then(r => setInvite(r.data.invite || r.data)).catch(() => setInvite(null)).finally(() => setLoading(false));
+    api.get(`/invites/${code}`).then(r => setInvite(r.data.data)).catch(() => setInvite(null)).finally(() => setLoading(false));
   }, [code]);
 
   const accept = async () => {
