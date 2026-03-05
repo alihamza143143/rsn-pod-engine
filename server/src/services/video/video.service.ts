@@ -6,6 +6,8 @@
 import { RoomType, VideoRoom, VideoToken, VideoParticipant } from '@rsn/shared';
 import { IVideoProvider } from './video.interface';
 import { LiveKitProvider } from './livekit.provider';
+import { MockVideoProvider } from './mock.provider';
+import { config } from '../../config';
 import logger from '../../config/logger';
 
 // ─── Provider Singleton ─────────────────────────────────────────────────────
@@ -14,8 +16,13 @@ let provider: IVideoProvider;
 
 export function getVideoProvider(): IVideoProvider {
   if (!provider) {
-    provider = new LiveKitProvider();
-    logger.info('Video provider initialised: LiveKit');
+    if (config.livekit.apiKey && config.livekit.apiSecret) {
+      provider = new LiveKitProvider();
+      logger.info('Video provider initialised: LiveKit');
+    } else {
+      provider = new MockVideoProvider();
+      logger.info('Video provider initialised: Mock (no LiveKit credentials)');
+    }
   }
   return provider;
 }

@@ -1,0 +1,78 @@
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { useAuthStore } from '@/stores/authStore';
+import { Button } from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
+import { Sparkles } from 'lucide-react';
+
+export default function LoginPage() {
+  const { login } = useAuthStore();
+  const [sent, setSent] = useState(false);
+  const [devLink, setDevLink] = useState<string | null>(null);
+  const { register, handleSubmit, formState: { errors, isSubmitting }, getValues } = useForm<{ email: string }>();
+
+  const onSubmit = async (data: { email: string }) => {
+    try {
+      const res = await login(data.email);
+      setSent(true);
+      // In dev mode, the server returns the magic link for easy testing
+      const link = res?.data?.devLink || res?.devLink;
+      if (link) setDevLink(link);
+    } catch {
+      // error handled by store
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-surface-950 p-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-2 mb-4">
+            <Sparkles className="h-8 w-8 text-brand-400" />
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-brand-400 to-purple-400 bg-clip-text text-transparent">RSN</h1>
+          </div>
+          <p className="text-surface-400">Real-time peer networking for professionals</p>
+        </div>
+
+        <div className="rounded-2xl border border-surface-800 bg-surface-900/60 backdrop-blur-sm p-8">
+          {!sent ? (
+            <>
+              <h2 className="text-xl font-semibold text-surface-100 mb-6">Sign in with magic link</h2>
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+                <Input
+                  label="Email address"
+                  type="email"
+                  placeholder="you@example.com"
+                  error={errors.email?.message}
+                  {...register('email', { required: 'Email is required', pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Invalid email' } })}
+                />
+                <Button type="submit" className="w-full" isLoading={isSubmitting}>Send magic link</Button>
+              </form>
+            </>
+          ) : (
+            <div className="text-center space-y-4">
+              <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-brand-500/20 text-brand-400 mb-2">
+                <Sparkles className="h-8 w-8" />
+              </div>
+              <h2 className="text-xl font-semibold text-surface-100">Check your email</h2>
+              <p className="text-surface-400 text-sm">
+                We sent a magic link to <span className="font-medium text-surface-200">{getValues('email')}</span>
+              </p>
+
+              {devLink && (
+                <div className="mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                  <p className="text-xs text-amber-400 font-semibold mb-2">DEV MODE — Click to verify:</p>
+                  <a href={devLink} className="text-sm text-brand-400 underline break-all">{devLink}</a>
+                </div>
+              )}
+
+              <button onClick={() => { setSent(false); setDevLink(null); }} className="text-sm text-surface-500 hover:text-surface-300 transition-colors">
+                Try a different email
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

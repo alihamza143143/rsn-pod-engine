@@ -145,7 +145,7 @@ export async function updateLastActive(userId: string): Promise<void> {
 
 // ─── Magic Link Authentication ──────────────────────────────────────────────
 
-export async function sendMagicLink(email: string): Promise<{ sent: boolean }> {
+export async function sendMagicLink(email: string): Promise<{ sent: boolean; devLink?: string }> {
   const normalizedEmail = email.toLowerCase().trim();
 
   // Generate a secure random token
@@ -168,14 +168,14 @@ export async function sendMagicLink(email: string): Promise<{ sent: boolean }> {
   // Build the magic link URL
   const magicLinkUrl = `${config.clientUrl}/auth/verify?token=${token}`;
 
-  // In development, log the link; in production, send email
+  // In development, return the link directly; in production, send email
   if (config.isDev) {
     logger.info({ email: normalizedEmail, magicLinkUrl }, 'Magic link generated (dev mode)');
-  } else {
-    // TODO: Send email via Nodemailer/Resend
-    logger.info({ email: normalizedEmail }, 'Magic link email sent');
+    return { sent: true, devLink: magicLinkUrl };
   }
 
+  // TODO: Send email via Nodemailer/Resend
+  logger.info({ email: normalizedEmail }, 'Magic link email sent');
   return { sent: true };
 }
 
@@ -205,16 +205,25 @@ export async function verifyMagicLink(token: string): Promise<AuthTokenPair> {
   // Mark the magic link as used
   await query('UPDATE magic_links SET used_at = NOW() WHERE id = $1', [magicLink.id]);
 
-  // Find or create the user
+  // Find or create the user (handle concurrent verify race condition)
   let user = await getUserByEmail(magicLink.email);
   if (!user) {
-    // Auto-create user on first magic link verification
-    user = await createUser({
-      email: magicLink.email,
-      firstName: '',
-      lastName: '',
-      displayName: magicLink.email.split('@')[0],
-    });
+    try {
+      user = await createUser({
+        email: magicLink.email,
+        firstName: '',
+        lastName: '',
+        displayName: magicLink.email.split('@')[0],
+      });
+    } catch (err: any) {
+      // Race condition: another request created the user between our check and insert
+      if (err?.code === '23505' || err?.message?.includes('already exists')) {
+        user = await getUserByEmail(magicLink.email);
+        if (!user) throw err; // Should never happen, but rethrow if it does
+      } else {
+        throw err;
+      }
+    }
   }
 
   // Mark email as verified

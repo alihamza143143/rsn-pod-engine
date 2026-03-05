@@ -5,6 +5,45 @@ Primary Stack Decision: PERN (PostgreSQL, Express.js, React, Node.js) + LiveKit
 
 ---
 
+## 0) Current Status
+
+### Milestone 1 — COMPLETE ✅
+All M1 deliverables are done:
+- Monorepo workspace (shared, server, client)
+- PostgreSQL schema + migrations (001_initial_schema.sql)
+- All core backend services: identity, pod, session, matching, orchestration, video, invite, rating
+- REST API routes: auth, users, pods, sessions, invites, ratings, host
+- Middleware: JWT auth, RBAC, validation (Zod), rate limiting, error handling, audit
+- Socket.IO real-time with JWT auth
+- 136 backend tests passing across 13 suites
+- Shared types package (@rsn/shared)
+
+### Milestone 2 — IN PROGRESS 🔄
+Completed so far:
+- ✅ Matching engine v1 (weighted scoring, constraints, no-duplicate pairings, odd-participant handling)
+- ✅ Orchestration service (state machine, timer logic, round management)
+- ✅ Video abstraction layer (IVideoProvider interface + LiveKit + Mock provider for dev)
+- ✅ React frontend (Vite + React 18 + TypeScript + Tailwind CSS + Zustand + TanStack Query)
+  - Auth: magic link login + verify pages (dev mode shows clickable link)
+  - Home dashboard with stats + upcoming sessions + pod overview
+  - Pods: list, create, detail with members
+  - Sessions: list, create, detail, join
+  - Invites: list, create, accept via link
+  - Live session: lobby, video room, rating prompt, session complete, host controls
+  - Host dashboard
+  - Profile editing with tag management
+  - Design system: dark theme, glassmorphism, brand colors, responsive layout
+- ✅ Dev auth bypass (magic link URL returned in API response in dev mode)
+
+Remaining for M2:
+- ⬜ LiveKit integration testing (requires LiveKit server)
+- ⬜ End-to-end internal simulation with real matching
+- ⬜ Host controls via Socket.IO (start/pause/end/broadcast)
+- ⬜ Encounter history updates after sessions
+- ⬜ Reconnection handling
+
+---
+
 ## 1) Product Direction and Architecture Principle
 
 RSN is a Pod-first connection operating system.
