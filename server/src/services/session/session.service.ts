@@ -184,9 +184,10 @@ export async function listSessions(params: {
 export async function registerParticipant(sessionId: string, userId: string): Promise<SessionParticipant> {
   const session = await getSessionById(sessionId);
 
-  // Check session is open for registration
-  if (session.status !== SessionStatus.SCHEDULED && session.status !== SessionStatus.LOBBY_OPEN) {
-    throw new AppError(400, 'SESSION_NOT_SCHEDULED', 'Session is not open for registration');
+  // Check session is open for registration (allow during active session phases too)
+  const closedStatuses: SessionStatus[] = [SessionStatus.COMPLETED, SessionStatus.CANCELLED];
+  if (closedStatuses.includes(session.status)) {
+    throw new AppError(400, 'SESSION_NOT_SCHEDULED', 'Session is no longer accepting participants');
   }
 
   // Check capacity

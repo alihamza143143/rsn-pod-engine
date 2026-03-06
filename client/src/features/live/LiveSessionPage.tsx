@@ -8,11 +8,11 @@ import RatingPrompt from './RatingPrompt';
 import SessionComplete from './SessionComplete';
 import HostControls from './HostControls';
 import { PageLoader } from '@/components/ui/Spinner';
-import { AlertCircle } from 'lucide-react';
+import { AlertCircle, X } from 'lucide-react';
 
 export default function LiveSessionPage() {
   const { sessionId } = useParams();
-  const { phase, broadcasts, error: sessionError } = useSessionStore();
+  const { phase, broadcasts, error: sessionError, setError } = useSessionStore();
   const { user } = useAuthStore();
   const isHost = user?.role === 'host' || user?.role === 'admin';
 
@@ -29,11 +29,14 @@ export default function LiveSessionPage() {
         </div>
       )}
 
-      {/* Error banner */}
+      {/* Error banner — dismissable */}
       {sessionError && (
         <div className="bg-red-500/20 border-b border-red-500/30 px-4 py-2 flex items-center justify-center gap-2">
           <AlertCircle className="h-4 w-4 text-red-400" />
           <p className="text-sm text-red-300">{sessionError}</p>
+          <button onClick={() => setError(null)} className="ml-2 text-red-400 hover:text-red-200">
+            <X className="h-3 w-3" />
+          </button>
         </div>
       )}
 

@@ -15,10 +15,25 @@ export default function useSessionSocket(sessionId: string) {
     const token = localStorage.getItem('rsn_access');
     if (!token || !sessionId) return;
 
+    // Reset store on mount
+    store.reset();
+
+    // Auto-register participant (ignore if already registered)
+    api.post(`/sessions/${sessionId}/register`).catch(() => {});
+
     connectSocket(token);
     const socket = getSocket();
 
-    socket.emit('session:join', { sessionId });
+    // Wait for connection before joining session
+    const joinSession = () => {
+      socket.emit('session:join', { sessionId });
+    };
+
+    if (socket.connected) {
+      joinSession();
+    } else {
+      socket.once('connect', joinSession);
+    }
 
     // ── Participants ──
     socket.on('participant:joined', (data: any) =>
@@ -95,7 +110,16 @@ export default function useSessionSocket(sessionId: string) {
     // ── Sync & errors ──
     socket.on('timer:sync', (data: any) => store.setTimer(data.secondsRemaining));
 
-    socket.on('error', (data: any) => store.setError(data.message || 'An error occurred'));
+    socket.on('error', (data: any) => {
+      // Don't show transient errors as persistent banners
+      const msg = data.message || 'An error occurred';
+      store.setError(msg);
+      // Auto-clear non-critical errors after 5 seconds
+      setTimeout(() => {
+        const current = useSessionStore.getState().error;
+        if (current === msg) store.setError(null);
+      }, 5000);
+    });
 
     // ── Reconnection ──
     socket.io.on('reconnect', () => {
@@ -112,6 +136,7 @@ export default function useSessionSocket(sessionId: string) {
 
     return () => {
       clearTimer();
+      socket.off('connect', joinSession);
       socket.emit('session:leave', { sessionId });
       disconnectSocket();
     };

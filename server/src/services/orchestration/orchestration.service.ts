@@ -115,11 +115,22 @@ async function handleJoinSession(
       });
     }
 
+    // Auto-register if not already a participant (and not the host)
+    try {
+      await sessionService.registerParticipant(data.sessionId, userId);
+    } catch {
+      // Already registered or session not open — that's fine
+    }
+
     // Update participant status
-    await sessionService.updateParticipantStatus(
-      data.sessionId, userId,
-      session.status === SessionStatus.LOBBY_OPEN ? ParticipantStatus.IN_LOBBY : ParticipantStatus.CHECKED_IN
-    );
+    try {
+      await sessionService.updateParticipantStatus(
+        data.sessionId, userId,
+        session.status === SessionStatus.LOBBY_OPEN ? ParticipantStatus.IN_LOBBY : ParticipantStatus.CHECKED_IN
+      );
+    } catch {
+      // Participant may not exist (e.g. host who's not a participant) — that's OK
+    }
 
     // Notify others
     io.to(sessionRoom(data.sessionId)).emit('participant:joined', {

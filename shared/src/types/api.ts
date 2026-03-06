@@ -82,6 +82,9 @@ export const ErrorCodes = {
   // Rate limiting
   RATE_LIMIT_EXCEEDED: 'RATE_LIMIT_EXCEEDED',
 
+  // Video / LiveKit errors
+  LIVEKIT_TOKEN_ERROR: 'LIVEKIT_TOKEN_ERROR',
+
   // Server errors
   INTERNAL_ERROR: 'INTERNAL_ERROR',
   SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
