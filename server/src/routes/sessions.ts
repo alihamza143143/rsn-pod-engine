@@ -194,7 +194,8 @@ router.post(
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const result = await sessionService.generateLiveKitToken(req.params.id, req.user!.userId);
+      const roomId = req.body?.roomId;
+      const result = await sessionService.generateLiveKitToken(req.params.id, req.user!.userId, roomId);
       const response: ApiResponse = { success: true, data: result };
       res.json(response);
     } catch (err) {

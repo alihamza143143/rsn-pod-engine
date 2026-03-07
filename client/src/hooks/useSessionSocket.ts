@@ -73,8 +73,8 @@ export default function useSessionSocket(sessionId: string) {
       store.setByeRound(false);
       store.setMatch({ userId: data.partnerId, displayName: data.partnerId }, data.matchId);
       store.setPhase('matched');
-      // Fetch LiveKit token for video
-      api.post(`/sessions/${sessionId}/token`).then(res => {
+      // Fetch LiveKit token for the match-specific video room
+      api.post(`/sessions/${sessionId}/token`, { roomId: data.roomId }).then(res => {
         const { token, livekitUrl } = res.data.data;
         store.setLiveKitToken(token, livekitUrl);
       }).catch(() => { /* token fetch failed — video won't load but session continues */ });
@@ -84,7 +84,7 @@ export default function useSessionSocket(sessionId: string) {
       store.setMatch({ userId: data.newPartnerId, displayName: data.newPartnerId }, data.matchId || null);
       store.setPhase('matched');
       // Re-fetch token for new room
-      api.post(`/sessions/${sessionId}/token`).then(res => {
+      api.post(`/sessions/${sessionId}/token`, { roomId: data.roomId }).then(res => {
         const { token, livekitUrl } = res.data.data;
         store.setLiveKitToken(token, livekitUrl);
       }).catch(() => {});

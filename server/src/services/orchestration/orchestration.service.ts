@@ -60,6 +60,7 @@ export function initOrchestration(
 
     // Host controls
     socket.on('host:start_session', (data) => handleHostStart(socket, data));
+    socket.on('host:start_round', (data) => handleHostStartRound(socket, data));
     socket.on('host:pause_session', (data) => handleHostPause(socket, data));
     socket.on('host:resume_session', (data) => handleHostResume(socket, data));
     socket.on('host:end_session', (data) => handleHostEnd(socket, data));
@@ -352,6 +353,66 @@ async function handleHostStart(
   } catch (err: any) {
     logger.error({ err }, 'Error starting session');
     socket.emit('error', { code: 'START_FAILED', message: err.message });
+  }
+}
+
+// ─── Host Start Round (manual trigger) ──────────────────────────────────────
+
+async function handleHostStartRound(
+  socket: Socket,
+  data: { sessionId: string }
+): Promise<void> {
+  try {
+    if (!await verifyHost(socket, data.sessionId)) return;
+
+    const activeSession = activeSessions.get(data.sessionId);
+    if (!activeSession) {
+      socket.emit('error', { code: 'INVALID_STATE', message: 'Session is not active' });
+      return;
+    }
+
+    // Allow starting round from lobby or transition states
+    if (
+      activeSession.status !== SessionStatus.LOBBY_OPEN &&
+      activeSession.status !== SessionStatus.ROUND_TRANSITION
+    ) {
+      socket.emit('error', {
+        code: 'INVALID_STATE',
+        message: 'Can only start a round from the lobby or transition phase',
+      });
+      return;
+    }
+
+    // Need at least 2 participants with eligible status
+    const countResult = await query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM session_participants
+       WHERE session_id = $1 AND status IN ('in_lobby', 'checked_in', 'registered')`,
+      [data.sessionId]
+    );
+    const participantCount = parseInt(countResult.rows[0].count, 10);
+    if (participantCount < 2) {
+      socket.emit('error', {
+        code: 'NOT_ENOUGH_PARTICIPANTS',
+        message: `Need at least 2 participants to start a round (currently ${participantCount})`,
+      });
+      return;
+    }
+
+    // Clear the lobby/transition timer — host is overriding
+    if (activeSession.timer) {
+      clearTimeout(activeSession.timer);
+      activeSession.timer = null;
+    }
+
+    const nextRound = activeSession.status === SessionStatus.LOBBY_OPEN
+      ? 1
+      : activeSession.currentRound + 1;
+
+    logger.info({ sessionId: data.sessionId, roundNumber: nextRound }, 'Host manually starting round');
+    await transitionToRound(data.sessionId, nextRound);
+  } catch (err: any) {
+    logger.error({ err }, 'Error starting round');
+    socket.emit('error', { code: 'START_ROUND_FAILED', message: err.message });
   }
 }
 

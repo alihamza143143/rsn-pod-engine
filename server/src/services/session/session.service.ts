@@ -371,7 +371,7 @@ export async function incrementRoundsCompleted(sessionId: string, userId: string
 
 // ─── LiveKit Token Generation ──────────────────────────────────────────────
 
-export async function generateLiveKitToken(sessionId: string, userId: string): Promise<{ token: string; livekitUrl: string }> {
+export async function generateLiveKitToken(sessionId: string, userId: string, roomId?: string): Promise<{ token: string; livekitUrl: string }> {
   const { AccessToken } = await import('livekit-server-sdk');
   const config = (await import('../../config')).default;
 
@@ -395,8 +395,8 @@ export async function generateLiveKitToken(sessionId: string, userId: string): P
       ttl: 3600,
     });
 
-    // Room name is the lobby room for this session
-    const roomName = session.lobbyRoomId || `session-${sessionId}`;
+    // Use the match-specific room if provided, otherwise fall back to session room
+    const roomName = roomId || session.lobbyRoomId || `session-${sessionId}`;
     at.addGrant({ room: roomName, roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true });
 
     const token = await at.toJwt();
