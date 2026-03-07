@@ -1522,3 +1522,82 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
 - Zero TypeScript compile errors (both client and server)
 - All routes properly wired
 - Edit/delete flows protected by role checks server-side
+
+---
+
+### T-024: UI/UX Fixes + Google OAuth + Invite-Code Gated Signup (Complete ✅)
+
+**Date:** 2026-03-09
+**Status:** COMPLETE
+**Objective:** Implement comprehensive round of UI/UX fixes from live testing + Google OAuth login + invite-code gated signup
+
+#### Frontend Fixes:
+
+**1. Hide Archived Pods from Lists**
+- `PodsPage.tsx`, `HomePage.tsx`, `CreateSessionPage.tsx`: Changed pod fetch queries from `/pods` to `/pods?status=active`.
+
+**2. Hide Actions on Archived Pod Detail**
+- `PodDetailPage.tsx`: Wrapped entire actions section (Schedule, Edit, Delete, Leave) in `pod.status !== 'archived'` conditional.
+
+**3. Date Picker Auto-Close**
+- `CreateSessionPage.tsx`: Added `onChangeCapture` handler that blurs the datetime-local input to dismiss the native calendar overlay after selection.
+
+**4. Sessions List — Show Pod Name + Host Badge**
+- `SessionsPage.tsx`: Complete rewrite. Shows session title as primary text, pod name and host display name in subtitle. Displays "Hosting" badge with Mic icon for sessions the user is hosting.
+- `server/src/services/session/session.service.ts`: `listSessions()` now uses LEFT JOIN on `pods` and `users` tables to include `podName` and `hostDisplayName` in results.
+
+**5. Post-Rating UX Improvement**
+- `RatingPrompt.tsx`: After successful rating submission, shows "Rating Submitted!" confirmation card with emerald checkmark and "Waiting for the next round..." instead of immediately returning to lobby.
+
+**6. Participant Leave Button**
+- `LiveSessionPage.tsx`: Added top bar with session title and Leave button (LogOut icon, ghost style). `handleLeave` disconnects socket, resets store, navigates to `/sessions`.
+
+**7. Session Complete Detection on Refresh**
+- `LiveSessionPage.tsx`: Added `useEffect` that detects `session?.status === 'completed'` and sets phase to `complete`, handling the case where a user refreshes after session ends.
+
+#### Google OAuth (Backend):
+
+**8. Google OAuth Backend**
+- `config/index.ts`: Added `googleClientId` and `googleClientSecret` env vars.
+- `routes/auth.ts`: Added `GET /auth/google` (builds Google OAuth URL, redirects) and `GET /auth/google/callback` (exchanges code for tokens via native `fetch`, gets userinfo, creates/finds user, redirects to client with JWT pair).
+- `identity.service.ts`: Added `findOrCreateGoogleUser()` — validates invite for new users, creates user with Google profile data (email, name, avatar), marks invite used, generates JWT pair. For existing users, updates avatar if missing.
+
+#### Google OAuth (Frontend):
+
+**9. Google OAuth Frontend**
+- `LoginPage.tsx`: Complete rewrite with Google login button (colored SVG icon + "Continue with Google"), OR divider, invite code field with helper text, error display for OAuth redirect errors.
+- `VerifyPage.tsx`: Now handles both magic link (`?token=`) and Google OAuth (`?accessToken=&refreshToken=`) verification flows.
+- `authStore.ts`: Added `inviteCode` parameter to `login()`, new `setTokensAndLoad()` method for Google OAuth token handling.
+
+#### Invite-Code Gated Signup:
+
+**10. Invite Validation Backend**
+- `identity.service.ts`: `sendMagicLink()` now checks if user exists first — new users must provide a valid invite code (validates existence, status, expiry, max uses). Returning users skip invite check.
+- `shared/src/types/api.ts`: Added `INVITE_REQUIRED` and `INVALID_INVITE` error codes.
+
+**11. Invite Code Frontend**
+- `LoginPage.tsx`: Invite code input field shown on login page with helper text "Already have an account? Leave blank to sign in."
+
+#### Files Modified:
+- `client/src/features/pods/PodsPage.tsx`
+- `client/src/features/home/HomePage.tsx`
+- `client/src/features/sessions/CreateSessionPage.tsx`
+- `client/src/features/pods/PodDetailPage.tsx`
+- `client/src/features/sessions/SessionsPage.tsx`
+- `client/src/features/live/RatingPrompt.tsx`
+- `client/src/features/live/LiveSessionPage.tsx`
+- `client/src/features/auth/LoginPage.tsx`
+- `client/src/features/auth/VerifyPage.tsx`
+- `client/src/stores/authStore.ts`
+- `server/src/config/index.ts`
+- `server/src/routes/auth.ts`
+- `server/src/services/identity/identity.service.ts`
+- `server/src/services/session/session.service.ts`
+- `shared/src/types/api.ts`
+- `server/src/__tests__/services/identity.service.test.ts`
+
+#### Validation:
+- 247 server tests passing, 29 shared tests passing (276 total)
+- Zero TypeScript compile errors
+- Server restarted and healthy on port 3001
+- Cloudflare tunnel verified active

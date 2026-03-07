@@ -137,26 +137,28 @@ export default function PodDetailPage() {
       </Card>
 
       {/* Actions */}
-      <div className="flex flex-wrap gap-3 animate-fade-in-up stagger-1">
-        <Button onClick={() => navigate(`/sessions/new?podId=${podId}`)} className="btn-glow">
-          <Calendar className="h-4 w-4 mr-2" /> Schedule Session
-        </Button>
-        {isDirector && (
-          <Button variant="secondary" onClick={openEdit}>
-            <Pencil className="h-4 w-4 mr-2" /> Edit Pod
+      {pod.status !== 'archived' && (
+        <div className="flex flex-wrap gap-3 animate-fade-in-up stagger-1">
+          <Button onClick={() => navigate(`/sessions/new?podId=${podId}`)} className="btn-glow">
+            <Calendar className="h-4 w-4 mr-2" /> Schedule Session
           </Button>
-        )}
-        {isDirector && (
-          <Button variant="danger" onClick={() => { if (confirm('Delete this pod? This cannot be undone.')) deleteMutation.mutate(); }} isLoading={deleteMutation.isPending}>
-            <Trash2 className="h-4 w-4 mr-2" /> Delete Pod
-          </Button>
-        )}
-        {myMembership && !isDirector && (
-          <Button variant="danger" onClick={() => leaveMutation.mutate()} isLoading={leaveMutation.isPending}>
-            <LogOut className="h-4 w-4 mr-2" /> Leave Pod
-          </Button>
-        )}
-      </div>
+          {isDirector && (
+            <Button variant="secondary" onClick={openEdit}>
+              <Pencil className="h-4 w-4 mr-2" /> Edit Pod
+            </Button>
+          )}
+          {isDirector && (
+            <Button variant="danger" onClick={() => { if (confirm('Delete this pod? This cannot be undone.')) deleteMutation.mutate(); }} isLoading={deleteMutation.isPending}>
+              <Trash2 className="h-4 w-4 mr-2" /> Delete Pod
+            </Button>
+          )}
+          {myMembership && !isDirector && (
+            <Button variant="danger" onClick={() => leaveMutation.mutate()} isLoading={leaveMutation.isPending}>
+              <LogOut className="h-4 w-4 mr-2" /> Leave Pod
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Edit Modal */}
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Pod">

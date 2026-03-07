@@ -9,7 +9,7 @@ import config from '../../config';
 import logger from '../../config/logger';
 import {
   User, UserRole, CreateUserInput, UpdateUserInput,
-  AuthTokenPair, JwtPayload,
+  AuthTokenPair, JwtPayload, ErrorCodes,
 } from '@rsn/shared';
 import { NotFoundError, ConflictError, UnauthorizedError, AppError } from '../../middleware/errors';
 import { sendMagicLinkEmail } from '../email/email.service';
@@ -162,8 +162,34 @@ function resolveClientBaseUrl(requestedClientUrl?: string): string {
   }
 }
 
-export async function sendMagicLink(email: string, requestedClientUrl?: string): Promise<{ sent: boolean; devLink?: string }> {
+export async function sendMagicLink(email: string, requestedClientUrl?: string, inviteCode?: string): Promise<{ sent: boolean; devLink?: string }> {
   const normalizedEmail = email.toLowerCase().trim();
+
+  // If the user does NOT exist yet, require a valid invite code (invite-only platform)
+  const existingUser = await getUserByEmail(normalizedEmail);
+  if (!existingUser) {
+    if (!inviteCode) {
+      throw new AppError(400, ErrorCodes.INVITE_REQUIRED, 'An invite code is required to create a new account');
+    }
+    // Validate the invite code exists, is not expired, and has uses remaining
+    const invResult = await query<{ id: string; status: string; use_count: number; max_uses: number; expires_at: Date | null }>(
+      `SELECT id, status, use_count, max_uses, expires_at FROM invites WHERE code = $1`,
+      [inviteCode]
+    );
+    if (invResult.rows.length === 0) {
+      throw new AppError(400, ErrorCodes.INVALID_INVITE, 'Invalid invite code');
+    }
+    const inv = invResult.rows[0];
+    if (inv.status === 'revoked') {
+      throw new AppError(400, ErrorCodes.INVALID_INVITE, 'This invite code has been revoked');
+    }
+    if (inv.status === 'expired' || (inv.expires_at && new Date(inv.expires_at) < new Date())) {
+      throw new AppError(400, ErrorCodes.INVALID_INVITE, 'This invite code has expired');
+    }
+    if (inv.use_count >= inv.max_uses) {
+      throw new AppError(400, ErrorCodes.INVALID_INVITE, 'This invite code has already been used');
+    }
+  }
 
   // Generate a secure random token
   const token = crypto.randomBytes(32).toString('hex');
@@ -335,6 +361,69 @@ export async function refreshAccessToken(refreshToken: string): Promise<AuthToke
     }
     throw new UnauthorizedError('Invalid refresh token');
   }
+}
+
+// ─── Google OAuth ───────────────────────────────────────────────────────────
+
+export async function findOrCreateGoogleUser(
+  profile: { email: string; name?: string; picture?: string },
+  inviteCode?: string,
+): Promise<AuthTokenPair> {
+  const normalizedEmail = profile.email.toLowerCase().trim();
+  let user = await getUserByEmail(normalizedEmail);
+
+  if (!user) {
+    // New user — validate invite code (invite-only platform)
+    if (!inviteCode) {
+      throw new AppError(400, ErrorCodes.INVITE_REQUIRED, 'An invite code is required to create a new account');
+    }
+    const invResult = await query<{ id: string; status: string; use_count: number; max_uses: number; expires_at: Date | null }>(
+      `SELECT id, status, use_count, max_uses, expires_at FROM invites WHERE code = $1`,
+      [inviteCode]
+    );
+    if (invResult.rows.length === 0) {
+      throw new AppError(400, ErrorCodes.INVALID_INVITE, 'Invalid invite code');
+    }
+    const inv = invResult.rows[0];
+    if (inv.status === 'revoked' || inv.status === 'expired' ||
+        (inv.expires_at && new Date(inv.expires_at) < new Date()) ||
+        inv.use_count >= inv.max_uses) {
+      throw new AppError(400, ErrorCodes.INVALID_INVITE, 'This invite code is no longer valid');
+    }
+
+    // Create the user
+    const id = uuid();
+    const displayName = profile.name || normalizedEmail.split('@')[0];
+    await query(
+      `INSERT INTO users (id, email, display_name, avatar_url, role, status, email_verified)
+       VALUES ($1, $2, $3, $4, 'member', 'active', TRUE)`,
+      [id, normalizedEmail, displayName, profile.picture || null]
+    );
+    await query(`INSERT INTO user_subscriptions (user_id, plan, status) VALUES ($1, 'free', 'active')`, [id]);
+    await query(`INSERT INTO user_entitlements (user_id) VALUES ($1)`, [id]);
+
+    // Mark invite as used
+    const newCount = inv.use_count + 1;
+    const newStatus = newCount >= inv.max_uses ? 'accepted' : inv.status;
+    await query(
+      `UPDATE invites SET use_count = $1, status = $2, accepted_by_user_id = $3, accepted_at = NOW() WHERE id = $4`,
+      [newCount, newStatus, id, inv.id]
+    );
+
+    user = await getUserById(id);
+    logger.info({ userId: id, email: normalizedEmail }, 'Google OAuth: new user created');
+  } else {
+    // Update avatar if provided and user doesn't have one
+    if (profile.picture && !user.avatarUrl) {
+      await query('UPDATE users SET avatar_url = $1 WHERE id = $2', [profile.picture, user.id]);
+    }
+    if (!user.emailVerified) {
+      await query('UPDATE users SET email_verified = TRUE WHERE id = $1', [user.id]);
+    }
+  }
+
+  await updateLastActive(user.id);
+  return generateTokenPair(user);
 }
 
 export async function logout(userId: string, sessionId: string): Promise<void> {

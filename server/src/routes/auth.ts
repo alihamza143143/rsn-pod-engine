@@ -6,6 +6,8 @@ import { authenticate } from '../middleware/auth';
 import { authLimiter } from '../middleware/rateLimit';
 import * as identityService from '../services/identity/identity.service';
 import { ApiResponse } from '@rsn/shared';
+import config from '../config';
+import logger from '../config/logger';
 
 const router = Router();
 
@@ -14,6 +16,7 @@ const router = Router();
 const magicLinkSchema = z.object({
   email: z.string().email('Valid email is required').max(255),
   clientUrl: z.string().url('Valid client URL is required').max(2048).optional(),
+  inviteCode: z.string().max(20).optional(),
 });
 
 const verifySchema = z.object({
@@ -32,8 +35,8 @@ router.post(
   validate(magicLinkSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { email, clientUrl } = req.body;
-      const result = await identityService.sendMagicLink(email, clientUrl);
+      const { email, clientUrl, inviteCode } = req.body;
+      const result = await identityService.sendMagicLink(email, clientUrl, inviteCode);
 
       const response: ApiResponse = {
         success: true,
@@ -135,6 +138,101 @@ router.get(
       res.json(response);
     } catch (err) {
       next(err);
+    }
+  }
+);
+
+// ─── Google OAuth ───────────────────────────────────────────────────────────
+
+router.get(
+  '/google',
+  (req: Request, res: Response) => {
+    if (!config.googleClientId) {
+      res.status(501).json({ success: false, error: { message: 'Google login is not configured' } });
+      return;
+    }
+
+    const inviteCode = (req.query.inviteCode as string) || '';
+    const state = Buffer.from(JSON.stringify({ inviteCode })).toString('base64url');
+
+    const params = new URLSearchParams({
+      client_id: config.googleClientId,
+      redirect_uri: `${config.apiBaseUrl}/api/auth/google/callback`,
+      response_type: 'code',
+      scope: 'openid email profile',
+      access_type: 'offline',
+      prompt: 'consent',
+      state,
+    });
+
+    res.redirect(`https://accounts.google.com/o/oauth2/v2/auth?${params}`);
+  }
+);
+
+router.get(
+  '/google/callback',
+  async (req: Request, res: Response) => {
+    const { code, state } = req.query as Record<string, string>;
+
+    if (!code) {
+      res.redirect(`${config.clientUrl}/login?error=google_auth_failed`);
+      return;
+    }
+
+    let inviteCode = '';
+    try {
+      const decoded = JSON.parse(Buffer.from(state || '', 'base64url').toString());
+      inviteCode = decoded.inviteCode || '';
+    } catch { /* ignore bad state */ }
+
+    try {
+      // Exchange authorization code for tokens
+      const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code,
+          client_id: config.googleClientId,
+          client_secret: config.googleClientSecret,
+          redirect_uri: `${config.apiBaseUrl}/api/auth/google/callback`,
+          grant_type: 'authorization_code',
+        }),
+      });
+      const tokenData = await tokenRes.json() as { access_token?: string };
+
+      if (!tokenData.access_token) {
+        logger.warn({ tokenData }, 'Google OAuth: failed to get access token');
+        res.redirect(`${config.clientUrl}/login?error=google_auth_failed`);
+        return;
+      }
+
+      // Get user profile from Google
+      const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+        headers: { Authorization: `Bearer ${tokenData.access_token}` },
+      });
+      const profile = await userInfoRes.json() as { email: string; name?: string; picture?: string };
+
+      if (!profile.email) {
+        res.redirect(`${config.clientUrl}/login?error=google_auth_failed`);
+        return;
+      }
+
+      // Find or create user and generate JWT pair
+      const tokens = await identityService.findOrCreateGoogleUser(
+        { email: profile.email, name: profile.name, picture: profile.picture },
+        inviteCode || undefined,
+      );
+
+      // Redirect to client with tokens
+      const params = new URLSearchParams({
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+      });
+      res.redirect(`${config.clientUrl}/auth/verify?${params}`);
+    } catch (err: any) {
+      const errorCode = err?.code || 'google_auth_failed';
+      logger.error({ err }, 'Google OAuth callback error');
+      res.redirect(`${config.clientUrl}/login?error=${encodeURIComponent(errorCode)}`);
     }
   }
 );

@@ -8,8 +8,9 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
 
-  login: (email: string, clientUrl?: string) => Promise<any>;
+  login: (email: string, clientUrl?: string, inviteCode?: string) => Promise<any>;
   verify: (token: string) => Promise<void>;
+  setTokensAndLoad: (accessToken: string, refreshToken: string) => Promise<void>;
   checkSession: () => Promise<void>;
   refreshAccessToken: () => Promise<void>;
   logout: () => void;
@@ -23,14 +24,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: !!localStorage.getItem('rsn_access'),
   isLoading: true,
 
-  login: async (email: string, clientUrl?: string) => {
-    const { data } = await api.post('/auth/magic-link', { email, clientUrl });
+  login: async (email: string, clientUrl?: string, inviteCode?: string) => {
+    const { data } = await api.post('/auth/magic-link', { email, clientUrl, inviteCode });
     return data;
   },
 
   verify: async (token: string) => {
     const { data } = await api.post('/auth/verify', { token });
     const { accessToken, refreshToken } = data.data;
+    localStorage.setItem('rsn_access', accessToken);
+    localStorage.setItem('rsn_refresh', refreshToken);
+    set({ accessToken, refreshToken, isAuthenticated: true });
+    await get().checkSession();
+  },
+
+  setTokensAndLoad: async (accessToken: string, refreshToken: string) => {
     localStorage.setItem('rsn_access', accessToken);
     localStorage.setItem('rsn_refresh', refreshToken);
     set({ accessToken, refreshToken, isAuthenticated: true });

@@ -3,7 +3,7 @@ import Card from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useToastStore } from '@/stores/toastStore';
-import { Star, UserCheck } from 'lucide-react';
+import { Star, UserCheck, CheckCircle } from 'lucide-react';
 import api from '@/lib/api';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -15,6 +15,7 @@ export default function RatingPrompt(_props: Props) {
   const [rating, setRating] = useState(0);
   const [meetAgain, setMeetAgain] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const submit = async () => {
     if (!currentMatchId || !currentMatch) {
@@ -31,7 +32,7 @@ export default function RatingPrompt(_props: Props) {
         meetAgain,
       });
       addToast('Rating submitted!', 'success');
-      setPhase('lobby');
+      setSubmitted(true);
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message || 'Failed to submit rating';
       addToast(msg, 'error');
@@ -39,6 +40,20 @@ export default function RatingPrompt(_props: Props) {
       setSubmitting(false);
     }
   };
+
+  if (submitted) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full text-center">
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-500/20 text-emerald-400 mb-4">
+            <CheckCircle className="h-8 w-8" />
+          </div>
+          <h2 className="text-xl font-bold text-surface-100 mb-2">Rating Submitted!</h2>
+          <p className="text-surface-400">Waiting for the next round to begin...</p>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 flex items-center justify-center p-4">

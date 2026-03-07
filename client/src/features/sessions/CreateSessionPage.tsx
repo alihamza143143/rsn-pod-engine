@@ -29,7 +29,7 @@ export default function CreateSessionPage() {
 
   const { data: pods } = useQuery({
     queryKey: ['my-pods'],
-    queryFn: () => api.get('/pods').then(r => r.data.data ?? []),
+    queryFn: () => api.get('/pods?status=active').then(r => r.data.data ?? []),
   });
 
   const { register, handleSubmit, formState: { errors } } = useForm<SessionForm>({
@@ -105,7 +105,13 @@ export default function CreateSessionPage() {
                 className="w-full rounded-xl border border-surface-700 bg-surface-800/50 px-4 py-2.5 text-sm text-surface-100 placeholder:text-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all duration-200 resize-none"
               />
             </div>
-            <Input label="Scheduled At" type="datetime-local" {...register('scheduledAt', { required: 'Required' })} error={errors.scheduledAt?.message} />
+            <Input
+              label="Scheduled At"
+              type="datetime-local"
+              {...register('scheduledAt', { required: 'Required' })}
+              onChangeCapture={(e) => (e.target as HTMLInputElement).blur()}
+              error={errors.scheduledAt?.message}
+            />
           </div>
         </Card>
 

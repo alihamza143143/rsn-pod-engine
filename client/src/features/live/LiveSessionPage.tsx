@@ -1,4 +1,5 @@
-import { useParams } from 'react-router-dom';
+import { useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -9,12 +10,14 @@ import RatingPrompt from './RatingPrompt';
 import SessionComplete from './SessionComplete';
 import HostControls from './HostControls';
 import { PageLoader } from '@/components/ui/Spinner';
-import { AlertCircle, X } from 'lucide-react';
+import { AlertCircle, X, LogOut } from 'lucide-react';
 import api from '@/lib/api';
+import { disconnectSocket } from '@/lib/socket';
 
 export default function LiveSessionPage() {
   const { sessionId } = useParams();
-  const { phase, broadcasts, error: sessionError, setError } = useSessionStore();
+  const navigate = useNavigate();
+  const { phase, broadcasts, error: sessionError, setError, setPhase, reset } = useSessionStore();
   const { user } = useAuthStore();
 
   const { data: session } = useQuery({
@@ -27,10 +30,34 @@ export default function LiveSessionPage() {
 
   useSessionSocket(sessionId!);
 
+  // If session is already completed (e.g. page refresh), show complete phase
+  useEffect(() => {
+    if (session?.status === 'completed') {
+      setPhase('complete');
+    }
+  }, [session?.status, setPhase]);
+
+  const handleLeave = () => {
+    disconnectSocket();
+    reset();
+    navigate('/sessions');
+  };
+
   if (!sessionId) return <PageLoader />;
 
   return (
     <div className="h-screen bg-surface-950 flex flex-col">
+      {/* Top bar */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-surface-800 bg-surface-900/60">
+        <h2 className="text-sm font-medium text-surface-300 truncate">{session?.title || 'Live Session'}</h2>
+        <button
+          onClick={handleLeave}
+          className="flex items-center gap-1.5 text-sm text-surface-400 hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-surface-800"
+        >
+          <LogOut className="h-4 w-4" /> Leave
+        </button>
+      </div>
+
       {/* Broadcast banner */}
       {broadcasts.length > 0 && (
         <div className="bg-brand-500/20 border-b border-brand-500/30 px-4 py-2 text-center">

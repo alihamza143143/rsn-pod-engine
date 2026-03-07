@@ -1,15 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Plus } from 'lucide-react';
+import { Calendar, Plus, Mic } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import EmptyState from '@/components/ui/EmptyState';
 import { PageLoader } from '@/components/ui/Spinner';
+import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/api';
 
 export default function SessionsPage() {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const { data, isLoading } = useQuery({
     queryKey: ['my-sessions'],
     queryFn: () => api.get('/sessions').then(r => r.data.data ?? []),
@@ -40,19 +42,35 @@ export default function SessionsPage() {
         />
       ) : (
         <div className="grid gap-4 animate-fade-in-up">
-          {data.map((s: any) => (
-            <Card key={s.id} hover onClick={() => navigate(`/sessions/${s.id}`)} className="card-hover">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-surface-200">
-                    {s.scheduledAt ? new Date(s.scheduledAt).toLocaleString() : 'No date'}
-                  </p>
-                  <p className="text-sm text-surface-400">{s.title || 'Open session'}</p>
+          {data.map((s: any) => {
+            const isHost = s.hostUserId === user?.id;
+            return (
+              <Card key={s.id} hover onClick={() => navigate(`/sessions/${s.id}`)} className="card-hover">
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-medium text-surface-200">
+                        {s.title || 'Open session'}
+                      </p>
+                      {isHost && (
+                        <Badge variant="brand" className="text-xs">
+                          <Mic className="h-3 w-3 mr-1" /> Hosting
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-surface-400 mt-0.5">
+                      {s.scheduledAt ? new Date(s.scheduledAt).toLocaleString() : 'No date'}
+                      {s.podName && <span className="ml-2 text-surface-500">· {s.podName}</span>}
+                      {s.hostDisplayName && !isHost && (
+                        <span className="ml-2 text-surface-500">· Host: {s.hostDisplayName}</span>
+                      )}
+                    </p>
+                  </div>
+                  <Badge variant={statusVariant(s.status)}>{s.status}</Badge>
                 </div>
-                <Badge variant={statusVariant(s.status)}>{s.status}</Badge>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

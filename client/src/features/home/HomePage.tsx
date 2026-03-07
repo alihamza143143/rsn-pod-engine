@@ -13,7 +13,7 @@ export default function HomePage() {
 
   const { data: pods, isLoading: podsLoading } = useQuery({
     queryKey: ['my-pods'],
-    queryFn: () => api.get('/pods').then(r => r.data.data ?? []),
+    queryFn: () => api.get('/pods?status=active').then(r => r.data.data ?? []),
   });
 
   const { data: sessions, isLoading: sessionsLoading } = useQuery({

@@ -151,27 +151,36 @@ export async function listSessions(params: {
   let paramIdx = 1;
 
   if (params.podId) {
-    whereClause += ` AND pod_id = $${paramIdx}`;
+    whereClause += ` AND s.pod_id = $${paramIdx}`;
     values.push(params.podId);
     paramIdx++;
   }
 
   if (params.status) {
-    whereClause += ` AND status = $${paramIdx}`;
+    whereClause += ` AND s.status = $${paramIdx}`;
     values.push(params.status);
     paramIdx++;
   }
 
   const countResult = await query<{ count: string }>(
-    `SELECT COUNT(*) as count FROM sessions ${whereClause}`,
+    `SELECT COUNT(*) as count FROM sessions s ${whereClause}`,
     values
   );
   const total = parseInt(countResult.rows[0].count, 10);
 
   values.push(pageSize, offset);
-  const result = await query<Session>(
-    `SELECT ${SESSION_COLUMNS} FROM sessions ${whereClause}
-     ORDER BY scheduled_at DESC
+  const result = await query<Session & { podName?: string; hostDisplayName?: string }>(
+    `SELECT s.id, s.pod_id AS "podId", s.title, s.description, s.scheduled_at AS "scheduledAt",
+            s.started_at AS "startedAt", s.ended_at AS "endedAt", s.status,
+            s.current_round AS "currentRound", s.config, s.host_user_id AS "hostUserId",
+            s.lobby_room_id AS "lobbyRoomId", s.created_at AS "createdAt", s.updated_at AS "updatedAt",
+            p.name AS "podName",
+            u.display_name AS "hostDisplayName"
+     FROM sessions s
+     LEFT JOIN pods p ON s.pod_id = p.id
+     LEFT JOIN users u ON s.host_user_id = u.id
+     ${whereClause}
+     ORDER BY s.scheduled_at DESC
      LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
     values
   );

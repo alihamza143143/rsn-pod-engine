@@ -6,23 +6,37 @@ import { PageLoader } from '@/components/ui/Spinner';
 export default function VerifyPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
-  const { verify } = useAuthStore();
+  const { verify, setTokensAndLoad } = useAuthStore();
   const [error, setError] = useState<string | null>(null);
   const called = useRef(false);
 
   useEffect(() => {
-    const token = params.get('token');
-    if (!token) { setError('Missing token'); return; }
     if (called.current) return;
     called.current = true;
-    verify(token)
-      .then(() => {
-        // Check for stored redirect path (from invite flow)
-        const redirect = sessionStorage.getItem('rsn_redirect');
-        sessionStorage.removeItem('rsn_redirect');
-        navigate(redirect || '/', { replace: true });
-      })
-      .catch(() => setError('Invalid or expired link. Please try again.'));
+
+    const token = params.get('token');
+    const accessToken = params.get('accessToken');
+    const refreshToken = params.get('refreshToken');
+
+    const redirectAfterAuth = () => {
+      const redirect = sessionStorage.getItem('rsn_redirect');
+      sessionStorage.removeItem('rsn_redirect');
+      navigate(redirect || '/', { replace: true });
+    };
+
+    if (accessToken && refreshToken) {
+      // Google OAuth flow — tokens provided directly
+      setTokensAndLoad(accessToken, refreshToken)
+        .then(redirectAfterAuth)
+        .catch(() => setError('Failed to authenticate with Google. Please try again.'));
+    } else if (token) {
+      // Magic link flow
+      verify(token)
+        .then(redirectAfterAuth)
+        .catch(() => setError('Invalid or expired link. Please try again.'));
+    } else {
+      setError('Missing authentication token');
+    }
   }, []);
 
   if (error) {
