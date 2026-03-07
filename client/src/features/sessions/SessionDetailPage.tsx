@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Calendar, Users, Play, Clock, UserPlus, UserMinus, Settings, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Calendar, Users, Play, Clock, UserPlus, UserMinus, Settings, CheckCircle, Pencil, Trash2 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
+import Modal from '@/components/ui/Modal';
 import { PageLoader } from '@/components/ui/Spinner';
 import { useToastStore } from '@/stores/toastStore';
 import api from '@/lib/api';
@@ -16,6 +19,10 @@ export default function SessionDetailPage() {
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
   const qc = useQueryClient();
+  const [editOpen, setEditOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editDescription, setEditDescription] = useState('');
+  const [editScheduledAt, setEditScheduledAt] = useState('');
 
   const { data: session, isLoading } = useQuery({
     queryKey: ['session', sessionId],
@@ -30,6 +37,32 @@ export default function SessionDetailPage() {
 
   const isHost = session?.hostUserId === user?.id || user?.role === 'admin';
   const isRegistered = (participants || []).some((p: any) => p.userId === user?.id);
+
+  const updateMutation = useMutation({
+    mutationFn: (body: { title?: string; description?: string; scheduledAt?: string }) => api.put(`/sessions/${sessionId}`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['session', sessionId] });
+      addToast('Session updated', 'success');
+      setEditOpen(false);
+    },
+    onError: () => addToast('Failed to update session', 'error'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => api.delete(`/sessions/${sessionId}`),
+    onSuccess: () => {
+      addToast('Session deleted', 'success');
+      navigate('/sessions');
+    },
+    onError: () => addToast('Failed to delete session', 'error'),
+  });
+
+  const openEdit = () => {
+    setEditTitle(session?.title || '');
+    setEditDescription(session?.description || '');
+    setEditScheduledAt(session?.scheduledAt ? new Date(session.scheduledAt).toISOString().slice(0, 16) : '');
+    setEditOpen(true);
+  };
 
   const registerMutation = useMutation({
     mutationFn: () => api.post(`/sessions/${sessionId}/register`),
@@ -137,6 +170,16 @@ export default function SessionDetailPage() {
             <Settings className="h-4 w-4 mr-2" /> Host Controls
           </Button>
         )}
+        {isHost && session.status === 'scheduled' && (
+          <Button variant="secondary" onClick={openEdit}>
+            <Pencil className="h-4 w-4 mr-2" /> Edit
+          </Button>
+        )}
+        {isHost && (session.status === 'scheduled' || session.status === 'completed') && (
+          <Button variant="danger" onClick={() => { if (confirm('Delete this session? This cannot be undone.')) deleteMutation.mutate(); }} isLoading={deleteMutation.isPending}>
+            <Trash2 className="h-4 w-4 mr-2" /> Delete
+          </Button>
+        )}
         {session.status === 'completed' && (
           <Button variant="secondary" onClick={() => navigate(`/sessions/${sessionId}/recap`)}>
             View Recap
@@ -174,6 +217,32 @@ export default function SessionDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Edit Modal */}
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Session">
+        <form onSubmit={e => {
+          e.preventDefault();
+          const body: any = {};
+          if (editTitle) body.title = editTitle;
+          if (editDescription !== undefined) body.description = editDescription;
+          if (editScheduledAt) body.scheduledAt = new Date(editScheduledAt).toISOString();
+          updateMutation.mutate(body);
+        }} className="space-y-4">
+          <Input label="Title" value={editTitle} onChange={e => setEditTitle(e.target.value)} required />
+          <div>
+            <label className="block text-sm font-medium text-surface-300 mb-1">Description</label>
+            <textarea
+              className="w-full rounded-lg bg-surface-800 border border-surface-700 px-3 py-2 text-surface-200 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+              rows={3} value={editDescription} onChange={e => setEditDescription(e.target.value)}
+            />
+          </div>
+          <Input label="Scheduled At" type="datetime-local" value={editScheduledAt} onChange={e => setEditScheduledAt(e.target.value)} />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button type="submit" isLoading={updateMutation.isPending}>Save</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

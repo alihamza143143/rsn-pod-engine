@@ -24,6 +24,11 @@ export default function useSessionSocket(sessionId: string) {
     connectSocket(token);
     const socket = getSocket();
 
+    // Send presence heartbeats every 15 seconds so server knows we're alive
+    const heartbeatInterval = setInterval(() => {
+      socket.emit('presence:heartbeat', { sessionId });
+    }, 15000);
+
     // Wait for connection before joining session
     const joinSession = () => {
       socket.emit('session:join', { sessionId });
@@ -73,6 +78,8 @@ export default function useSessionSocket(sessionId: string) {
       store.setByeRound(false);
       store.setMatch({ userId: data.partnerId, displayName: data.partnerId }, data.matchId);
       store.setPhase('matched');
+      // Store roomId for VideoRoom backup fetch
+      if (data.roomId) store.setRoomId(data.roomId);
       // Fetch LiveKit token for the match-specific video room
       api.post(`/sessions/${sessionId}/token`, { roomId: data.roomId }).then(res => {
         const { token, livekitUrl } = res.data.data;
@@ -144,6 +151,7 @@ export default function useSessionSocket(sessionId: string) {
 
     return () => {
       clearTimer();
+      clearInterval(heartbeatInterval);
       socket.off('connect', joinSession);
       socket.emit('session:leave', { sessionId });
       disconnectSocket();

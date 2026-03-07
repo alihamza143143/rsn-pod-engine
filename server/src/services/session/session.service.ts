@@ -371,6 +371,24 @@ export async function incrementRoundsCompleted(sessionId: string, userId: string
 
 // ─── LiveKit Token Generation ──────────────────────────────────────────────
 
+// ─── Delete Session ─────────────────────────────────────────────────────────
+
+export async function deleteSession(sessionId: string, userId: string): Promise<void> {
+  const session = await getSessionById(sessionId);
+
+  if (session.hostUserId !== userId) {
+    throw new ForbiddenError('Only the session host can delete the session');
+  }
+
+  if (session.status !== SessionStatus.SCHEDULED && session.status !== SessionStatus.COMPLETED) {
+    throw new AppError(400, 'SESSION_IN_PROGRESS', 'Cannot delete a session that is currently in progress');
+  }
+
+  // Soft-delete: mark as cancelled
+  await query(`UPDATE sessions SET status = 'cancelled', updated_at = NOW() WHERE id = $1`, [sessionId]);
+  logger.info({ sessionId, userId }, 'Session deleted (cancelled)');
+}
+
 export async function generateLiveKitToken(sessionId: string, userId: string, roomId?: string): Promise<{ token: string; livekitUrl: string }> {
   const { AccessToken } = await import('livekit-server-sdk');
   const config = (await import('../../config')).default;

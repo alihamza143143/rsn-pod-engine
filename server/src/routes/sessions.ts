@@ -101,6 +101,23 @@ router.put(
   }
 );
 
+// ─── DELETE /sessions/:id ───────────────────────────────────────────────────
+
+router.delete(
+  '/:id',
+  authenticate,
+  auditMiddleware('delete_session', 'session'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await sessionService.deleteSession(req.params.id, req.user!.userId);
+      const response: ApiResponse = { success: true, data: { message: 'Session deleted' } };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // ─── GET /sessions (by pod) ─────────────────────────────────────────────────
 
 router.get(

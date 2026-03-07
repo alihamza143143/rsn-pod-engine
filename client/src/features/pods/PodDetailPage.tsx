@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Users, Calendar, LogOut, Shield, UserMinus, Eye, Radio } from 'lucide-react';
+import { ArrowLeft, Users, Calendar, LogOut, Shield, UserMinus, Eye, Radio, Pencil, Trash2 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
+import Input from '@/components/ui/Input';
+import Modal from '@/components/ui/Modal';
 import { PageLoader } from '@/components/ui/Spinner';
 import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
@@ -25,6 +28,9 @@ export default function PodDetailPage() {
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
   const qc = useQueryClient();
+  const [editOpen, setEditOpen] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
 
   const { data: pod, isLoading } = useQuery({
     queryKey: ['pod', podId],
@@ -54,6 +60,31 @@ export default function PodDetailPage() {
     },
     onError: () => addToast('Failed to remove member', 'error'),
   });
+
+  const updateMutation = useMutation({
+    mutationFn: (body: { name?: string; description?: string }) => api.put(`/pods/${podId}`, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pod', podId] });
+      addToast('Pod updated', 'success');
+      setEditOpen(false);
+    },
+    onError: () => addToast('Failed to update pod', 'error'),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => api.delete(`/pods/${podId}`),
+    onSuccess: () => {
+      addToast('Pod deleted', 'success');
+      navigate('/pods');
+    },
+    onError: () => addToast('Failed to delete pod', 'error'),
+  });
+
+  const openEdit = () => {
+    setEditName(pod?.name || '');
+    setEditDescription(pod?.description || '');
+    setEditOpen(true);
+  };
 
   if (isLoading) return <PageLoader />;
   if (!pod) return <p className="text-surface-400 text-center py-20">Pod not found</p>;
@@ -110,12 +141,40 @@ export default function PodDetailPage() {
         <Button onClick={() => navigate(`/sessions/new?podId=${podId}`)} className="btn-glow">
           <Calendar className="h-4 w-4 mr-2" /> Schedule Session
         </Button>
+        {isDirector && (
+          <Button variant="secondary" onClick={openEdit}>
+            <Pencil className="h-4 w-4 mr-2" /> Edit Pod
+          </Button>
+        )}
+        {isDirector && (
+          <Button variant="danger" onClick={() => { if (confirm('Delete this pod? This cannot be undone.')) deleteMutation.mutate(); }} isLoading={deleteMutation.isPending}>
+            <Trash2 className="h-4 w-4 mr-2" /> Delete Pod
+          </Button>
+        )}
         {myMembership && !isDirector && (
           <Button variant="danger" onClick={() => leaveMutation.mutate()} isLoading={leaveMutation.isPending}>
             <LogOut className="h-4 w-4 mr-2" /> Leave Pod
           </Button>
         )}
       </div>
+
+      {/* Edit Modal */}
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Pod">
+        <form onSubmit={e => { e.preventDefault(); updateMutation.mutate({ name: editName, description: editDescription }); }} className="space-y-4">
+          <Input label="Pod Name" value={editName} onChange={e => setEditName(e.target.value)} required />
+          <div>
+            <label className="block text-sm font-medium text-surface-300 mb-1">Description</label>
+            <textarea
+              className="w-full rounded-lg bg-surface-800 border border-surface-700 px-3 py-2 text-surface-200 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+              rows={3} value={editDescription} onChange={e => setEditDescription(e.target.value)}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={() => setEditOpen(false)}>Cancel</Button>
+            <Button type="submit" isLoading={updateMutation.isPending}>Save</Button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Members */}
       <div className="animate-fade-in-up stagger-2">

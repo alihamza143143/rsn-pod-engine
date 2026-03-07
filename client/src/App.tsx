@@ -3,6 +3,8 @@ import { Routes, Route } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import AppLayout from '@/components/layout/AppLayout';
 import ProtectedRoute from '@/components/layout/ProtectedRoute';
+import LandingPage from '@/features/public/LandingPage';
+import HowItWorksPage from '@/features/public/HowItWorksPage';
 import LoginPage from '@/features/auth/LoginPage';
 import VerifyPage from '@/features/auth/VerifyPage';
 import HomePage from '@/features/home/HomePage';
@@ -33,7 +35,9 @@ export default function App() {
 
   return (
     <Routes>
-      {/* Public */}
+      {/* Public pages */}
+      <Route path="/welcome" element={<LandingPage />} />
+      <Route path="/how-it-works" element={<HowItWorksPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/auth/verify" element={<VerifyPage />} />
       <Route path="/invite/:code" element={<InviteAcceptPage />} />

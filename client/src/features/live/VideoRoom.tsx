@@ -116,7 +116,7 @@ function MediaControls() {
 }
 
 export default function VideoRoom() {
-  const { timerSeconds, currentRound, isByeRound, liveKitToken, livekitUrl } = useSessionStore();
+  const { timerSeconds, currentRound, isByeRound, liveKitToken, livekitUrl, currentRoomId } = useSessionStore();
   const { setLiveKitToken } = useSessionStore();
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
@@ -124,7 +124,7 @@ export default function VideoRoom() {
   const sessionId = window.location.pathname.split('/session/')[1]?.split('/')[0];
   useEffect(() => {
     if (!liveKitToken && sessionId) {
-      api.post(`/sessions/${sessionId}/token`).then(res => {
+      api.post(`/sessions/${sessionId}/token`, currentRoomId ? { roomId: currentRoomId } : {}).then(res => {
         const { token, livekitUrl: url } = res.data.data;
         setLiveKitToken(token, url);
       }).catch(() => setConnectionError('Failed to get video room access'));

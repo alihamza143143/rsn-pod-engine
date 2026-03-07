@@ -57,8 +57,9 @@ export async function submitRating(
     throw new ForbiddenError('You are not a participant in this match');
   }
 
-  // Check match status allows rating (completed or active)
-  if (!['completed', 'active'].includes(match.status)) {
+  // Check match status allows rating (completed, active, or no_show — no_show can happen
+  // when heartbeat detection fires prematurely but users were still in the call)
+  if (!['completed', 'active', 'no_show'].includes(match.status)) {
     throw new ValidationError('Match is not in a ratable state');
   }
 

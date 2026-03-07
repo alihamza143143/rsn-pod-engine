@@ -264,6 +264,17 @@ export async function getMemberRole(podId: string, userId: string): Promise<PodM
   return result.rows.length > 0 ? result.rows[0].role : null;
 }
 
+// ─── Delete Pod ─────────────────────────────────────────────────────────────
+
+export async function deletePod(podId: string, userId: string): Promise<void> {
+  await getPodById(podId);
+  await requirePodRole(podId, userId, [PodMemberRole.DIRECTOR]);
+
+  // Soft-delete: archive the pod
+  await query(`UPDATE pods SET status = 'archived', updated_at = NOW() WHERE id = $1`, [podId]);
+  logger.info({ podId, userId }, 'Pod deleted (archived)');
+}
+
 // ─── Authorization Helpers ──────────────────────────────────────────────────
 
 async function requirePodRole(podId: string, userId: string, roles: PodMemberRole[]): Promise<void> {

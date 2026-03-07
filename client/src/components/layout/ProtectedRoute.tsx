@@ -8,6 +8,6 @@ export default function ProtectedRoute({ children }: { children?: ReactNode }) {
   const location = useLocation();
 
   if (isLoading) return <PageLoader />;
-  if (!user) return <Navigate to="/login" state={{ from: location }} replace />;
+  if (!user) return <Navigate to="/welcome" state={{ from: location }} replace />;
   return <>{children}</>;
 }

@@ -34,7 +34,6 @@ export default function HomePage() {
 
   // Unlock level logic (matching reference site)
   const unlockLevel = acceptedInvites.length >= 3 ? 'Pro' : acceptedInvites.length >= 1 ? 'Basic' : 'Starter';
-  const unlockedPods = acceptedInvites.length >= 3 ? 3 : acceptedInvites.length >= 1 ? 1 : 0;
 
   // Getting started checklist
   const hasProfile = !!(user?.bio || user?.linkedinUrl);
@@ -85,8 +84,8 @@ export default function HomePage() {
             <p className="text-sm text-surface-400">Unlock Level</p>
             <span className="text-xs font-medium text-brand-400">{unlockLevel}</span>
           </div>
-          <p className="text-3xl font-bold text-surface-100">{unlockedPods} Pods</p>
-          <p className="text-xs text-surface-500 mt-1">Unlocked capacity</p>
+          <p className="text-3xl font-bold text-surface-100">{acceptedInvites.length}/{unlockLevel === 'Starter' ? 1 : unlockLevel === 'Basic' ? 3 : '∞'}</p>
+          <p className="text-xs text-surface-500 mt-1">Accepted invites{unlockLevel === 'Starter' ? ' — invite 1 to unlock' : ''}</p>
         </Card>
       </div>
 

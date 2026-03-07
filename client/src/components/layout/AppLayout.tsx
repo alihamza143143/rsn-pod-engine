@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, Mail, User, LogOut, Menu, X, Shield, Settings, CreditCard, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, Mail, User, LogOut, Menu, X, Shield, Settings, CreditCard, HelpCircle, Heart } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import Avatar from '@/components/ui/Avatar';
@@ -18,6 +18,7 @@ export default function AppLayout() {
     { to: '/pods', icon: Users, label: 'Pods' },
     { to: '/invites', icon: Mail, label: 'Invite' },
     { to: '/sessions', icon: Calendar, label: 'Events' },
+    { to: '/encounters', icon: Heart, label: 'Encounters' },
     ...(user?.role === 'admin' ? [{ to: '/admin/users', icon: Shield, label: 'Admin' }] : []),
   ];
 

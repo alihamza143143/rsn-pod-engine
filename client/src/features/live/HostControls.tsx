@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { Button } from '@/components/ui/Button';
 import { Play, Square, Zap } from 'lucide-react';
@@ -8,8 +9,12 @@ interface Props { sessionId: string; }
 export default function HostControls({ sessionId }: Props) {
   const { participants, phase } = useSessionStore();
   const socket = getSocket();
+  const [sessionStarted, setSessionStarted] = useState(false);
 
-  const startSession = () => socket?.emit('host:start_session', { sessionId });
+  const startSession = () => {
+    socket?.emit('host:start_session', { sessionId });
+    setSessionStarted(true);
+  };
   const startRound = () => socket?.emit('host:start_round', { sessionId });
   const endSession = () => socket?.emit('host:end_session', { sessionId });
 
@@ -18,13 +23,15 @@ export default function HostControls({ sessionId }: Props) {
       <div className="max-w-4xl mx-auto flex items-center justify-between">
         <p className="text-sm text-surface-400">{participants.length} in lobby</p>
         <div className="flex gap-2">
-          {/* Start Session — only shown before lobby is open */}
-          <Button size="sm" onClick={startSession}>
-            <Play className="h-4 w-4 mr-1" /> Start Session
-          </Button>
+          {/* Start Session — only shown before session has started */}
+          {!sessionStarted && (
+            <Button size="sm" onClick={startSession}>
+              <Play className="h-4 w-4 mr-1" /> Start Session
+            </Button>
+          )}
 
           {/* Start Round — lets host manually trigger matching when participants are ready */}
-          {(phase === 'lobby') && (
+          {sessionStarted && (phase === 'lobby') && (
             <Button size="sm" variant="secondary" onClick={startRound}>
               <Zap className="h-4 w-4 mr-1" /> Start Round
             </Button>

@@ -131,6 +131,23 @@ router.put(
   }
 );
 
+// ─── DELETE /pods/:id ───────────────────────────────────────────────────────
+
+router.delete(
+  '/:id',
+  authenticate,
+  auditMiddleware('delete_pod', 'pod'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await podService.deletePod(req.params.id, req.user!.userId);
+      const response: ApiResponse = { success: true, data: { message: 'Pod deleted' } };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // ─── GET /pods/:id/members ──────────────────────────────────────────────────
 
 router.get(

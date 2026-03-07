@@ -1459,3 +1459,66 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
 - All 25 rating service tests passing
 - Zero TypeScript compile errors
 - All new routes properly wired in App.tsx
+
+---
+
+### T-023: Comprehensive Bug Fix & Feature Pass (Complete ✅)
+
+**Date:** 2026-03-09
+**Status:** COMPLETE
+**Objective:** Fix all issues found during live testing + add missing features + public pages
+
+#### Bug Fixes Applied:
+
+**1. Rating Submission "Not in a ratable state" — CRITICAL**
+- **Root Cause:** Client never sent `presence:heartbeat` → presenceMap entries went stale → no-show detection after 60s marked both participants as `no_show` → match status `no_show` → `submitRating()` rejected because only `completed`/`active` were allowed.
+- **Fix A:** Added `presence:heartbeat` emission every 15 seconds in `useSessionSocket.ts`.
+- **Fix B:** Expanded `submitRating()` to accept `no_show` status matches as ratable (safety net for edge cases).
+- Files: `client/src/hooks/useSessionSocket.ts`, `server/src/services/rating/rating.service.ts`
+
+**2. Partner Disconnected During Video (Wrong LiveKit Room)**
+- **Root Cause:** `VideoRoom.tsx` backup token fetch (on page refresh) called `/sessions/:id/token` without `roomId`, generating a token for the lobby room instead of the match-specific room.
+- **Fix:** Added `currentRoomId` to `sessionStore`. Stored on `match:assigned`. VideoRoom backup fetch now passes `currentRoomId`.
+- Files: `client/src/stores/sessionStore.ts`, `client/src/hooks/useSessionSocket.ts`, `client/src/features/live/VideoRoom.tsx`
+
+**3. "Start Session" Button Always Visible**
+- **Root Cause:** `HostControls.tsx` always rendered "Start Session" regardless of session state.
+- **Fix:** Added `sessionStarted` state tracking. "Start Session" hides after clicked; "Start Round" only shows when session is started and in lobby phase.
+- Files: `client/src/features/live/HostControls.tsx`
+
+**4. Encounters Page Missing from Sidebar**
+- **Root Cause:** Removed during reference site redesign.
+- **Fix:** Added Heart icon + `/encounters` link to sidebar mainLinks in `AppLayout.tsx`.
+- Files: `client/src/components/layout/AppLayout.tsx`
+
+**5. Unlock Level Confusing Display**
+- **Root Cause:** Showed "0 Pods" which confused with actual pod count.
+- **Fix:** Now shows accepted invite progress (e.g., "0/1") with contextual text ("invite 1 to unlock"), making the invite-tree mechanic clearer.
+- Files: `client/src/features/home/HomePage.tsx`
+
+#### Features Added:
+
+**6. Delete Pod/Session (Backend + Frontend)**
+- Added `deletePod()` service (soft-delete → archives pod). Only pod directors can delete.
+- Added `deleteSession()` service (soft-delete → cancels session). Only host can delete scheduled/completed sessions.
+- Added `DELETE /pods/:id` and `DELETE /sessions/:id` routes with auth + audit middleware.
+- Added delete buttons to PodDetailPage and SessionDetailPage (with confirmation dialog).
+- Files: `server/src/services/pod/pod.service.ts`, `server/src/services/session/session.service.ts`, `server/src/routes/pods.ts`, `server/src/routes/sessions.ts`, `client/src/features/pods/PodDetailPage.tsx`, `client/src/features/sessions/SessionDetailPage.tsx`
+
+**7. Edit Pod/Session UI**
+- PodDetailPage: Edit modal for name + description (uses existing PUT /pods/:id route).
+- SessionDetailPage: Edit modal for title + description + scheduled time (uses existing PUT /sessions/:id route).
+- Files: `client/src/features/pods/PodDetailPage.tsx`, `client/src/features/sessions/SessionDetailPage.tsx`
+
+**8. Public Pages (Landing + How It Works)**
+- Created `LandingPage.tsx`: Hero section, 6 feature cards (Video, Pods, Matching, Ratings, Invites, Design), CTA, footer.
+- Created `HowItWorksPage.tsx`: 5-step walkthrough (Get Invited → Invite Others → Join Pod → Live Session → Rate & Connect).
+- Non-logged-in users now see landing page at `/welcome` instead of being kicked to login.
+- Routes added: `/welcome` (LandingPage), `/how-it-works` (HowItWorksPage).
+- ProtectedRoute now redirects to `/welcome` instead of `/login`.
+- Files: `client/src/features/public/LandingPage.tsx`, `client/src/features/public/HowItWorksPage.tsx`, `client/src/App.tsx`, `client/src/components/layout/ProtectedRoute.tsx`
+
+**Validation:**
+- Zero TypeScript compile errors (both client and server)
+- All routes properly wired
+- Edit/delete flows protected by role checks server-side
