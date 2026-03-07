@@ -1278,3 +1278,28 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
 **Date:** 2026-03-07
 **Status:** 🔄 IN PROGRESS
 **Objective:** Deploy frontend to Vercel, start backend locally for end-to-end testing
+
+---
+
+### T-022: Local Login Unblocked (Complete)
+**Date:** 2026-03-07
+**Status:** COMPLETE
+**Objective:** Fix local auth flow when magic links pointed to the wrong frontend and Resend blocked dev emails
+
+**Root Cause:**
+- Local backend `CLIENT_URL` was set to Vercel, so local login generated verification links to Vercel.
+- Vercel client env still targeted an old trycloudflare backend URL, causing verify requests to fail.
+- In dev mode, Resend delivery errors could block `/api/auth/magic-link` entirely and prevent `devLink` from being returned.
+
+**Fixes Applied:**
+- `server/src/routes/auth.ts`: `POST /auth/magic-link` now accepts optional `clientUrl`.
+- `server/src/services/identity/identity.service.ts`: magic-link URL now uses request-provided client URL (safe-parsed, http/https only), fallback remains config `CLIENT_URL`.
+- `server/src/services/identity/identity.service.ts`: in dev mode, email send failures no longer fail login; API still returns `devLink`.
+- `client/src/stores/authStore.ts`: `login(email, clientUrl?)` now forwards `clientUrl`.
+- `client/src/features/auth/LoginPage.tsx`: passes `window.location.origin` on login.
+
+**Validation:**
+- Server lint/type-check passed.
+- Client lint/type-check passed.
+- End-to-end auth API test passed: magic-link creation + verify token succeeded locally.
+- Local `devLink` now correctly points to `http://localhost:5173/auth/verify?...`.
