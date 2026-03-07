@@ -1171,6 +1171,16 @@ Users joined sessions but video never connected. Server logs showed `totalMatche
    - Added "Start Round" button visible during lobby phase
    - Removed non-functional "Next Round" button (was calling resume which only worked when paused)
 
+---
+
+### Update - 2026-03-08: Process Rule Locked
+
+**User directive:** Always update `progress.md` automatically after each implementation and push.
+
+**Action taken:**
+- Confirmed latest video-fix progress entry is present.
+- Locked this workflow as standard process for all subsequent tasks in this workspace.
+
 **Files Changed:**
 - server/src/services/session/session.service.ts — `generateLiveKitToken` accepts `roomId` param
 - server/src/routes/sessions.ts — Token endpoint passes `req.body.roomId`
