@@ -1142,6 +1142,44 @@ After Milestone 2 & 3 completion, browser console showed TanStack Query errors: 
 
 **Decisions Made:**
 - Fixed all field names to match server camelCase convention (per shared types)
+
+---
+
+### Update – 2026-03-08: Fix Video Connection (2 Critical Bugs)
+
+**Problem:**
+Users joined sessions but video never connected. Server logs showed `totalMatches: 0` — no matches created, so no video pairing occurred.
+
+**Root Cause Analysis:**
+1. **LiveKit token room mismatch** — `generateLiveKitToken()` created tokens for the lobby room (`session-{id}`) but matches were assigned per-pair rooms (`session-{id}-round-{n}-{matchId}`). Users would never see each other in video because their tokens pointed to the wrong LiveKit room.
+2. **No manual round start** — Host could only start the session (opens lobby with 480s timer). There was no way to manually trigger the first round when participants were ready. The lobby timer would expire before enough people joined, creating 0 matches.
+
+**Fixes Applied:**
+
+1. **LiveKit token → correct room** (server + client):
+   - `generateLiveKitToken(sessionId, userId, roomId?)` now accepts optional `roomId`
+   - Token endpoint (`POST /sessions/:id/token`) reads `roomId` from request body
+   - Client passes `data.roomId` from `match:assigned` and `match:reassigned` events to the token API
+
+2. **`host:start_round` socket event** (server):
+   - New handler allows host to manually trigger round from lobby or transition phase
+   - Validates ≥2 eligible participants before starting
+   - Clears lobby timer (host overrides the auto-timer)
+   - Determines correct round number (1 from lobby, currentRound+1 from transition)
+
+3. **HostControls UI updated** (client):
+   - Added "Start Round" button visible during lobby phase
+   - Removed non-functional "Next Round" button (was calling resume which only worked when paused)
+
+**Files Changed:**
+- server/src/services/session/session.service.ts — `generateLiveKitToken` accepts `roomId` param
+- server/src/routes/sessions.ts — Token endpoint passes `req.body.roomId`
+- server/src/services/orchestration/orchestration.service.ts — New `host:start_round` event + handler
+- client/src/hooks/useSessionSocket.ts — Passes `roomId` to token API calls
+- client/src/features/live/HostControls.tsx — Start Round button + cleaned up controls
+
+**Tests:** 38 orchestration/session tests passing
+**Commit:** febe5b9
 - Increased dev auth rate limit to 100 requests/15min to allow testing without throttling
 - Prioritized end-to-end validation over individual component testing
 - All fixes verified through both automated tests and manual browser testing
