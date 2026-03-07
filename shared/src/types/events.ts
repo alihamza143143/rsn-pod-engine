@@ -49,6 +49,7 @@ export interface ClientToServerEvents {
 
   // Host controls
   'host:start_session': (data: { sessionId: string }) => void;
+  'host:start_round': (data: { sessionId: string }) => void;
   'host:pause_session': (data: { sessionId: string }) => void;
   'host:resume_session': (data: { sessionId: string }) => void;
   'host:end_session': (data: { sessionId: string }) => void;

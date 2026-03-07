@@ -1208,6 +1208,28 @@ Users joined sessions but video never connected. Server logs showed `totalMatche
 - ✅ All console errors resolved
 - ✅ All data displays correctly in browser
 - ✅ All form submissions succeed with proper validation
+
+---
+
+### Update - 2026-03-08: Vercel Build Failure Root Cause + Fix
+
+**Why Vercel showed build failed:**
+Vercel was correctly failing on TypeScript errors in the `client` build step (`tsc -b && vite build`).
+
+**Actual errors:**
+1. `client/src/features/live/HostControls.tsx` had an unused import: `SkipForward`.
+2. `host:start_round` event was used in client code but missing from shared socket types (`shared/src/types/events.ts`).
+
+**Fix applied:**
+- Removed `SkipForward` import from `HostControls.tsx`.
+- Added `'host:start_round': (data: { sessionId: string }) => void;` to `ClientToServerEvents` in `shared/src/types/events.ts`.
+
+**Verification:**
+- `npm run build:shared` passes.
+- `npm run build --workspace=client` passes.
+
+**Result:**
+Next Vercel deployment should succeed for this issue.
 - ✅ All API responses properly parsed
 - ✅ All field names consistent (camelCase throughout)
 - ✅ All HTTP methods correct (PUT for update, POST for create)

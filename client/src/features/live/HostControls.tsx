@@ -1,6 +1,6 @@
 import { useSessionStore } from '@/stores/sessionStore';
 import { Button } from '@/components/ui/Button';
-import { Play, SkipForward, Square, Zap } from 'lucide-react';
+import { Play, Square, Zap } from 'lucide-react';
 import { getSocket } from '@/lib/socket';
 
 interface Props { sessionId: string; }
