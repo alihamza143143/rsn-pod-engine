@@ -91,6 +91,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-025 | Fix bye round bug, video timeout, LiveKit rooms | Completed | Copilot | Create LiveKit rooms before match, notify bye participants, send totalRounds |
 | T-026 | Setup rsn.network domain for Resend email | Completed | Copilot | Updated EMAIL_FROM to noreply@rsn.network |
 | T-027 | Fix auth rate limiting causing login errors | Completed | Copilot | Increased production limit from 10 to 50 requests per 15min |
+| T-028 | Make invite codes optional for registration | Completed | Copilot | Removed mandatory invite requirement, updated UI messaging |
 
 ---
 
@@ -1919,3 +1920,29 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
 - Next immediate action:
   - Monitor login success rates on live app
   - Consider implementing exponential backoff on client side if issues persist
+
+---
+
+### 2026-03-09 02:55 AM - Entry [Latest]
+- Task ID: T-028
+- Task Title: Make invite codes optional for registration
+- Status: Completed
+- What changed:
+  - Removed mandatory invite code requirement from backend sendMagicLink function
+  - Invite codes now optional - users can register freely without an invite
+  - Invite codes still validated when provided (for referral tracking)
+  - Updated frontend LoginPage: "Invite code (optional)" label
+  - Changed helper text: "Optional — only if you received an invite"
+  - Removed INVITE_REQUIRED error message from frontend
+  - Updated plan.md to document invite codes as optional
+- Files touched:
+  - server/src/services/identity/identity.service.ts
+  - client/src/features/auth/LoginPage.tsx
+  - plan.md
+- Decisions made:
+  - Open registration provides better user experience
+  - Invite system still useful for tracking referrals and special onboarding flows
+  - No longer blocking new users from signing up
+- Next immediate action:
+  - Test registration flow without invite code on live app
+  - Monitor signup conversion rates

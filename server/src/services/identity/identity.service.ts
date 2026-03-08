@@ -165,13 +165,8 @@ function resolveClientBaseUrl(requestedClientUrl?: string): string {
 export async function sendMagicLink(email: string, requestedClientUrl?: string, inviteCode?: string): Promise<{ sent: boolean; devLink?: string }> {
   const normalizedEmail = email.toLowerCase().trim();
 
-  // If the user does NOT exist yet, require a valid invite code (invite-only platform)
-  const existingUser = await getUserByEmail(normalizedEmail);
-  if (!existingUser) {
-    if (!inviteCode) {
-      throw new AppError(400, ErrorCodes.INVITE_REQUIRED, 'An invite code is required to create a new account');
-    }
-    // Validate the invite code exists, is not expired, and has uses remaining
+  // Invite codes are optional - validate only if provided
+  if (inviteCode) {
     const invResult = await query<{ id: string; status: string; use_count: number; max_uses: number; expires_at: Date | null }>(
       `SELECT id, status, use_count, max_uses, expires_at FROM invites WHERE code = $1`,
       [inviteCode]

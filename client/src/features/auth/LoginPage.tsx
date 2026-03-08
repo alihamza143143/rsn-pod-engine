@@ -11,7 +11,6 @@ const API_URL = API_BASE_URL;
 
 const ERROR_MESSAGES: Record<string, string> = {
   google_auth_failed: 'Google sign-in failed. Please try again.',
-  INVITE_REQUIRED: 'An invite code is required for new accounts.',
   INVALID_INVITE: 'The invite code is invalid or expired.',
 };
 
@@ -145,12 +144,12 @@ export default function LoginPage() {
                   {...register('email', { required: 'Email is required', pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Invalid email' } })}
                 />
                 <Input
-                  label="Invite code"
-                  placeholder="Enter invite code (required for new users)"
+                  label="Invite code (optional)"
+                  placeholder="Enter invite code if you have one"
                   error={errors.inviteCode?.message}
                   {...register('inviteCode')}
                 />
-                <p className="text-xs text-surface-500 -mt-2">Only required for first-time sign up</p>
+                <p className="text-xs text-surface-500 -mt-2">Optional — only if you received an invite</p>
                 <Button type="submit" className="w-full group" isLoading={isSubmitting}>
                   Send magic link
                   <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
