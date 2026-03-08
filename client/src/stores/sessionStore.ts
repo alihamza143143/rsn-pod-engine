@@ -11,9 +11,20 @@ interface MatchPartner {
 }
 
 type SessionPhase = 'lobby' | 'matched' | 'rating' | 'complete';
+type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
+type TransitionStatus = 
+  | null
+  | 'starting_session'
+  | 'preparing_match'
+  | 'round_ending'
+  | 'between_rounds'
+  | 'session_ending';
 
 interface SessionLiveState {
   phase: SessionPhase;
+  connectionStatus: ConnectionStatus;
+  transitionStatus: TransitionStatus;
+  totalRounds: number;
   participants: Participant[];
   currentMatch: MatchPartner | null;
   currentMatchId: string | null;
@@ -28,6 +39,9 @@ interface SessionLiveState {
   currentRoomId: string | null;
 
   setPhase: (phase: SessionPhase) => void;
+  setConnectionStatus: (status: ConnectionStatus) => void;
+  setTransitionStatus: (status: TransitionStatus) => void;
+  setTotalRounds: (total: number) => void;
   setParticipants: (p: Participant[]) => void;
   addParticipant: (p: Participant) => void;
   removeParticipant: (userId: string) => void;
@@ -46,6 +60,9 @@ interface SessionLiveState {
 
 export const useSessionStore = create<SessionLiveState>((set) => ({
   phase: 'lobby',
+  connectionStatus: 'connecting',
+  transitionStatus: null,
+  totalRounds: 5,
   participants: [],
   currentMatch: null,
   currentMatchId: null,
@@ -60,6 +77,9 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   currentRoomId: null,
 
   setPhase: (phase) => set({ phase }),
+  setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
+  setTransitionStatus: (transitionStatus) => set({ transitionStatus }),
+  setTotalRounds: (totalRounds) => set({ totalRounds }),
   setParticipants: (participants) => set({ participants }),
   addParticipant: (p) => set((s) => ({
     participants: s.participants.some(x => x.userId === p.userId) ? s.participants : [...s.participants, p],
@@ -78,7 +98,8 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   setLiveKitToken: (liveKitToken, livekitUrl = null) => set({ liveKitToken, livekitUrl }),
   setRoomId: (currentRoomId) => set({ currentRoomId }),
   reset: () => set({
-    phase: 'lobby', participants: [], currentMatch: null, currentMatchId: null,
+    phase: 'lobby', connectionStatus: 'connecting', transitionStatus: null, totalRounds: 5,
+    participants: [], currentMatch: null, currentMatchId: null,
     timerSeconds: 0, currentRound: 1, broadcasts: [], error: null,
     isReconnecting: false, isByeRound: false, liveKitToken: null, livekitUrl: null, currentRoomId: null,
   }),

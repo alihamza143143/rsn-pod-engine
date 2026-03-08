@@ -116,7 +116,7 @@ function MediaControls() {
 }
 
 export default function VideoRoom() {
-  const { timerSeconds, currentRound, isByeRound, liveKitToken, livekitUrl, currentRoomId } = useSessionStore();
+  const { timerSeconds, currentRound, totalRounds, isByeRound, liveKitToken, livekitUrl, currentRoomId, transitionStatus } = useSessionStore();
   const { setLiveKitToken } = useSessionStore();
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
@@ -140,8 +140,9 @@ export default function VideoRoom() {
           </div>
           <h3 className="text-lg font-semibold text-surface-200 mb-2">Bye Round</h3>
           <p className="text-surface-400 text-sm">
-            You have a bye this round. Sit tight — you'll be matched next round!
+            You have a bye this round — sit tight, you'll be matched in the next round!
           </p>
+          <p className="text-surface-500 text-xs mt-3">Round {currentRound} of {totalRounds}</p>
         </Card>
       </div>
     );
@@ -168,7 +169,7 @@ export default function VideoRoom() {
           <div className="h-16 w-16 rounded-full bg-surface-800 flex items-center justify-center mx-auto mb-4 animate-pulse">
             <Video className="h-6 w-6 text-surface-500" />
           </div>
-          <p className="text-surface-400 text-sm">Connecting to video room...</p>
+          <p className="text-surface-400 text-sm">Connecting to video room — please wait...</p>
         </Card>
       </div>
     );
@@ -185,11 +186,19 @@ export default function VideoRoom() {
       onError={(err) => setConnectionError(err?.message || 'Video connection error')}
       className="flex-1 flex flex-col"
     >
+      {/* Connecting to partner overlay */}
+      {transitionStatus === 'preparing_match' && (
+        <div className="bg-brand-500/10 border-b border-brand-500/20 px-4 py-2 flex items-center justify-center gap-2">
+          <div className="h-4 w-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-brand-300">Connecting to your partner...</p>
+        </div>
+      )}
+
       <div className="flex-1 flex flex-col p-4 gap-4">
         {/* Timer bar */}
         <div className="flex items-center justify-between bg-surface-900/60 rounded-xl px-4 py-3 border border-surface-800">
           <div className="flex items-center gap-3">
-            <span className="text-sm text-surface-400">Round {currentRound}</span>
+            <span className="text-sm text-surface-400">Round {currentRound} of {totalRounds}</span>
             <ConnectionIndicator />
             <MediaControls />
           </div>
@@ -198,6 +207,9 @@ export default function VideoRoom() {
             <span className={`font-mono text-lg ${timerSeconds <= 30 ? 'text-amber-400' : ''} ${timerSeconds <= 10 ? 'text-red-400 animate-pulse' : ''}`}>
               {formatTime(timerSeconds)}
             </span>
+            {timerSeconds <= 10 && timerSeconds > 0 && (
+              <span className="text-xs text-red-400 ml-1">Ending soon</span>
+            )}
           </div>
         </div>
 

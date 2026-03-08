@@ -41,10 +41,10 @@ Purpose: Persistent execution history and current state, independent of chat mem
 ## Current Phase Snapshot
 
 - Active Phase: Implementation
-- Active Milestone: **Milestone 2 (In Progress) — Field Validation & UX Hardening**
-- Current Session: User-reported issues from live testing — fixing encounters, invites, pods, matching
+- Active Milestone: **Milestone 2 (In Progress) — Deployment Polish & UX Status Messages**
+- Current Session: Login cleanup, invite UX, live session status messages
 - Overall Build Status: All Features Complete, Zero Errors, All Tests Passing
-- Last Updated: March 8, 2026
+- Last Updated: March 9, 2026
 
 ---
 
@@ -80,6 +80,9 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-014 | Add session count to pod detail page | Completed | Copilot | GET /pods/:id/session-count + display in pod header |
 | T-015 | Fix dashboard labels (Invites Created vs Sent) | Completed | Copilot | Corrected misleading "Invites Sent" to "Invites Created" |
 | T-016 | Rename Delete Pod to Archive Pod | Completed | Copilot | Button + confirm text now accurately describes soft-delete behavior |
+| T-017 | Remove dev mode magic link from login UI | Completed | Copilot | Stripped devLink state, logic, and amber dev-mode box from LoginPage |
+| T-018 | Fix invite code helper text | Completed | Copilot | Changed to "Only required for first-time sign up" |
+| T-019 | Add live session status messages & connection tracking | Completed | Copilot | Full UX status text system across all session phases |
 
 ---
 
@@ -299,6 +302,36 @@ Purpose: Persistent execution history and current state, independent of chat mem
 - Next immediate action: Begin Milestone 2 planning — matching engine integration, real-time orchestration, video routing, frontend client
 
 ---
+
+### 2026-03-09 00:30 - Entry 011
+- Task ID: T-017, T-018, T-019
+- Task Title: Login Cleanup, Invite UX, Live Session Status Messages
+- Status: Completed
+- What changed:
+  - **T-017 — Remove dev mode magic link from login UI**: Stripped `devLink` state variable, `devLink` response extraction logic, and the amber "DEV MODE — Click to verify" box from LoginPage. Production users now only see "Check your email" screen with clear messaging and expiry note ("Click the link in your email to sign in. It expires in 60 minutes."). Server-side `isDev` guard remains for local development safety.
+  - **T-018 — Fix invite code helper text**: Changed confusing "Already have an account? Leave blank to sign in." to clear "Only required for first-time sign up".
+  - **T-019 — Add live session status messages & connection tracking**: Added comprehensive user-friendly status text system:
+    - **SessionStore**: Added `connectionStatus` (connecting/connected/reconnecting/disconnected), `transitionStatus` (starting_session/preparing_match/round_ending/between_rounds/session_ending), `totalRounds` state.
+    - **LiveSessionPage**: Added connection status banners (connecting spinner, reconnecting warning, disconnected error) and transition status overlays with contextual messages.
+    - **Lobby**: Dynamic messages based on state — "Waiting in Lobby" (default), "Session Starting" (host started), "Getting Ready" (between rounds), "Bye Round" (no match this round). Shows round X of Y context.
+    - **VideoRoom**: Shows "Round X of Y" instead of just "Round X", "Ending soon" label when timer <= 10s, "Connecting to your partner..." overlay during match preparation, improved bye round card with round context.
+    - **RatingPrompt**: Animated spinner with "Waiting for the next round to begin..." after rating submission.
+    - **useSessionSocket**: Tracks connection lifecycle (connecting→connected→reconnecting→disconnected), sets transition states on session start, round changes, match assignments, and session completion with appropriate delays.
+- Files touched:
+  - client/src/features/auth/LoginPage.tsx
+  - client/src/stores/sessionStore.ts
+  - client/src/hooks/useSessionSocket.ts
+  - client/src/features/live/LiveSessionPage.tsx
+  - client/src/features/live/Lobby.tsx
+  - client/src/features/live/VideoRoom.tsx
+  - client/src/features/live/RatingPrompt.tsx
+  - progress.md
+- Decisions made:
+  - DevLink UI stripped entirely from production build (server still returns it in dev mode for local testing — no server change needed)
+  - Connection tracking uses socket.io native events (connect, reconnect_attempt, reconnect, reconnect_failed)
+  - Transition states auto-clear after a short delay to avoid stale messages
+  - totalRounds defaults to 5 and is updated from `session:round_started` payload
+- Next immediate action: Run local frontend, verify all changes, push to Git for live deployment testing
 
 ### T-011: Milestone 1 Live API Testing & Final Validation
 

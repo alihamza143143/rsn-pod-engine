@@ -3,7 +3,7 @@ import Card from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useToastStore } from '@/stores/toastStore';
-import { Star, UserCheck, CheckCircle } from 'lucide-react';
+import { Star, UserCheck, CheckCircle, Loader2 } from 'lucide-react';
 import api from '@/lib/api';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -49,7 +49,10 @@ export default function RatingPrompt(_props: Props) {
             <CheckCircle className="h-8 w-8" />
           </div>
           <h2 className="text-xl font-bold text-surface-100 mb-2">Rating Submitted!</h2>
-          <p className="text-surface-400">Waiting for the next round to begin...</p>
+          <div className="flex items-center justify-center gap-2">
+            <Loader2 className="h-4 w-4 text-surface-400 animate-spin" />
+            <p className="text-surface-400">Waiting for the next round to begin...</p>
+          </div>
         </Card>
       </div>
     );

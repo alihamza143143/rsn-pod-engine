@@ -24,6 +24,9 @@ export default function useSessionSocket(sessionId: string) {
     connectSocket(token);
     const socket = getSocket();
 
+    // Track connection status
+    store.setConnectionStatus('connecting');
+
     // Send presence heartbeats every 15 seconds so server knows we're alive
     const heartbeatInterval = setInterval(() => {
       socket.emit('presence:heartbeat', { sessionId });
@@ -31,6 +34,7 @@ export default function useSessionSocket(sessionId: string) {
 
     // Wait for connection before joining session
     const joinSession = () => {
+      store.setConnectionStatus('connected');
       socket.emit('session:join', { sessionId });
     };
 
@@ -48,13 +52,16 @@ export default function useSessionSocket(sessionId: string) {
 
     // ── Session lifecycle ──
     socket.on('session:status_changed', (data: any) => {
-      if (data.status === 'completed') { clearTimer(); store.setPhase('complete'); }
+      if (data.status === 'completed') { clearTimer(); store.setTransitionStatus('session_ending'); setTimeout(() => { store.setTransitionStatus(null); store.setPhase('complete'); }, 1500); }
+      if (data.status === 'lobby_open') store.setTransitionStatus('starting_session');
       if (data.currentRound) store.setRound(data.currentRound);
     });
 
     socket.on('session:round_started', (data: any) => {
       store.setRound(data.roundNumber);
+      if (data.totalRounds) store.setTotalRounds(data.totalRounds);
       store.setByeRound(false);
+      store.setTransitionStatus(null);
       const duration = Math.floor((new Date(data.endsAt).getTime() - Date.now()) / 1000);
       store.setTimer(Math.max(0, duration));
       clearTimer();
@@ -63,19 +70,22 @@ export default function useSessionSocket(sessionId: string) {
 
     socket.on('session:round_ended', () => {
       clearTimer();
+      store.setTransitionStatus('round_ending');
       // Preserve currentMatch/currentMatchId so RatingPrompt can use them
       store.setPhase('rating');
     });
 
     socket.on('session:completed', () => {
       clearTimer();
+      store.setTransitionStatus('session_ending');
       // Small delay so in-progress rating submissions can finish
-      setTimeout(() => store.setPhase('complete'), 500);
+      setTimeout(() => { store.setTransitionStatus(null); store.setPhase('complete'); }, 1500);
     });
 
     // ── Matching ──
     socket.on('match:assigned', (data: any) => {
       store.setByeRound(false);
+      store.setTransitionStatus('preparing_match');
       store.setMatch({ userId: data.partnerId, displayName: data.partnerId }, data.matchId);
       store.setPhase('matched');
       // Store roomId for VideoRoom backup fetch
@@ -84,22 +94,26 @@ export default function useSessionSocket(sessionId: string) {
       api.post(`/sessions/${sessionId}/token`, { roomId: data.roomId }).then(res => {
         const { token, livekitUrl } = res.data.data;
         store.setLiveKitToken(token, livekitUrl);
-      }).catch(() => { /* token fetch failed — video won't load but session continues */ });
+        store.setTransitionStatus(null);
+      }).catch(() => { store.setTransitionStatus(null); });
     });
 
     socket.on('match:reassigned', (data: any) => {
+      store.setTransitionStatus('preparing_match');
       store.setMatch({ userId: data.newPartnerId, displayName: data.newPartnerId }, data.matchId || null);
       store.setPhase('matched');
       // Re-fetch token for new room
       api.post(`/sessions/${sessionId}/token`, { roomId: data.roomId }).then(res => {
         const { token, livekitUrl } = res.data.data;
         store.setLiveKitToken(token, livekitUrl);
-      }).catch(() => {});
+        store.setTransitionStatus(null);
+      }).catch(() => { store.setTransitionStatus(null); });
     });
 
     socket.on('match:bye_round', () => {
       store.setByeRound(true);
       store.setMatch(null);
+      store.setTransitionStatus(null);
       store.setPhase('lobby');
     });
 
@@ -112,7 +126,7 @@ export default function useSessionSocket(sessionId: string) {
       store.setPhase('rating');
     });
 
-    socket.on('rating:window_closed', () => { clearTimer(); store.setPhase('lobby'); });
+    socket.on('rating:window_closed', () => { clearTimer(); store.setTransitionStatus('between_rounds'); store.setPhase('lobby'); setTimeout(() => store.setTransitionStatus(null), 3000); });
 
     // ── Host broadcasts ──
     socket.on('host:broadcast', (data: any) => store.addBroadcast(data.message));
@@ -139,13 +153,18 @@ export default function useSessionSocket(sessionId: string) {
     // ── Reconnection ──
     socket.io.on('reconnect', () => {
       store.setReconnecting(false);
+      store.setConnectionStatus('connected');
       store.setError(null);
       socket.emit('session:join', { sessionId });
     });
 
-    socket.io.on('reconnect_attempt', () => store.setReconnecting(true));
+    socket.io.on('reconnect_attempt', () => {
+      store.setReconnecting(true);
+      store.setConnectionStatus('reconnecting');
+    });
     socket.io.on('reconnect_failed', () => {
       store.setReconnecting(false);
+      store.setConnectionStatus('disconnected');
       store.setError('Connection lost. Please refresh the page.');
     });
 

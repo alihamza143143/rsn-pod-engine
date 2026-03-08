@@ -18,7 +18,6 @@ export default function LoginPage() {
   const { login } = useAuthStore();
   const [params] = useSearchParams();
   const [sent, setSent] = useState(false);
-  const [devLink, setDevLink] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const { register, handleSubmit, formState: { errors, isSubmitting }, getValues, watch } = useForm<{ email: string; inviteCode: string }>();
 
@@ -37,10 +36,8 @@ export default function LoginPage() {
   const onSubmit = async (data: { email: string; inviteCode: string }) => {
     setAuthError(null);
     try {
-      const res = await login(data.email, window.location.origin, data.inviteCode || undefined);
+      await login(data.email, window.location.origin, data.inviteCode || undefined);
       setSent(true);
-      const link = res?.data?.devLink || res?.devLink;
-      if (link) setDevLink(link);
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message || err?.response?.data?.data?.message || 'Failed to send magic link';
       setAuthError(msg);
@@ -113,7 +110,7 @@ export default function LoginPage() {
                   error={errors.inviteCode?.message}
                   {...register('inviteCode')}
                 />
-                <p className="text-xs text-surface-500 -mt-2">Already have an account? Leave blank to sign in.</p>
+                <p className="text-xs text-surface-500 -mt-2">Only required for first-time sign up</p>
                 <Button type="submit" className="w-full group" isLoading={isSubmitting}>
                   Send magic link
                   <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
@@ -132,15 +129,9 @@ export default function LoginPage() {
               <p className="text-surface-400 text-sm">
                 We sent a magic link to <span className="font-medium text-surface-200">{getValues('email')}</span>
               </p>
+              <p className="text-surface-500 text-xs mt-1">Click the link in your email to sign in. It expires in 60 minutes.</p>
 
-              {devLink && (
-                <div className="mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 animate-fade-in">
-                  <p className="text-xs text-amber-400 font-semibold mb-2">DEV MODE — Click to verify:</p>
-                  <a href={devLink} className="text-sm text-brand-400 underline break-all hover:text-brand-300 transition-colors">{devLink}</a>
-                </div>
-              )}
-
-              <button onClick={() => { setSent(false); setDevLink(null); }} className="text-sm text-surface-500 hover:text-surface-300 transition-colors">
+              <button onClick={() => setSent(false)} className="text-sm text-surface-500 hover:text-surface-300 transition-colors">
                 Try a different email
               </button>
             </div>
