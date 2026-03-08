@@ -333,6 +333,24 @@ Purpose: Persistent execution history and current state, independent of chat mem
   - totalRounds defaults to 5 and is updated from `session:round_started` payload
 - Next immediate action: Run local frontend, verify all changes, push to Git for live deployment testing
 
+---
+
+### 2026-03-09 01:10 - Entry 012
+- Task ID: T-020
+- Task Title: Fix Vercel deployment failure (client TypeScript build)
+- Status: Completed
+- What changed:
+  - Reproduced Vercel build chain locally with the same commands: `npm install`, `npm run build:shared`, `cd client`, `npm run build`.
+  - Identified root cause: TypeScript compile failure from unused import in `LiveSessionPage.tsx` (`TS6133: 'Wifi' is declared but its value is never read`).
+  - Removed unused `Wifi` import and re-ran full build chain successfully.
+- Files touched:
+  - client/src/features/live/LiveSessionPage.tsx
+  - progress.md
+- Decisions made:
+  - Keep strict TypeScript checks enabled in production build; fix source issues instead of relaxing compiler settings.
+- Next immediate action:
+  - Push hotfix commit and trigger automatic Vercel redeploy.
+
 ### T-011: Milestone 1 Live API Testing & Final Validation
 
 - Timestamp: 2026-03-05

@@ -10,7 +10,7 @@ import RatingPrompt from './RatingPrompt';
 import SessionComplete from './SessionComplete';
 import HostControls from './HostControls';
 import { PageLoader } from '@/components/ui/Spinner';
-import { AlertCircle, X, LogOut, Wifi, WifiOff, Loader2 } from 'lucide-react';
+import { AlertCircle, X, LogOut, WifiOff, Loader2 } from 'lucide-react';
 import api from '@/lib/api';
 import { disconnectSocket } from '@/lib/socket';
 
