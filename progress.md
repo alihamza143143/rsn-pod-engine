@@ -88,6 +88,8 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-022 | Same-tab login redirect after magic-link verify | Completed | Copilot | Cross-tab localStorage sync + auto-redirect |
 | T-023 | Auto-close verify tab after magic-link auth | Completed | Copilot | window.close() with navigate fallback |
 | T-024 | Add dev-mode magic link display for testing | Completed | Copilot | Shows clickable devLink in amber box when backend returns it |
+| T-025 | Fix bye round bug, video timeout, LiveKit rooms | Completed | Copilot | Create LiveKit rooms before match, notify bye participants, send totalRounds |
+| T-026 | Setup rsn.network domain for Resend email | Completed | Copilot | Updated EMAIL_FROM to noreply@rsn.network |
 
 ---
 
@@ -436,6 +438,43 @@ Purpose: Persistent execution history and current state, independent of chat mem
   - Combined with T-022 and T-023, the full flow now works: click devLink → verify tab opens → auto-closes → original tab redirects.
 - Next immediate action:
   - Test on live Vercel deployment. User can now enter any email, get the devLink displayed, click it, and log in instantly.
+
+### 2026-03-09 02:30 - Entry 017
+- Task ID: T-025
+- Task Title: Fix bye round bug, video timeout, and LiveKit room creation
+- Status: Completed
+- What changed:
+  - **Bye round notification**: `transitionToRound()` now queries all active participants after match assignment, identifies unmatched users, and emits `match:bye_round` to them. Previously, `byeParticipant` from the matching engine was computed but never consumed — it was silently discarded.
+  - **LiveKit room creation**: Before assigning participants to matches, the orchestration now creates a LiveKit room via `videoService.createMatchRoom()`. Previously, rooms were never created — only room IDs were generated as strings. This caused "Timeout starting video source" because there was no actual LiveKit room to connect to.
+  - **totalRounds in round_started event**: The `session:round_started` socket event now includes `totalRounds` from session config, so the client can display "Round X of Y" properly. Updated shared type definition to include optional `totalRounds` field.
+  - **Host comment clarification**: Updated auto-registration comment to reflect that hosts participate in networking too (as designed for speed networking sessions).
+- Files touched:
+  - server/src/services/orchestration/orchestration.service.ts
+  - shared/src/types/events.ts
+  - progress.md
+- Decisions made:
+  - Host remains a participant in the matching pool — this is correct for speed networking where everyone networks.
+  - LiveKit rooms are created per-match in `transitionToRound()` to ensure rooms exist before tokens are issued.
+  - Bye notification uses DB query of all active participants minus matched set — more reliable than relying on the matching engine's `byeParticipant` field which was never persisted.
+- Next immediate action:
+  - Restart backend server and test live session with 2+ participants.
+
+### 2026-03-09 02:30 - Entry 018
+- Task ID: T-026
+- Task Title: Setup rsn.network domain for Resend email
+- Status: Completed
+- What changed:
+  - Updated `EMAIL_FROM` in server `.env` from `onboarding@resend.dev` (Resend test sender) to `noreply@rsn.network`.
+  - Client provided custom domain `rsn.network` for the platform.
+  - **PENDING**: Domain must be verified in Resend dashboard with DNS records (SPF, DKIM) before emails will deliver.
+- Files touched:
+  - server/.env
+  - progress.md
+- Decisions made:
+  - Use `noreply@rsn.network` as the platform email sender.
+  - Keep dev mode devLink display active until domain is verified.
+- Next immediate action:
+  - Add rsn.network domain in Resend dashboard, configure DNS records, wait for verification.
 
 ---
 

@@ -17,6 +17,7 @@ import {
 import * as sessionService from '../session/session.service';
 import * as matchingService from '../matching/matching.service';
 import * as ratingService from '../rating/rating.service';
+import * as videoService from '../video/video.service';
 import { ForbiddenError, ValidationError } from '../../middleware/errors';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -116,7 +117,8 @@ async function handleJoinSession(
       });
     }
 
-    // Auto-register if not already a participant (and not the host)
+    // Auto-register if not already a participant.
+    // The host is also a participant in speed networking — they network too.
     try {
       await sessionService.registerParticipant(data.sessionId, userId);
     } catch {
@@ -685,21 +687,33 @@ async function transitionToRound(
 
     // Generate matches for this round (or load if pre-generated)
     let matches = await matchingService.getMatchesByRound(sessionId, roundNumber);
-
     if (matches.length === 0) {
       // Generate on-the-fly for this round
       await matchingService.generateSingleRound(sessionId, roundNumber);
       matches = await matchingService.getMatchesByRound(sessionId, roundNumber);
     }
 
-    // Activate matches and generate room IDs
+    // Collect all matched user IDs to determine bye participants
+    const matchedUserIds = new Set<string>();
+
+    // Activate matches, create LiveKit rooms, and notify participants
     for (const match of matches) {
       const roomId = match.roomId || `session-${sessionId}-round-${roundNumber}-${match.id.slice(0, 8)}`;
+
+      // Create a LiveKit room for this match before assigning participants
+      try {
+        await videoService.createMatchRoom(sessionId, roundNumber, match.id.slice(0, 8));
+      } catch (err) {
+        logger.warn({ err, roomId }, 'LiveKit room creation failed (may already exist)');
+      }
 
       await query(
         `UPDATE matches SET status = 'active', room_id = $1, started_at = NOW() WHERE id = $2`,
         [roomId, match.id]
       );
+
+      matchedUserIds.add(match.participantAId);
+      matchedUserIds.add(match.participantBId);
 
       // Notify participant A
       io.to(userRoom(match.participantAId)).emit('match:assigned', {
@@ -722,11 +736,27 @@ async function transitionToRound(
       await sessionService.updateParticipantStatus(sessionId, match.participantBId, ParticipantStatus.IN_ROUND);
     }
 
+    // Notify bye participants (unmatched due to odd count)
+    const allParticipants = await query<{ user_id: string }>(
+      `SELECT user_id FROM session_participants WHERE session_id = $1 AND status IN ('in_lobby', 'checked_in', 'registered')`,
+      [sessionId]
+    );
+    for (const p of allParticipants.rows) {
+      if (!matchedUserIds.has(p.user_id)) {
+        io.to(userRoom(p.user_id)).emit('match:bye_round', {
+          roundNumber,
+          reason: 'Odd number of participants — you have a bye this round.',
+        });
+        logger.info({ sessionId, roundNumber, userId: p.user_id }, 'Bye round assigned');
+      }
+    }
+
     // Broadcast round start
     const endsAt = new Date(Date.now() + activeSession.config.roundDurationSeconds * 1000);
     io.to(sessionRoom(sessionId)).emit('session:round_started', {
       sessionId,
       roundNumber,
+      totalRounds: activeSession.config.numberOfRounds,
       endsAt: endsAt.toISOString(),
     });
 

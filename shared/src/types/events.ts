@@ -4,7 +4,7 @@
 export interface ServerToClientEvents {
   // Session lifecycle
   'session:status_changed': (data: { sessionId: string; status: string; currentRound: number }) => void;
-  'session:round_started': (data: { sessionId: string; roundNumber: number; endsAt: string }) => void;
+  'session:round_started': (data: { sessionId: string; roundNumber: number; totalRounds?: number; endsAt: string }) => void;
   'session:round_ending': (data: { sessionId: string; roundNumber: number; secondsLeft: number }) => void;
   'session:round_ended': (data: { sessionId: string; roundNumber: number }) => void;
   'session:completed': (data: { sessionId: string }) => void;
