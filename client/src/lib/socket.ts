@@ -1,6 +1,7 @@
 import { io, Socket } from 'socket.io-client';
 import type { ServerToClientEvents, ClientToServerEvents } from '@rsn/shared';
 import { useAuthStore } from '@/stores/authStore';
+import { SOCKET_BASE_URL } from '@/lib/runtimeEndpoints';
 
 export type TypedSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
@@ -8,8 +9,7 @@ let socket: TypedSocket | null = null;
 
 export function getSocket(): TypedSocket {
   if (!socket) {
-    const serverUrl = import.meta.env.VITE_SERVER_URL || '/';
-    socket = io(serverUrl, {
+    socket = io(SOCKET_BASE_URL, {
       autoConnect: false,
       transports: ['websocket', 'polling'],
       auth: () => ({

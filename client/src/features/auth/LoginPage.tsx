@@ -5,8 +5,9 @@ import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import { Sparkles, ArrowRight, AlertCircle } from 'lucide-react';
+import { API_BASE_URL } from '@/lib/runtimeEndpoints';
 
-const API_URL = import.meta.env.VITE_API_URL || '/api';
+const API_URL = API_BASE_URL;
 
 const ERROR_MESSAGES: Record<string, string> = {
   google_auth_failed: 'Google sign-in failed. Please try again.',

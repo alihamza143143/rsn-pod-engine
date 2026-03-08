@@ -351,6 +351,29 @@ Purpose: Persistent execution history and current state, independent of chat mem
 - Next immediate action:
   - Push hotfix commit and trigger automatic Vercel redeploy.
 
+---
+
+### 2026-03-09 01:25 - Entry 013
+- Task ID: T-021
+- Task Title: Auto-route Vercel frontend traffic to active local tunnel
+- Status: Completed
+- What changed:
+  - Added centralized runtime endpoint resolver for frontend network calls.
+  - Implemented Vercel-host detection and automatic override to the current active Cloudflare tunnel origin (`https://wan-combined-unless-fee.trycloudflare.com`).
+  - Updated Axios API client, Socket.IO client, and login Google auth URL builder to use centralized runtime endpoints.
+  - Verified production client build passes after changes.
+- Files touched:
+  - client/src/lib/runtimeEndpoints.ts
+  - client/src/lib/api.ts
+  - client/src/lib/socket.ts
+  - client/src/features/auth/LoginPage.tsx
+  - progress.md
+- Decisions made:
+  - Prefer runtime host-based override (`vercel.app` => tunnel) so user does not need to manually change Vercel environment variables for this test cycle.
+  - Keep local/dev behavior unchanged (`VITE_API_URL`/`VITE_SERVER_URL` or relative defaults).
+- Next immediate action:
+  - Push commit to `main` and let Vercel auto-deploy.
+
 ### T-011: Milestone 1 Live API Testing & Final Validation
 
 - Timestamp: 2026-03-05
