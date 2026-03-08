@@ -19,6 +19,7 @@ export default function VerifyPage() {
     const refreshToken = params.get('refreshToken');
 
     const redirectAfterAuth = () => {
+      localStorage.setItem('rsn_auth_completed_at', String(Date.now()));
       const redirect = sessionStorage.getItem('rsn_redirect');
       sessionStorage.removeItem('rsn_redirect');
       navigate(redirect || '/', { replace: true });

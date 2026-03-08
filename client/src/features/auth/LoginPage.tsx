@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -16,10 +16,12 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 export default function LoginPage() {
-  const { login } = useAuthStore();
+  const navigate = useNavigate();
+  const { login, setTokens, checkSession } = useAuthStore();
   const [params] = useSearchParams();
   const [sent, setSent] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const handlingCrossTabAuth = useRef(false);
   const { register, handleSubmit, formState: { errors, isSubmitting }, getValues, watch } = useForm<{ email: string; inviteCode: string }>();
 
   const inviteCodeValue = watch('inviteCode');
@@ -33,6 +35,36 @@ export default function LoginPage() {
   // Show error from OAuth redirect (e.g. ?error=INVITE_REQUIRED)
   const urlError = params.get('error');
   const displayError = authError || (urlError ? (ERROR_MESSAGES[urlError] || urlError) : null);
+
+  useEffect(() => {
+    const completeAuthInCurrentTab = async () => {
+      if (!sent || handlingCrossTabAuth.current) return;
+
+      const access = localStorage.getItem('rsn_access');
+      const refresh = localStorage.getItem('rsn_refresh');
+      if (!access || !refresh) return;
+
+      handlingCrossTabAuth.current = true;
+      try {
+        setTokens(access, refresh);
+        await checkSession();
+        const redirect = sessionStorage.getItem('rsn_redirect');
+        sessionStorage.removeItem('rsn_redirect');
+        navigate(redirect || '/', { replace: true });
+      } finally {
+        handlingCrossTabAuth.current = false;
+      }
+    };
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === 'rsn_access' || event.key === 'rsn_auth_completed_at') {
+        void completeAuthInCurrentTab();
+      }
+    };
+
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [sent, checkSession, navigate, setTokens]);
 
   const onSubmit = async (data: { email: string; inviteCode: string }) => {
     setAuthError(null);
@@ -131,6 +163,7 @@ export default function LoginPage() {
                 We sent a magic link to <span className="font-medium text-surface-200">{getValues('email')}</span>
               </p>
               <p className="text-surface-500 text-xs mt-1">Click the link in your email to sign in. It expires in 60 minutes.</p>
+              <p className="text-surface-500 text-xs">This page will continue automatically after you verify the link.</p>
 
               <button onClick={() => setSent(false)} className="text-sm text-surface-500 hover:text-surface-300 transition-colors">
                 Try a different email

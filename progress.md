@@ -374,6 +374,27 @@ Purpose: Persistent execution history and current state, independent of chat mem
 - Next immediate action:
   - Push commit to `main` and let Vercel auto-deploy.
 
+---
+
+### 2026-03-09 01:40 - Entry 014
+- Task ID: T-022
+- Task Title: Keep original login tab and auto-redirect after magic-link verification
+- Status: Completed
+- What changed:
+  - Added cross-tab auth synchronization to login flow so users can stay on the original login tab.
+  - `LoginPage` now listens for `storage` events (`rsn_access` or `rsn_auth_completed_at`) and, when tokens appear from verification in another tab, it loads session and redirects in the current tab.
+  - `VerifyPage` now emits a localStorage auth-complete marker after successful verification/token load.
+  - Added user-facing hint on login waiting screen: "This page will continue automatically after you verify the link."
+- Files touched:
+  - client/src/features/auth/LoginPage.tsx
+  - client/src/features/auth/VerifyPage.tsx
+  - progress.md
+- Decisions made:
+  - Keep server/auth contract unchanged; implement same-window UX through client-side cross-tab sync.
+  - Preserve existing verify-page redirect behavior while making original tab auto-continue.
+- Next immediate action:
+  - Push commit to `main` and test magic-link flow from Vercel app + Gmail link.
+
 ### T-011: Milestone 1 Live API Testing & Final Validation
 
 - Timestamp: 2026-03-05
