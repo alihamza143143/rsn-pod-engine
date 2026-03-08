@@ -20,6 +20,7 @@ export default function LoginPage() {
   const { login, setTokens, checkSession } = useAuthStore();
   const [params] = useSearchParams();
   const [sent, setSent] = useState(false);
+  const [devLink, setDevLink] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const handlingCrossTabAuth = useRef(false);
   const { register, handleSubmit, formState: { errors, isSubmitting }, getValues, watch } = useForm<{ email: string; inviteCode: string }>();
@@ -68,9 +69,14 @@ export default function LoginPage() {
 
   const onSubmit = async (data: { email: string; inviteCode: string }) => {
     setAuthError(null);
+    setDevLink(null);
     try {
-      await login(data.email, window.location.origin, data.inviteCode || undefined);
+      const response = await login(data.email, window.location.origin, data.inviteCode || undefined);
       setSent(true);
+      // Capture devLink if returned (dev mode only)
+      if (response?.devLink) {
+        setDevLink(response.devLink);
+      }
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message || err?.response?.data?.data?.message || 'Failed to send magic link';
       setAuthError(msg);
@@ -164,6 +170,20 @@ export default function LoginPage() {
               </p>
               <p className="text-surface-500 text-xs mt-1">Click the link in your email to sign in. It expires in 60 minutes.</p>
               <p className="text-surface-500 text-xs">This page will continue automatically after you verify the link.</p>
+
+              {/* Dev mode: show direct link */}
+              {devLink && (
+                <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 mt-4 animate-fade-in">
+                  <p className="text-xs text-amber-300 mb-2 font-semibold">DEV MODE — Direct Link</p>
+                  <a
+                    href={devLink}
+                    className="inline-flex items-center gap-2 text-sm text-amber-400 hover:text-amber-300 underline"
+                  >
+                    Click here to verify
+                    <ArrowRight className="h-4 w-4" />
+                  </a>
+                </div>
+              )}
 
               <button onClick={() => setSent(false)} className="text-sm text-surface-500 hover:text-surface-300 transition-colors">
                 Try a different email
