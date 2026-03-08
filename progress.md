@@ -41,10 +41,22 @@ Purpose: Persistent execution history and current state, independent of chat mem
 ## Current Phase Snapshot
 
 - Active Phase: Implementation
-- Active Milestone: **Milestone 2 & 3 (Complete) — READY FOR DEPLOYMENT ✅**
-- Current Session: Post-M3 System Hardening & Field Validation
+- Active Milestone: **Milestone 2 (In Progress) — Field Validation & UX Hardening**
+- Current Session: User-reported issues from live testing — fixing encounters, invites, pods, matching
 - Overall Build Status: All Features Complete, Zero Errors, All Tests Passing
-- Last Updated: March 6, 2026
+- Last Updated: March 8, 2026
+
+---
+
+## Mandatory Development Rules
+
+1. All code changes must align with the system requirement plan (plan.md).
+2. progress.md must be updated after every code change automatically — user should never need to ask.
+3. plan.md is the canonical reference for features, architecture, and flows.
+4. When adding features or fixing issues, always reference the plan to ensure alignment.
+5. Profile completion should be encouraged/required before quality matching can occur.
+6. Pod deletion is a soft-delete (archive) — sessions and data are always preserved for potential reactivation.
+7. Invite flow requires explicit user action to share the link — system does not auto-email invites yet.
 
 ---
 
@@ -61,6 +73,13 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-008 | Rename historical commit message on GitHub | Completed | Copilot | Rewrote target commit message and force-pushed with lease |
 | T-009 | Add deployment strategy TBD items | Completed | Copilot | Added pending decisions for dev/testing deployment stack |
 | T-003 | Milestone 1 Implementation | Completed | Copilot | Full backend foundation built from scratch |
+| T-010 | Fix pod list API to include member+session counts | Completed | Copilot | Added JOIN subqueries for memberCount and sessionCount |
+| T-011 | Add pod reactivation (server + client) | Completed | Copilot | POST /pods/:id/reactivate + client UI for archived pods |
+| T-012 | Improve invite flow with copy/share UX | Completed | Copilot | Added copy link button, shareable URL display, instructions |
+| T-013 | Show all pods (active + archived) with filters | Completed | Copilot | PodsPage now has All/Active/Archived filter tabs |
+| T-014 | Add session count to pod detail page | Completed | Copilot | GET /pods/:id/session-count + display in pod header |
+| T-015 | Fix dashboard labels (Invites Created vs Sent) | Completed | Copilot | Corrected misleading "Invites Sent" to "Invites Created" |
+| T-016 | Rename Delete Pod to Archive Pod | Completed | Copilot | Button + confirm text now accurately describes soft-delete behavior |
 
 ---
 
@@ -1296,6 +1315,66 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
 1. **Host Detection Fix** — LiveSessionPage.tsx, RecapPage.tsx: Changed `user.role === 'host'` to `session.hostUserId === user.id || user.role === 'admin'`, added useQuery for session data
 2. **Invite→Login→Redirect Flow** — LoginPage.tsx stores redirect in sessionStorage; VerifyPage.tsx reads it after verification and navigates there
 3. **CSS Animations & Tailwind Config** — Added 12 new animations (fade-in, fade-in-up, slide-in-left/right, scale-in, pulse-slow, shimmer, glow, bounce-subtle), CSS utility classes (.card-hover, .btn-glow, .gradient-text, .stagger-1 to .stagger-8)
+
+---
+
+### T-010 to T-016: Live Testing UX Fixes — Pods, Invites, Dashboard, Encounters (Batch)
+
+- Timestamp: 2026-03-08
+- Task IDs: T-010 to T-016
+- Task Title: Field Validation UX Fixes Based on Live User Testing
+- Status: Completed
+- What changed:
+
+  **Server-side (pod.service.ts, pods.ts):**
+  - Pod list API now returns `memberCount` and `sessionCount` via LEFT JOIN subqueries
+  - Added `reactivatePod()` service function — allows archived pods to be set back to active
+  - Added `getSessionCountForPod()` service function
+  - Added `POST /pods/:id/reactivate` route with audit logging
+  - Added `GET /pods/:id/session-count` route
+
+  **Client-side (PodsPage.tsx):**
+  - Pods page now shows ALL pods (not just active) with All/Active/Archived filter tabs
+  - Pod cards display member count + session count + description
+
+  **Client-side (PodDetailPage.tsx):**
+  - Added session count display in pod header grid
+  - "Delete Pod" button renamed to "Archive Pod" with accurate confirmation text
+  - When pod is archived: shows "Reactivate Pod" button (director only)
+  - Confirmation text explains sessions/data are preserved
+
+  **Client-side (InvitesPage.tsx):**
+  - Each invite now shows the full shareable URL
+  - Added "Copy Link" button with clipboard integration
+  - Added explanation text: "Share this link with someone to invite them to your pod"
+  - Visual feedback when link is copied (checkmark icon)
+
+  **Client-side (HomePage.tsx):**
+  - Fixed "Invites Sent" → "Invites Created" (label was misleading)
+  - Dashboard "My Pods" count now correctly counts only active pods
+  - Fetches all pods (not just active) to calculate stats accurately
+
+- Files touched:
+  - server/src/services/pod/pod.service.ts
+  - server/src/routes/pods.ts
+  - client/src/features/pods/PodsPage.tsx
+  - client/src/features/pods/PodDetailPage.tsx
+  - client/src/features/invites/InvitesPage.tsx
+  - client/src/features/home/HomePage.tsx
+  - progress.md, plan.md
+- Decisions made:
+  - Pod "delete" is always a soft-delete (archive) — reactivation is always possible
+  - Sessions cascade from pod in DB (ON DELETE CASCADE) but since we never hard-delete, they are always preserved
+  - Invite sharing is user-initiated (copy link) — no system email sending yet
+  - Profile completion is not enforced before pod/session entry yet, but matching quality depends on it
+  - Encounters page is correctly wired but empty because no sessions have run with ratings yet
+  - Matching works with empty profiles but scores will be flat/random — profile data is needed for quality matching
+  - Only director and host roles can create sessions within a pod
+  - Users see only pods they are active members of — alihamza had 0 because the invite wasn't accepted
+- Next immediate action:
+  - Consider adding email integration for invite delivery
+  - Consider requiring profile completion before joining sessions
+  - Run a test session end-to-end to populate encounter history data
 4. **ProfilePage Complete Rewrite** — All 14 fields: firstName, lastName, displayName, bio, company, jobTitle, industry, location, linkedinUrl, timezone, interests, reasonsToConnect, languages. Organized in 4 card sections with icons
 5. **CreatePodModal Complete** — Added podType (7 types), orchestrationMode (3 modes), communicationMode (4 modes), visibility (3 options)
 6. **CreateSessionPage Complete** — Added numberOfRounds, lobbyDurationSeconds, transitionDurationSeconds, maxParticipants, description with proper validation ranges

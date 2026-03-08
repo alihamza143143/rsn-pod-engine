@@ -13,7 +13,7 @@ export default function HomePage() {
 
   const { data: pods, isLoading: podsLoading } = useQuery({
     queryKey: ['my-pods'],
-    queryFn: () => api.get('/pods?status=active').then(r => r.data.data ?? []),
+    queryFn: () => api.get('/pods').then(r => r.data.data ?? []),
   });
 
   const { data: sessions, isLoading: sessionsLoading } = useQuery({
@@ -28,9 +28,10 @@ export default function HomePage() {
 
   if (podsLoading || sessionsLoading || invitesLoading) return <PageLoader />;
 
+  const activePods = (pods || []).filter((p: any) => p.status === 'active');
   const upcomingSessions = (sessions || []).filter((s: any) => s.status === 'scheduled');
   const acceptedInvites = (invites || []).filter((i: any) => i.status === 'accepted');
-  const podCount = pods?.length || 0;
+  const podCount = activePods.length;
 
   // Unlock level logic (matching reference site)
   const unlockLevel = acceptedInvites.length >= 3 ? 'Pro' : acceptedInvites.length >= 1 ? 'Basic' : 'Starter';
@@ -63,7 +64,7 @@ export default function HomePage() {
 
         <Card className="cursor-pointer hover:border-surface-600 transition-colors" onClick={() => navigate('/invites')}>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm text-surface-400">Invites Sent</p>
+            <p className="text-sm text-surface-400">Invites Created</p>
             <Mail className="h-4 w-4 text-surface-500" />
           </div>
           <p className="text-3xl font-bold text-surface-100">{(invites || []).length}</p>

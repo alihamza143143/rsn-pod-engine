@@ -41,6 +41,18 @@ Remaining for M2:
 - ⬜ Host controls via Socket.IO (start/pause/end/broadcast)
 - ⬜ Encounter history updates after sessions
 - ⬜ Reconnection handling
+- ✅ Pod reactivation (archive→active) with UI
+- ✅ Pod list shows member + session counts
+- ✅ Invite copy/share UX
+- ✅ Dashboard label accuracy fixes
+
+### Important Design Decisions (March 8, 2026)
+- **Pod deletion = soft archive**: Pods are never hard-deleted. "Delete" sets status='archived'. Sessions/data preserved. Directors can reactivate.
+- **Invite flow**: User creates invite → gets shareable link → manually shares with recipient → recipient navigates to link → signs in → accepts. No system email delivery yet.
+- **Matching quality depends on profile data**: The matching engine uses interests, reasons, industry, company, languages. Without profile data, matches are random. Profile completion should be strongly encouraged or gated before session entry.
+- **Session creation permission**: Only `director` and `host` pod members can create sessions. Regular `member` cannot.
+- **Pod visibility**: Users only see pods where they are active members. Creating a pod auto-adds creator as director.
+- **All progress.md updates are automatic**: Never require user to ask for progress updates — they happen after every code change.
 
 ---
 

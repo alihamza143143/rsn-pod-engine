@@ -219,4 +219,37 @@ router.post(
   }
 );
 
+// ─── POST /pods/:id/reactivate ──────────────────────────────────────────────
+
+router.post(
+  '/:id/reactivate',
+  authenticate,
+  auditMiddleware('reactivate_pod', 'pod'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const pod = await podService.reactivatePod(req.params.id, req.user!.userId);
+      const response: ApiResponse = { success: true, data: pod };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ─── GET /pods/:id/session-count ────────────────────────────────────────────
+
+router.get(
+  '/:id/session-count',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const count = await podService.getSessionCountForPod(req.params.id);
+      const response: ApiResponse = { success: true, data: { count } };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 export default router;

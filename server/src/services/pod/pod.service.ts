@@ -148,11 +148,16 @@ export async function listPods(params: {
   const total = parseInt(countResult.rows[0].count, 10);
 
   values.push(pageSize, offset);
-  const result = await query<Pod>(
+  const result = await query<Pod & { memberCount: number; sessionCount: number }>(
     `SELECT p.id, p.name, p.description, p.pod_type AS "podType", p.orchestration_mode AS "orchestrationMode",
             p.communication_mode AS "communicationMode", p.visibility, p.status, p.max_members AS "maxMembers",
-            p.rules, p.config, p.created_by AS "createdBy", p.created_at AS "createdAt", p.updated_at AS "updatedAt"
-     FROM pods p ${whereClause}
+            p.rules, p.config, p.created_by AS "createdBy", p.created_at AS "createdAt", p.updated_at AS "updatedAt",
+            COALESCE(mc.cnt, 0)::int AS "memberCount",
+            COALESCE(sc.cnt, 0)::int AS "sessionCount"
+     FROM pods p
+     LEFT JOIN (SELECT pod_id, COUNT(*) AS cnt FROM pod_members WHERE status = 'active' GROUP BY pod_id) mc ON mc.pod_id = p.id
+     LEFT JOIN (SELECT pod_id, COUNT(*) AS cnt FROM sessions GROUP BY pod_id) sc ON sc.pod_id = p.id
+     ${whereClause}
      ORDER BY p.created_at DESC
      LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
     values
@@ -273,6 +278,29 @@ export async function deletePod(podId: string, userId: string): Promise<void> {
   // Soft-delete: archive the pod
   await query(`UPDATE pods SET status = 'archived', updated_at = NOW() WHERE id = $1`, [podId]);
   logger.info({ podId, userId }, 'Pod deleted (archived)');
+}
+
+export async function reactivatePod(podId: string, userId: string): Promise<Pod> {
+  const pod = await getPodById(podId);
+  if (pod.status !== 'archived') {
+    throw new ConflictError('POD_NOT_ARCHIVED', 'Only archived pods can be reactivated');
+  }
+  await requirePodRole(podId, userId, [PodMemberRole.DIRECTOR]);
+
+  const result = await query<Pod>(
+    `UPDATE pods SET status = 'active', updated_at = NOW() WHERE id = $1 RETURNING ${POD_COLUMNS}`,
+    [podId]
+  );
+  logger.info({ podId, userId }, 'Pod reactivated');
+  return result.rows[0];
+}
+
+export async function getSessionCountForPod(podId: string): Promise<number> {
+  const result = await query<{ count: string }>(
+    `SELECT COUNT(*) as count FROM sessions WHERE pod_id = $1`,
+    [podId]
+  );
+  return parseInt(result.rows[0].count, 10);
 }
 
 // ─── Authorization Helpers ──────────────────────────────────────────────────

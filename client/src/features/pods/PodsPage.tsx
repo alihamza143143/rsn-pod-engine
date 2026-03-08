@@ -10,12 +10,19 @@ import { PageLoader } from '@/components/ui/Spinner';
 import api from '@/lib/api';
 import CreatePodModal from './CreatePodModal';
 
+type PodFilter = 'all' | 'active' | 'archived';
+
 export default function PodsPage() {
   const navigate = useNavigate();
   const [showCreate, setShowCreate] = useState(false);
+  const [filter, setFilter] = useState<PodFilter>('all');
+
   const { data, isLoading } = useQuery({
-    queryKey: ['my-pods'],
-    queryFn: () => api.get('/pods?status=active').then(r => r.data.data ?? []),
+    queryKey: ['my-pods', filter],
+    queryFn: () => {
+      const params = filter === 'all' ? '' : `?status=${filter}`;
+      return api.get(`/pods${params}`).then(r => r.data.data ?? []);
+    },
   });
 
   if (isLoading) return <PageLoader />;
@@ -27,12 +34,21 @@ export default function PodsPage() {
         <Button onClick={() => setShowCreate(true)} className="btn-glow"><Plus className="h-4 w-4 mr-2" /> Create Pod</Button>
       </div>
 
+      {/* Filters */}
+      <div className="flex gap-2 animate-fade-in-up">
+        {(['all', 'active', 'archived'] as PodFilter[]).map(f => (
+          <Button key={f} variant={filter === f ? 'primary' : 'ghost'} size="sm" onClick={() => setFilter(f)}>
+            {f.charAt(0).toUpperCase() + f.slice(1)}
+          </Button>
+        ))}
+      </div>
+
       {(!data || data.length === 0) ? (
         <EmptyState
           icon={<Users className="h-8 w-8" />}
-          title="No pods yet"
-          description="Create your first pod to start networking with peers."
-          action={<Button onClick={() => setShowCreate(true)}>Create Pod</Button>}
+          title={filter === 'archived' ? 'No archived pods' : 'No pods yet'}
+          description={filter === 'archived' ? 'Archived pods will appear here.' : 'Create your first pod to start networking with peers.'}
+          action={filter !== 'archived' ? <Button onClick={() => setShowCreate(true)}>Create Pod</Button> : undefined}
         />
       ) : (
         <div className="grid gap-4 animate-fade-in-up">
@@ -45,10 +61,12 @@ export default function PodsPage() {
                   </div>
                   <div>
                     <p className="font-medium text-surface-200">{pod.name}</p>
-                    <p className="text-sm text-surface-400">{pod.memberCount || 0} members · {pod.description || 'General'}</p>
+                    <p className="text-sm text-surface-400">
+                      {pod.memberCount || 0} members · {pod.sessionCount || 0} sessions · {pod.description || 'General'}
+                    </p>
                   </div>
                 </div>
-                <Badge variant={pod.status === 'active' ? 'success' : 'default'}>{pod.status}</Badge>
+                <Badge variant={pod.status === 'active' ? 'success' : pod.status === 'archived' ? 'default' : 'warning'}>{pod.status}</Badge>
               </div>
             </Card>
           ))}

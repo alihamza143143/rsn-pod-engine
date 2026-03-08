@@ -43,6 +43,12 @@ export default function PodDetailPage() {
     enabled: !!podId,
   });
 
+  const { data: sessionCountData } = useQuery({
+    queryKey: ['pod-session-count', podId],
+    queryFn: () => api.get(`/pods/${podId}/session-count`).then(r => r.data.data?.count ?? 0),
+    enabled: !!podId,
+  });
+
   const leaveMutation = useMutation({
     mutationFn: () => api.post(`/pods/${podId}/leave`),
     onSuccess: () => {
@@ -80,6 +86,16 @@ export default function PodDetailPage() {
     onError: () => addToast('Failed to delete pod', 'error'),
   });
 
+  const reactivateMutation = useMutation({
+    mutationFn: () => api.post(`/pods/${podId}/reactivate`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pod', podId] });
+      qc.invalidateQueries({ queryKey: ['my-pods'] });
+      addToast('Pod reactivated', 'success');
+    },
+    onError: () => addToast('Failed to reactivate pod', 'error'),
+  });
+
   const openEdit = () => {
     setEditName(pod?.name || '');
     setEditDescription(pod?.description || '');
@@ -109,10 +125,14 @@ export default function PodDetailPage() {
           <Badge variant={pod.status === 'active' ? 'success' : 'default'}>{pod.status}</Badge>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 pt-4 border-t border-surface-800">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mt-4 pt-4 border-t border-surface-800">
           <div className="flex items-center gap-2 text-sm text-surface-400">
             <Users className="h-4 w-4 text-brand-400" />
             <span>{membersList.length} members</span>
+          </div>
+          <div className="flex items-center gap-2 text-sm text-surface-400">
+            <Calendar className="h-4 w-4 text-brand-400" />
+            <span>{sessionCountData || 0} sessions</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-surface-400">
             <Radio className="h-4 w-4 text-brand-400" />
@@ -137,7 +157,16 @@ export default function PodDetailPage() {
       </Card>
 
       {/* Actions */}
-      {pod.status !== 'archived' && (
+      {pod.status === 'archived' ? (
+        <div className="flex flex-wrap gap-3 animate-fade-in-up stagger-1">
+          {isDirector && (
+            <Button onClick={() => reactivateMutation.mutate()} isLoading={reactivateMutation.isPending} className="btn-glow">
+              Reactivate Pod
+            </Button>
+          )}
+          <p className="text-sm text-surface-500 self-center">This pod is archived. Sessions and data are preserved.</p>
+        </div>
+      ) : pod.status !== 'archived' && (
         <div className="flex flex-wrap gap-3 animate-fade-in-up stagger-1">
           <Button onClick={() => navigate(`/sessions/new?podId=${podId}`)} className="btn-glow">
             <Calendar className="h-4 w-4 mr-2" /> Schedule Session
@@ -148,8 +177,8 @@ export default function PodDetailPage() {
             </Button>
           )}
           {isDirector && (
-            <Button variant="danger" onClick={() => { if (confirm('Delete this pod? This cannot be undone.')) deleteMutation.mutate(); }} isLoading={deleteMutation.isPending}>
-              <Trash2 className="h-4 w-4 mr-2" /> Delete Pod
+            <Button variant="danger" onClick={() => { if (confirm('Archive this pod? Sessions will be preserved and you can reactivate later.')) deleteMutation.mutate(); }} isLoading={deleteMutation.isPending}>
+              <Trash2 className="h-4 w-4 mr-2" /> Archive Pod
             </Button>
           )}
           {myMembership && !isDirector && (
