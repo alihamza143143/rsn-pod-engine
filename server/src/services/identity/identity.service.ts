@@ -368,22 +368,30 @@ export async function findOrCreateGoogleUser(
   let user = await getUserByEmail(normalizedEmail);
 
   if (!user) {
-    // New user — validate invite code (invite-only platform)
-    if (!inviteCode) {
-      throw new AppError(400, ErrorCodes.INVITE_REQUIRED, 'An invite code is required to create a new account');
-    }
-    const invResult = await query<{ id: string; status: string; use_count: number; max_uses: number; expires_at: Date | null }>(
-      `SELECT id, status, use_count, max_uses, expires_at FROM invites WHERE code = $1`,
-      [inviteCode]
-    );
-    if (invResult.rows.length === 0) {
-      throw new AppError(400, ErrorCodes.INVALID_INVITE, 'Invalid invite code');
-    }
-    const inv = invResult.rows[0];
-    if (inv.status === 'revoked' || inv.status === 'expired' ||
-        (inv.expires_at && new Date(inv.expires_at) < new Date()) ||
-        inv.use_count >= inv.max_uses) {
-      throw new AppError(400, ErrorCodes.INVALID_INVITE, 'This invite code is no longer valid');
+    // New user — invite codes are optional, validate only if provided
+    let inviteId: string | null = null;
+    let invUseCount = 0;
+    let invMaxUses = 0;
+    let invStatus = '';
+
+    if (inviteCode) {
+      const invResult = await query<{ id: string; status: string; use_count: number; max_uses: number; expires_at: Date | null }>(
+        `SELECT id, status, use_count, max_uses, expires_at FROM invites WHERE code = $1`,
+        [inviteCode]
+      );
+      if (invResult.rows.length === 0) {
+        throw new AppError(400, ErrorCodes.INVALID_INVITE, 'Invalid invite code');
+      }
+      const inv = invResult.rows[0];
+      if (inv.status === 'revoked' || inv.status === 'expired' ||
+          (inv.expires_at && new Date(inv.expires_at) < new Date()) ||
+          inv.use_count >= inv.max_uses) {
+        throw new AppError(400, ErrorCodes.INVALID_INVITE, 'This invite code is no longer valid');
+      }
+      inviteId = inv.id;
+      invUseCount = inv.use_count;
+      invMaxUses = inv.max_uses;
+      invStatus = inv.status;
     }
 
     // Create the user
@@ -397,13 +405,15 @@ export async function findOrCreateGoogleUser(
     await query(`INSERT INTO user_subscriptions (user_id, plan, status) VALUES ($1, 'free', 'active')`, [id]);
     await query(`INSERT INTO user_entitlements (user_id) VALUES ($1)`, [id]);
 
-    // Mark invite as used
-    const newCount = inv.use_count + 1;
-    const newStatus = newCount >= inv.max_uses ? 'accepted' : inv.status;
-    await query(
-      `UPDATE invites SET use_count = $1, status = $2, accepted_by_user_id = $3, accepted_at = NOW() WHERE id = $4`,
-      [newCount, newStatus, id, inv.id]
-    );
+    // Mark invite as used (only if one was provided)
+    if (inviteId) {
+      const newCount = invUseCount + 1;
+      const newStatus = newCount >= invMaxUses ? 'accepted' : invStatus;
+      await query(
+        `UPDATE invites SET use_count = $1, status = $2, accepted_by_user_id = $3, accepted_at = NOW() WHERE id = $4`,
+        [newCount, newStatus, id, inviteId]
+      );
+    }
 
     user = await getUserById(id);
     logger.info({ userId: id, email: normalizedEmail }, 'Google OAuth: new user created');
