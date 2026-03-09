@@ -101,6 +101,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-035 | Point frontend to Render backend | Completed | Copilot | Updated runtimeEndpoints.ts from Cloudflare tunnel to Render URL |
 | T-036 | Comprehensive codebase audit & hardening | Completed | Copilot | Security fixes, race conditions, DB migration, reconnection, recap emails |
 | T-037 | Stabilize tests + flush DB to empty | Completed | Copilot | Updated mocks for hardened routes/transactions; reset+migrate DB without seeding |
+| T-038 | Make invite optional for Google OAuth signup | Completed | Copilot | Aligned Google OAuth with magic link flow — new users can sign up without invite |
 
 ---
 
@@ -2112,3 +2113,26 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
 2. Proceed with live testing on fresh database
 3. Monitor application logs and error tracking in production
 4. Optional: Add npm scripts for easier DB reset in future
+
+---
+
+### 2026-03-09 23:00 - Entry T-038
+- Task ID: T-038
+- Task Title: Make invite optional for Google OAuth signup
+- Status: Completed
+- What changed:
+  - `findOrCreateGoogleUser()` in identity.service.ts: Removed mandatory invite check for new users. Invite codes are now optional — if provided, they are validated and marked as used; if not provided, user is created without an invite (matching the magic link flow from T-028).
+  - Google OAuth redirect error `INVITE_REQUIRED` is now resolved — new users can sign up via Google without an invite code.
+  - Render logs confirmed error at `identity.service.js:283`: "An invite code is required to create a new account" — this line no longer throws.
+- Files touched:
+  - server/src/services/identity/identity.service.ts
+  - progress.md
+- Decisions made:
+  - Aligned Google OAuth with magic link invite policy (T-028): invites are optional for both flows
+  - If invite code is provided with Google login, it is still validated and consumed
+  - If no invite code, user is created as a free member with no invite association
+- Test Results:
+  - ✅ Server tests: 248/248 passing
+- Commit: 7fd096c pushed to origin/main
+- Next immediate action:
+  - Wait for Render auto-deploy, then test Google login with a new user (no invite code)
