@@ -8,6 +8,7 @@ import {
   useParticipants,
   RoomAudioRenderer,
 } from '@livekit/components-react';
+import { isTrackReference } from '@livekit/components-core';
 import '@livekit/components-styles';
 import { Track } from 'livekit-client';
 
@@ -33,7 +34,7 @@ function LobbyMosaic() {
         const hasVideo = !!trackRef.publication?.track;
         return (
           <div key={trackRef.participant.sid} className="relative rounded-xl overflow-hidden bg-surface-900 aspect-video flex items-center justify-center border border-surface-800">
-            {hasVideo ? (
+            {hasVideo && isTrackReference(trackRef) ? (
               <VideoTrack trackRef={trackRef} className="h-full w-full object-cover" />
             ) : (
               <div className="flex flex-col items-center gap-1">

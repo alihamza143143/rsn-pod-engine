@@ -41,14 +41,9 @@ Purpose: Persistent execution history and current state, independent of chat mem
 ## Current Phase Snapshot
 
 - Active Phase: Implementation
-- Active Milestone: **Milestone 2 (In Progress) — Pod Visibility, Lobby Mosaic & rsn.network Design**
-- Current Session: Pod visibility enforcement, session invites, lobby video mosaic, late-join UX, rsn.network design integration
-- Overall Build Status: All Features Complete, Zero Errors, All Tests Passing
-- Last Updated: March 10, 2026
-- Active Phase: Implementation
 - Active Milestone: **Milestone 2 (Complete) — Pod Visibility, Lobby Mosaic & rsn.network Design** ✅
-- Current Session: Test fixes and git push (T-048)
-- Overall Build Status: 248/248 Tests Passing, Zero Errors, Ready for Deployment
+- Current Session: Vercel build failure fix (T-049)
+- Overall Build Status: Shared + Client production builds passing, 248/248 tests passing
 - Last Updated: March 10, 2026
 
 ---
@@ -118,6 +113,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-046 | Lobby mosaic with LiveKit video grid | Completed | Copilot | Backend lobby room creation + token issuance, frontend video mosaic with responsive grid |
 | T-047 | rsn.network design integration | Completed | Copilot | Light theme, DM Sans font, landing page redesign, HowItWorks, About, Reasons pages, routes, sheep easter egg |
 | T-048 | Test fixes and git push | Completed | Copilot | Fixed session.service.test.ts mocks, all 248 tests passing, pushed to GitHub |
+| T-049 | Fix Vercel client build TS2322 in Lobby | Completed | Copilot | Added LiveKit type guard before VideoTrack usage; build command now passes |
 
 ---
 
@@ -2396,3 +2392,26 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - ✅ 56.89% statement coverage, 49.54% branch coverage
 - Next immediate action:
   - Deploy backend to Render, frontend to Vercel, test live deployment with new features
+
+---
+
+### 2026-03-10 02:35 - Entry T-049
+- Task ID: T-049
+- Task Title: Fix Vercel client build TS2322 in Lobby
+- Status: Completed
+- What changed:
+  - Reproduced the exact failing Vercel command locally: `npm install`, `npm run build:shared`, `cd client`, `npm run build`.
+  - Root cause: `client/src/features/live/Lobby.tsx` passed `TrackReferenceOrPlaceholder` into `VideoTrack`, but `VideoTrack` requires `TrackReference`.
+  - Added `isTrackReference` guard from `@livekit/components-core` and only render `VideoTrack` when the reference is a real published track.
+  - Re-ran full build chain: shared build passes and client production build passes.
+- Files touched:
+  - client/src/features/live/Lobby.tsx
+  - progress.md
+- Decisions made:
+  - Keep placeholder track support in lobby grid, but gate video rendering with strict type guard for TypeScript correctness.
+  - Preserve current UI behavior (fallback avatar tile still used when no camera track).
+- Validation Results:
+  - ✅ `npm run build:shared` passed
+  - ✅ `cd client; npm run build` passed
+- Next immediate action:
+  - Trigger/verify Vercel redeploy on latest commit
