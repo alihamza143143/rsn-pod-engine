@@ -20,7 +20,7 @@ interface SessionForm {
   maxParticipants: number;
 }
 
-const selectClass = 'w-full rounded-xl border border-surface-700 bg-surface-800/50 px-4 py-2.5 text-sm text-surface-100 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all duration-200';
+const selectClass = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200';
 
 export default function CreateSessionPage() {
   const navigate = useNavigate();
@@ -69,21 +69,21 @@ export default function CreateSessionPage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <button onClick={() => navigate('/sessions')} className="flex items-center gap-2 text-surface-400 hover:text-surface-200 transition-colors text-sm">
+      <button onClick={() => navigate('/sessions')} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors text-sm">
         <ArrowLeft className="h-4 w-4" /> Back to Sessions
       </button>
 
-      <h1 className="text-2xl font-bold text-surface-100 animate-fade-in">Schedule a Session</h1>
+      <h1 className="text-2xl font-bold text-[#1a1a2e] animate-fade-in">Schedule a Session</h1>
 
       <form onSubmit={handleSubmit(d => mutation.mutate(d))} className="space-y-6">
         {/* Basic Info */}
         <Card className="animate-fade-in-up">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-surface-200 mb-4">
-            <Settings className="h-5 w-5 text-brand-400" /> Basic Info
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 mb-4">
+            <Settings className="h-5 w-5 text-indigo-600" /> Basic Info
           </h2>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-surface-300 mb-1.5">Pod</label>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">Pod</label>
               <select
                 {...register('podId', { required: 'Select a pod' })}
                 className={selectClass}
@@ -97,12 +97,12 @@ export default function CreateSessionPage() {
             </div>
             <Input label="Title" {...register('title', { required: 'Required' })} placeholder="What will you discuss?" error={errors.title?.message} />
             <div>
-              <label className="block text-sm font-medium text-surface-300 mb-1.5">Description (optional)</label>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">Description (optional)</label>
               <textarea
                 {...register('description')}
                 rows={2}
                 placeholder="Describe the session topic..."
-                className="w-full rounded-xl border border-surface-700 bg-surface-800/50 px-4 py-2.5 text-sm text-surface-100 placeholder:text-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all duration-200 resize-none"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200 resize-none"
               />
             </div>
             <Input
@@ -117,42 +117,42 @@ export default function CreateSessionPage() {
 
         {/* Session Config */}
         <Card className="animate-fade-in-up stagger-1">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-surface-200 mb-4">
-            <Clock className="h-5 w-5 text-brand-400" /> Timing Configuration
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 mb-4">
+            <Clock className="h-5 w-5 text-indigo-600" /> Timing Configuration
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-surface-300 mb-1.5">Number of Rounds</label>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">Number of Rounds</label>
               <input type="number" {...register('numberOfRounds', { valueAsNumber: true, min: 1, max: 20 })} className={selectClass} />
-              <p className="text-xs text-surface-500 mt-1">1 – 20 rounds</p>
+              <p className="text-xs text-gray-400 mt-1">1 – 20 rounds</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-surface-300 mb-1.5">Round Duration</label>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">Round Duration</label>
               <input type="number" {...register('roundDurationSeconds', { valueAsNumber: true, min: 60, max: 3600 })} className={selectClass} />
-              <p className="text-xs text-surface-500 mt-1">60 – 3600 seconds (default 8 min)</p>
+              <p className="text-xs text-gray-400 mt-1">60 – 3600 seconds (default 8 min)</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-surface-300 mb-1.5">Lobby Duration</label>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">Lobby Duration</label>
               <input type="number" {...register('lobbyDurationSeconds', { valueAsNumber: true, min: 30, max: 3600 })} className={selectClass} />
-              <p className="text-xs text-surface-500 mt-1">30 – 3600 seconds</p>
+              <p className="text-xs text-gray-400 mt-1">30 – 3600 seconds</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-surface-300 mb-1.5">Transition Duration</label>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">Transition Duration</label>
               <input type="number" {...register('transitionDurationSeconds', { valueAsNumber: true, min: 10, max: 120 })} className={selectClass} />
-              <p className="text-xs text-surface-500 mt-1">10 – 120 seconds</p>
+              <p className="text-xs text-gray-400 mt-1">10 – 120 seconds</p>
             </div>
           </div>
         </Card>
 
         {/* Capacity */}
         <Card className="animate-fade-in-up stagger-2">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-surface-200 mb-4">
-            <Users className="h-5 w-5 text-brand-400" /> Capacity
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 mb-4">
+            <Users className="h-5 w-5 text-indigo-600" /> Capacity
           </h2>
           <div>
-            <label className="block text-sm font-medium text-surface-300 mb-1.5">Max Participants</label>
+            <label className="block text-sm font-medium text-gray-600 mb-1.5">Max Participants</label>
             <input type="number" {...register('maxParticipants', { valueAsNumber: true, min: 2, max: 10000 })} className={selectClass} />
-            <p className="text-xs text-surface-500 mt-1">2 – 10,000 participants</p>
+            <p className="text-xs text-gray-400 mt-1">2 – 10,000 participants</p>
           </div>
         </Card>
 

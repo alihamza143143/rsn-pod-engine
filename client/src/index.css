@@ -10,25 +10,25 @@
     scroll-behavior: smooth;
   }
   body {
-    @apply bg-surface-950 text-surface-100 font-sans antialiased;
+    @apply bg-white text-[#1a1a2e] font-sans antialiased;
   }
   ::selection {
-    @apply bg-brand-500/30 text-white;
+    @apply bg-indigo-100 text-[#1a1a2e];
   }
   ::-webkit-scrollbar {
     @apply w-2;
   }
   ::-webkit-scrollbar-track {
-    @apply bg-surface-900;
+    @apply bg-gray-50;
   }
   ::-webkit-scrollbar-thumb {
-    @apply bg-surface-600 rounded-full;
+    @apply bg-gray-300 rounded-full;
   }
   ::-webkit-scrollbar-thumb:hover {
-    @apply bg-surface-500;
+    @apply bg-gray-400;
   }
   :focus-visible {
-    @apply outline-none ring-2 ring-brand-500/50 ring-offset-2 ring-offset-surface-950;
+    @apply outline-none ring-2 ring-[#1a1a2e]/30 ring-offset-2 ring-offset-white;
   }
 }
 
@@ -43,10 +43,10 @@
     @apply bg-gradient-to-r from-brand-400 to-purple-400 bg-clip-text text-transparent;
   }
   .card-hover {
-    @apply transition-all duration-300 hover:border-surface-600 hover:bg-surface-800/70 hover:shadow-lg hover:shadow-brand-500/5 hover:-translate-y-0.5;
+    @apply transition-all duration-300 hover:border-gray-300 hover:bg-gray-50 hover:shadow-md hover:-translate-y-0.5;
   }
   .btn-glow {
-    @apply shadow-lg shadow-brand-500/20 hover:shadow-brand-500/40 transition-all duration-300;
+    @apply shadow-md hover:shadow-lg transition-all duration-300;
   }
 
   /* Light theme for public / marketing pages */
@@ -85,4 +85,32 @@
   .stagger-6 { animation-delay: 0.3s; }
   .stagger-7 { animation-delay: 0.35s; }
   .stagger-8 { animation-delay: 0.4s; }
+
+  /* Scroll reveal — hidden by default, revealed by IntersectionObserver */
+  .scroll-reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+  }
+  .scroll-reveal.revealed {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Card press / click effect */
+  .press-effect {
+    @apply transition-transform duration-150;
+  }
+  .press-effect:active {
+    transform: scale(0.97);
+  }
+
+  /* Subtle hover lift for interactive elements */
+  .hover-lift {
+    @apply transition-all duration-300;
+  }
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.08);
+  }
 }

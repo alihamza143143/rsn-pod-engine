@@ -11,12 +11,12 @@ function Toggle({ enabled, onToggle, label, description }: {
   return (
     <div className="flex items-center justify-between py-3">
       <div>
-        <p className="text-sm font-medium text-surface-200">{label}</p>
-        <p className="text-xs text-surface-500">{description}</p>
+        <p className="text-sm font-medium text-gray-800">{label}</p>
+        <p className="text-xs text-gray-400">{description}</p>
       </div>
       <button
         onClick={onToggle}
-        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${enabled ? 'bg-brand-500' : 'bg-surface-700'}`}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${enabled ? 'bg-[#1a1a2e]' : 'bg-gray-200'}`}
       >
         <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
       </button>
@@ -39,15 +39,15 @@ export default function SettingsPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="animate-fade-in">
-        <h1 className="text-2xl font-bold text-surface-100">Settings</h1>
-        <p className="text-surface-400 text-sm mt-1">Manage your account preferences</p>
+        <h1 className="text-2xl font-bold text-[#1a1a2e]">Settings</h1>
+        <p className="text-gray-500 text-sm mt-1">Manage your account preferences</p>
       </div>
 
       {/* Notifications */}
       <Card className="animate-fade-in-up">
         <div className="flex items-center gap-2 mb-4">
-          <Bell className="h-5 w-5 text-brand-400" />
-          <h2 className="font-semibold text-surface-100">Notifications</h2>
+          <Bell className="h-5 w-5 text-indigo-600" />
+          <h2 className="font-semibold text-[#1a1a2e]">Notifications</h2>
         </div>
         <div className="divide-y divide-surface-800">
           <Toggle
@@ -74,8 +74,8 @@ export default function SettingsPage() {
       {/* Privacy */}
       <Card className="animate-fade-in-up">
         <div className="flex items-center gap-2 mb-4">
-          <Eye className="h-5 w-5 text-brand-400" />
-          <h2 className="font-semibold text-surface-100">Privacy</h2>
+          <Eye className="h-5 w-5 text-indigo-600" />
+          <h2 className="font-semibold text-[#1a1a2e]">Privacy</h2>
         </div>
         <div className="divide-y divide-surface-800">
           <Toggle
@@ -90,20 +90,20 @@ export default function SettingsPage() {
       {/* Account */}
       <Card className="animate-fade-in-up">
         <div className="flex items-center gap-2 mb-4">
-          <Shield className="h-5 w-5 text-brand-400" />
-          <h2 className="font-semibold text-surface-100">Account</h2>
+          <Shield className="h-5 w-5 text-indigo-600" />
+          <h2 className="font-semibold text-[#1a1a2e]">Account</h2>
         </div>
         <div className="space-y-3">
           <div className="flex items-center justify-between py-2">
             <div>
-              <p className="text-sm font-medium text-surface-200">Email</p>
-              <p className="text-xs text-surface-500">{user?.email}</p>
+              <p className="text-sm font-medium text-gray-800">Email</p>
+              <p className="text-xs text-gray-400">{user?.email}</p>
             </div>
           </div>
           <div className="flex items-center justify-between py-2">
             <div>
-              <p className="text-sm font-medium text-surface-200">Role</p>
-              <p className="text-xs text-surface-500 capitalize">{user?.role}</p>
+              <p className="text-sm font-medium text-gray-800">Role</p>
+              <p className="text-xs text-gray-400 capitalize">{user?.role}</p>
             </div>
           </div>
         </div>

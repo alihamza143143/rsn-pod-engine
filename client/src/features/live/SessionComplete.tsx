@@ -65,15 +65,15 @@ export default function SessionComplete({ sessionId }: Props) {
           <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-500/20 text-emerald-400 mb-4">
             <CheckCircle className="h-8 w-8" />
           </div>
-          <h2 className="text-xl font-bold text-surface-100 mb-2">Session Complete!</h2>
-          <p className="text-surface-400">Great networking! Here's your recap.</p>
+          <h2 className="text-xl font-bold text-[#1a1a2e] mb-2">Session Complete!</h2>
+          <p className="text-gray-500">Great networking! Here's your recap.</p>
         </Card>
 
         {loading ? (
           <div className="flex justify-center py-8"><Spinner /></div>
         ) : fetchError ? (
           <Card className="text-center">
-            <p className="text-surface-400 mb-3">Could not load your recap.</p>
+            <p className="text-gray-500 mb-3">Could not load your recap.</p>
             <Button size="sm" variant="secondary" onClick={fetchRecap}>Retry</Button>
           </Card>
         ) : (
@@ -82,23 +82,23 @@ export default function SessionComplete({ sessionId }: Props) {
             {stats && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <Card className="text-center py-3">
-                  <Users className="h-5 w-5 text-brand-400 mx-auto mb-1" />
-                  <p className="text-2xl font-bold text-surface-100">{connections.length}</p>
-                  <p className="text-xs text-surface-500">People Met</p>
+                  <Users className="h-5 w-5 text-indigo-600 mx-auto mb-1" />
+                  <p className="text-2xl font-bold text-[#1a1a2e]">{connections.length}</p>
+                  <p className="text-xs text-gray-400">People Met</p>
                 </Card>
                 <Card className="text-center py-3">
                   <Heart className="h-5 w-5 text-pink-400 mx-auto mb-1" />
-                  <p className="text-2xl font-bold text-surface-100">{stats.mutualMeetAgainCount}</p>
-                  <p className="text-xs text-surface-500">Mutual Matches</p>
+                  <p className="text-2xl font-bold text-[#1a1a2e]">{stats.mutualMeetAgainCount}</p>
+                  <p className="text-xs text-gray-400">Mutual Matches</p>
                 </Card>
                 <Card className="text-center py-3">
                   <Star className="h-5 w-5 text-amber-400 mx-auto mb-1" />
-                  <p className="text-2xl font-bold text-surface-100">{stats.avgQualityScore.toFixed(1)}</p>
-                  <p className="text-xs text-surface-500">Avg Rating</p>
+                  <p className="text-2xl font-bold text-[#1a1a2e]">{stats.avgQualityScore.toFixed(1)}</p>
+                  <p className="text-xs text-gray-400">Avg Rating</p>
                 </Card>
                 <Card className="text-center py-3">
-                  <p className="text-2xl font-bold text-surface-100">{Math.round(stats.meetAgainRate * 100)}%</p>
-                  <p className="text-xs text-surface-500">Meet Again Rate</p>
+                  <p className="text-2xl font-bold text-[#1a1a2e]">{Math.round(stats.meetAgainRate * 100)}%</p>
+                  <p className="text-xs text-gray-400">Meet Again Rate</p>
                 </Card>
               </div>
             )}
@@ -114,9 +114,9 @@ export default function SessionComplete({ sessionId }: Props) {
                     <div key={c.userId} className="flex items-center gap-3 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
                       <Avatar name={c.displayName || 'User'} size="sm" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-surface-200 font-medium truncate">{c.displayName}</p>
+                        <p className="text-gray-800 font-medium truncate">{c.displayName}</p>
                         {(c.jobTitle || c.company) && (
-                          <p className="text-xs text-surface-500 truncate">
+                          <p className="text-xs text-gray-400 truncate">
                             {[c.jobTitle, c.company].filter(Boolean).join(' · ')}
                           </p>
                         )}
@@ -131,16 +131,16 @@ export default function SessionComplete({ sessionId }: Props) {
             {/* All people met */}
             {connections.length > 0 && (
               <Card>
-                <h3 className="text-sm font-semibold text-surface-400 uppercase tracking-wider mb-3">
+                <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
                   Everyone You Met
                 </h3>
                 <div className="space-y-2">
                   {connections.map(c => (
-                    <div key={`${c.userId}-${c.roundNumber}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-surface-800/50">
+                    <div key={`${c.userId}-${c.roundNumber}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
                       <Avatar name={c.displayName || 'User'} size="sm" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-surface-200 font-medium truncate">{c.displayName}</p>
-                        <p className="text-xs text-surface-500">Round {c.roundNumber}</p>
+                        <p className="text-gray-800 font-medium truncate">{c.displayName}</p>
+                        <p className="text-xs text-gray-400">Round {c.roundNumber}</p>
                       </div>
                       {c.qualityScore > 0 && (
                         <div className="flex items-center gap-1 text-xs text-amber-400">

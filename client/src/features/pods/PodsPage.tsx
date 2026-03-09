@@ -39,7 +39,7 @@ export default function PodsPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between animate-fade-in">
-        <h1 className="text-2xl font-bold text-surface-100">{filter === 'browse' ? 'Browse Pods' : 'My Pods'}</h1>
+        <h1 className="text-2xl font-bold text-[#1a1a2e]">{filter === 'browse' ? 'Browse Pods' : 'My Pods'}</h1>
         <Button onClick={() => setShowCreate(true)} className="btn-glow"><Plus className="h-4 w-4 mr-2" /> Create Pod</Button>
       </div>
 
@@ -68,12 +68,12 @@ export default function PodsPage() {
               <Card key={pod.id} hover onClick={() => navigate(`/pods/${pod.id}`)} className="card-hover">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-brand-500/20 flex items-center justify-center">
-                      <Users className="h-5 w-5 text-brand-400" />
+                    <div className="h-10 w-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+                      <Users className="h-5 w-5 text-indigo-600" />
                     </div>
                     <div>
-                      <p className="font-medium text-surface-200">{pod.name}</p>
-                      <p className="text-sm text-surface-400">
+                      <p className="font-medium text-gray-800">{pod.name}</p>
+                      <p className="text-sm text-gray-500">
                         {pod.memberCount || 0} members · {pod.sessionCount || 0} sessions · {pod.description || 'General'}
                       </p>
                     </div>

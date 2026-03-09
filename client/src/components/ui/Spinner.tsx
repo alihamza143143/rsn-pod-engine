@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils';
 import { Loader2 } from 'lucide-react';
 
 export function Spinner({ className }: { className?: string }) {
-  return <Loader2 className={cn('h-6 w-6 animate-spin text-brand-400', className)} />;
+  return <Loader2 className={cn('h-6 w-6 animate-spin text-indigo-600', className)} />;
 }
 
 export function PageLoader() {
@@ -14,5 +14,5 @@ export function PageLoader() {
 }
 
 export function Skeleton({ className }: { className?: string }) {
-  return <div className={cn('animate-pulse rounded-xl bg-surface-800', className)} />;
+  return <div className={cn('animate-pulse rounded-xl bg-gray-100', className)} />;
 }

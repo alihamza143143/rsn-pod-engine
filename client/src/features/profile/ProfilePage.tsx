@@ -33,13 +33,13 @@ function TagInput({ label, tags, setTags, placeholder, icon: Icon }: {
   };
   return (
     <div>
-      <label className="flex items-center gap-2 text-sm font-medium text-surface-300 mb-1.5">
-        {Icon && <Icon className="h-4 w-4 text-surface-500" />}
+      <label className="flex items-center gap-2 text-sm font-medium text-gray-600 mb-1.5">
+        {Icon && <Icon className="h-4 w-4 text-gray-400" />}
         {label}
       </label>
       <div className="flex gap-2 mb-2 flex-wrap min-h-[28px]">
         {tags.map(t => (
-          <span key={t} className="inline-flex items-center gap-1 rounded-full bg-brand-500/20 text-brand-400 px-3 py-1 text-xs font-medium animate-scale-in">
+          <span key={t} className="inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-600 px-3 py-1 text-xs font-medium animate-scale-in">
             {t}
             <button type="button" onClick={() => setTags(tags.filter(x => x !== t))} className="hover:text-red-400 transition-colors"><X className="h-3 w-3" /></button>
           </span>
@@ -105,7 +105,7 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-surface-100 animate-fade-in">Profile</h1>
+      <h1 className="text-2xl font-bold text-[#1a1a2e] animate-fade-in">Profile</h1>
 
       {/* Profile Header Card */}
       <Card className="animate-fade-in-up">
@@ -117,10 +117,10 @@ export default function ProfilePage() {
             </div>
           </div>
           <div>
-            <p className="text-lg font-semibold text-surface-100">{user.displayName || 'Set your name'}</p>
-            <p className="text-sm text-surface-400">{user.email}</p>
+            <p className="text-lg font-semibold text-[#1a1a2e]">{user.displayName || 'Set your name'}</p>
+            <p className="text-sm text-gray-500">{user.email}</p>
             {user.jobTitle && user.company && (
-              <p className="text-xs text-surface-500 mt-0.5">{user.jobTitle} at {user.company}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{user.jobTitle} at {user.company}</p>
             )}
           </div>
         </div>
@@ -130,8 +130,8 @@ export default function ProfilePage() {
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         {/* Basic Info */}
         <Card className="animate-fade-in-up stagger-1">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-surface-200 mb-4">
-            <User className="h-5 w-5 text-brand-400" /> Basic Information
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 mb-4">
+            <User className="h-5 w-5 text-indigo-600" /> Basic Information
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="First Name" {...register('firstName')} placeholder="John" />
@@ -141,20 +141,20 @@ export default function ProfilePage() {
             <Input label="Display Name" {...register('displayName')} placeholder="How others see you" />
           </div>
           <div className="mt-4">
-            <label className="block text-sm font-medium text-surface-300 mb-1.5">Bio</label>
+            <label className="block text-sm font-medium text-gray-600 mb-1.5">Bio</label>
             <textarea
               {...register('bio')}
               rows={3}
               placeholder="Tell others about yourself..."
-              className="w-full rounded-xl border border-surface-700 bg-surface-800/50 px-4 py-2.5 text-sm text-surface-100 placeholder:text-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all duration-200 resize-none"
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200 resize-none"
             />
           </div>
         </Card>
 
         {/* Professional Info */}
         <Card className="animate-fade-in-up stagger-2">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-surface-200 mb-4">
-            <Briefcase className="h-5 w-5 text-brand-400" /> Professional
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 mb-4">
+            <Briefcase className="h-5 w-5 text-indigo-600" /> Professional
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="Job Title" {...register('jobTitle')} placeholder="Product Manager" />
@@ -168,18 +168,18 @@ export default function ProfilePage() {
 
         {/* Location & Language */}
         <Card className="animate-fade-in-up stagger-3">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-surface-200 mb-4">
-            <Globe className="h-5 w-5 text-brand-400" /> Location & Language
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 mb-4">
+            <Globe className="h-5 w-5 text-indigo-600" /> Location & Language
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="flex items-center gap-2 text-sm font-medium text-surface-300 mb-1.5">
-                <MapPin className="h-4 w-4 text-surface-500" /> Location
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-600 mb-1.5">
+                <MapPin className="h-4 w-4 text-gray-400" /> Location
               </label>
               <input
                 {...register('location')}
                 placeholder="New York, US"
-                className="w-full rounded-xl border border-surface-700 bg-surface-800/50 px-4 py-2.5 text-sm text-surface-100 placeholder:text-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all duration-200"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200"
               />
             </div>
             <Input label="Timezone" {...register('timezone')} placeholder="America/New_York" />
@@ -191,8 +191,8 @@ export default function ProfilePage() {
 
         {/* Tags */}
         <Card className="animate-fade-in-up stagger-4">
-          <h2 className="flex items-center gap-2 text-lg font-semibold text-surface-200 mb-4">
-            <Sparkles className="h-5 w-5 text-brand-400" /> Interests & Intent
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 mb-4">
+            <Sparkles className="h-5 w-5 text-indigo-600" /> Interests & Intent
           </h2>
           <div className="space-y-5">
             <TagInput label="Expertise & Interests" tags={interests} setTags={setInterests} placeholder="e.g. react, machine-learning" />

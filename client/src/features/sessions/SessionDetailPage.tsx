@@ -106,7 +106,7 @@ export default function SessionDetailPage() {
   });
 
   if (isLoading) return <PageLoader />;
-  if (!session) return <p className="text-surface-400 text-center py-20">Session not found</p>;
+  if (!session) return <p className="text-gray-500 text-center py-20">Session not found</p>;
 
   const statusVariant = session.status === 'scheduled' ? 'info'
     : session.status === 'lobby_open' || session.status === 'round_active' ? 'success'
@@ -114,7 +114,7 @@ export default function SessionDetailPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <button onClick={() => navigate('/sessions')} className="flex items-center gap-2 text-surface-400 hover:text-surface-200 transition-colors text-sm">
+      <button onClick={() => navigate('/sessions')} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors text-sm">
         <ArrowLeft className="h-4 w-4" /> Back to Sessions
       </button>
 
@@ -122,9 +122,9 @@ export default function SessionDetailPage() {
       <Card className="animate-fade-in-up">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-surface-100">{session.title || 'Session'}</h1>
-            {session.description && <p className="text-surface-400 mt-1 text-sm">{session.description}</p>}
-            <p className="text-surface-500 mt-2 text-sm flex items-center gap-1.5">
+            <h1 className="text-2xl font-bold text-[#1a1a2e]">{session.title || 'Session'}</h1>
+            {session.description && <p className="text-gray-500 mt-1 text-sm">{session.description}</p>}
+            <p className="text-gray-400 mt-2 text-sm flex items-center gap-1.5">
               <Calendar className="h-4 w-4" />
               {session.scheduledAt ? new Date(session.scheduledAt).toLocaleString() : 'No date set'}
             </p>
@@ -132,34 +132,34 @@ export default function SessionDetailPage() {
           <Badge variant={statusVariant}>{session.status?.replace(/_/g, ' ')}</Badge>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 pt-4 border-t border-surface-800">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 pt-4 border-t border-gray-200">
           <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-surface-400 mb-1">
+            <div className="flex items-center justify-center gap-1 text-gray-500 mb-1">
               <Users className="h-4 w-4" />
             </div>
-            <p className="text-lg font-bold text-surface-100">{(participants || []).length}</p>
-            <p className="text-xs text-surface-500">participants</p>
+            <p className="text-lg font-bold text-[#1a1a2e]">{(participants || []).length}</p>
+            <p className="text-xs text-gray-400">participants</p>
           </div>
           <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-surface-400 mb-1">
+            <div className="flex items-center justify-center gap-1 text-gray-500 mb-1">
               <Settings className="h-4 w-4" />
             </div>
-            <p className="text-lg font-bold text-surface-100">{session.config?.numberOfRounds || 5}</p>
-            <p className="text-xs text-surface-500">rounds</p>
+            <p className="text-lg font-bold text-[#1a1a2e]">{session.config?.numberOfRounds || 5}</p>
+            <p className="text-xs text-gray-400">rounds</p>
           </div>
           <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-surface-400 mb-1">
+            <div className="flex items-center justify-center gap-1 text-gray-500 mb-1">
               <Clock className="h-4 w-4" />
             </div>
-            <p className="text-lg font-bold text-surface-100">{Math.floor((session.config?.roundDurationSeconds || 480) / 60)}m</p>
-            <p className="text-xs text-surface-500">per round</p>
+            <p className="text-lg font-bold text-[#1a1a2e]">{Math.floor((session.config?.roundDurationSeconds || 480) / 60)}m</p>
+            <p className="text-xs text-gray-400">per round</p>
           </div>
           <div className="text-center">
-            <div className="flex items-center justify-center gap-1 text-surface-400 mb-1">
+            <div className="flex items-center justify-center gap-1 text-gray-500 mb-1">
               <Users className="h-4 w-4" />
             </div>
-            <p className="text-lg font-bold text-surface-100">{session.config?.maxParticipants || 500}</p>
-            <p className="text-xs text-surface-500">max capacity</p>
+            <p className="text-lg font-bold text-[#1a1a2e]">{session.config?.maxParticipants || 500}</p>
+            <p className="text-xs text-gray-400">max capacity</p>
           </div>
         </div>
       </Card>
@@ -231,12 +231,12 @@ export default function SessionDetailPage() {
 
       {/* Participants */}
       <div className="animate-fade-in-up stagger-2">
-        <h2 className="text-lg font-semibold text-surface-100 mb-3 flex items-center gap-2">
-          <Users className="h-5 w-5 text-brand-400" /> Participants ({(participants || []).length})
+        <h2 className="text-lg font-semibold text-[#1a1a2e] mb-3 flex items-center gap-2">
+          <Users className="h-5 w-5 text-indigo-600" /> Participants ({(participants || []).length})
         </h2>
         {(participants || []).length === 0 ? (
           <Card>
-            <p className="text-surface-500 text-sm text-center py-4">No participants yet. Be the first to register!</p>
+            <p className="text-gray-400 text-sm text-center py-4">No participants yet. Be the first to register!</p>
           </Card>
         ) : (
           <div className="grid gap-2">
@@ -246,8 +246,8 @@ export default function SessionDetailPage() {
                   <div className="flex items-center gap-3">
                     <Avatar name={p.displayName || p.email || 'User'} size="sm" />
                     <div>
-                      <p className="text-sm font-medium text-surface-200">{p.displayName || p.email || 'Participant'}</p>
-                      <p className="text-xs text-surface-500">{p.status || 'registered'}</p>
+                      <p className="text-sm font-medium text-gray-800">{p.displayName || p.email || 'Participant'}</p>
+                      <p className="text-xs text-gray-400">{p.status || 'registered'}</p>
                     </div>
                   </div>
                   {p.userId === session.hostUserId && (
@@ -263,21 +263,21 @@ export default function SessionDetailPage() {
       {/* Invite to Session Modal */}
       <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Invite to Session">
         <div className="space-y-4">
-          <p className="text-sm text-surface-400">Create an invite link to share with people you want in this session.</p>
+          <p className="text-sm text-gray-500">Create an invite link to share with people you want in this session.</p>
           <Input label="Invitee Email (optional)" type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="user@example.com" />
           <Button onClick={() => createSessionInviteMutation.mutate({ inviteeEmail: inviteEmail || undefined })} isLoading={createSessionInviteMutation.isPending} className="w-full">
             Generate Invite Link
           </Button>
           {inviteLink && (
             <div className="mt-4 space-y-2">
-              <label className="block text-sm font-medium text-surface-300">Share this link:</label>
+              <label className="block text-sm font-medium text-gray-600">Share this link:</label>
               <div className="flex gap-2">
-                <input readOnly value={inviteLink} className="flex-1 rounded-lg bg-surface-800 border border-surface-700 px-3 py-2 text-surface-200 text-sm" />
+                <input readOnly value={inviteLink} className="flex-1 rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm" />
                 <Button variant="secondary" onClick={handleCopyLink}>
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
-              <p className="text-xs text-surface-500">This link allows up to 10 uses and expires in 7 days.</p>
+              <p className="text-xs text-gray-400">This link allows up to 10 uses and expires in 7 days.</p>
             </div>
           )}
         </div>
@@ -295,9 +295,9 @@ export default function SessionDetailPage() {
         }} className="space-y-4">
           <Input label="Title" value={editTitle} onChange={e => setEditTitle(e.target.value)} required />
           <div>
-            <label className="block text-sm font-medium text-surface-300 mb-1">Description</label>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Description</label>
             <textarea
-              className="w-full rounded-lg bg-surface-800 border border-surface-700 px-3 py-2 text-surface-200 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+              className="w-full rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm focus:border-[#1a1a2e] focus:ring-1 focus:ring-[#1a1a2e] outline-none"
               rows={3} value={editDescription} onChange={e => setEditDescription(e.target.value)}
             />
           </div>

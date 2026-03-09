@@ -167,7 +167,7 @@ export default function PodDetailPage() {
   };
 
   if (isLoading) return <PageLoader />;
-  if (!pod) return <p className="text-surface-400 text-center py-20">Pod not found</p>;
+  if (!pod) return <p className="text-gray-500 text-center py-20">Pod not found</p>;
 
   const membersList = members || pod.members || [];
   const activeMembers = membersList.filter((m: any) => m.status === 'active');
@@ -188,7 +188,7 @@ export default function PodDetailPage() {
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
-      <button onClick={() => navigate('/pods')} className="flex items-center gap-2 text-surface-400 hover:text-surface-200 transition-colors text-sm">
+      <button onClick={() => navigate('/pods')} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors text-sm">
         <ArrowLeft className="h-4 w-4" /> Back to Pods
       </button>
 
@@ -196,31 +196,31 @@ export default function PodDetailPage() {
       <Card className="animate-fade-in-up">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <h1 className="text-2xl font-bold text-surface-100">{pod.name}</h1>
-            <p className="text-surface-400 mt-1">{pod.description || 'General focus'}</p>
+            <h1 className="text-2xl font-bold text-[#1a1a2e]">{pod.name}</h1>
+            <p className="text-gray-500 mt-1">{pod.description || 'General focus'}</p>
           </div>
           <Badge variant={pod.status === 'active' ? 'success' : 'default'}>{pod.status}</Badge>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mt-4 pt-4 border-t border-surface-800">
-          <div className="flex items-center gap-2 text-sm text-surface-400">
-            <Users className="h-4 w-4 text-brand-400" />
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mt-4 pt-4 border-t border-gray-200">
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Users className="h-4 w-4 text-indigo-600" />
             <span>{activeMembers.length} members</span>
           </div>
-          <div className="flex items-center gap-2 text-sm text-surface-400">
-            <Calendar className="h-4 w-4 text-brand-400" />
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Calendar className="h-4 w-4 text-indigo-600" />
             <span>{sessionCountData || 0} sessions</span>
           </div>
-          <div className="flex items-center gap-2 text-sm text-surface-400">
-            <Radio className="h-4 w-4 text-brand-400" />
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Radio className="h-4 w-4 text-indigo-600" />
             <span>{podTypeLabels[pod.podType] || pod.podType}</span>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <VisIcon className={`h-4 w-4 ${vis.color}`} />
             <span className={vis.color}>{vis.label}</span>
           </div>
-          <div className="flex items-center gap-2 text-sm text-surface-400">
-            <Calendar className="h-4 w-4 text-brand-400" />
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <Calendar className="h-4 w-4 text-indigo-600" />
             <span>Created {new Date(pod.createdAt).toLocaleDateString()}</span>
           </div>
         </div>
@@ -241,14 +241,14 @@ export default function PodDetailPage() {
               <Button onClick={() => joinMutation.mutate()} isLoading={joinMutation.isPending} className="btn-glow">
                 <UserPlus className="h-4 w-4 mr-2" /> Join Pod
               </Button>
-              <p className="text-sm text-surface-500 self-center">Join this pod to participate in sessions and meet members.</p>
+              <p className="text-sm text-gray-400 self-center">Join this pod to participate in sessions and meet members.</p>
             </>
           ) : (
             <>
               <Button onClick={() => requestJoinMutation.mutate()} isLoading={requestJoinMutation.isPending} className="btn-glow">
                 <UserPlus className="h-4 w-4 mr-2" /> Request to Join
               </Button>
-              <p className="text-sm text-surface-500 self-center">
+              <p className="text-sm text-gray-400 self-center">
                 {pod.visibility === 'invite_only' ? 'This pod is invite-only. Request to join or use an invite link.' : 'This is a private pod. Request access from the director.'}
               </p>
             </>
@@ -267,7 +267,7 @@ export default function PodDetailPage() {
               Reactivate Pod
             </Button>
           )}
-          <p className="text-sm text-surface-500 self-center">This pod is archived. Sessions and data are preserved.</p>
+          <p className="text-sm text-gray-400 self-center">This pod is archived. Sessions and data are preserved.</p>
         </div>
       ) : pod.status !== 'archived' && (
         <div className="flex flex-wrap gap-3 animate-fade-in-up stagger-1">
@@ -304,9 +304,9 @@ export default function PodDetailPage() {
         <form onSubmit={e => { e.preventDefault(); updateMutation.mutate({ name: editName, description: editDescription }); }} className="space-y-4">
           <Input label="Pod Name" value={editName} onChange={e => setEditName(e.target.value)} required />
           <div>
-            <label className="block text-sm font-medium text-surface-300 mb-1">Description</label>
+            <label className="block text-sm font-medium text-gray-600 mb-1">Description</label>
             <textarea
-              className="w-full rounded-lg bg-surface-800 border border-surface-700 px-3 py-2 text-surface-200 text-sm focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+              className="w-full rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm focus:border-[#1a1a2e] focus:ring-1 focus:ring-[#1a1a2e] outline-none"
               rows={3} value={editDescription} onChange={e => setEditDescription(e.target.value)}
             />
           </div>
@@ -320,24 +320,24 @@ export default function PodDetailPage() {
       {/* Invite Members Modal */}
       <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Invite Members to Pod">
         <div className="space-y-4">
-          <p className="text-sm text-surface-400">Create an invite link that people can use to join this pod.</p>
+          <p className="text-sm text-gray-500">Create an invite link that people can use to join this pod.</p>
           <Input label="Invitee Email (optional)" type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="user@example.com" />
           <Button onClick={() => createInviteMutation.mutate({ inviteeEmail: inviteEmail || undefined })} isLoading={createInviteMutation.isPending} className="w-full">
             Generate Invite Link
           </Button>
           {inviteLink && (
             <div className="mt-4 space-y-2">
-              <label className="block text-sm font-medium text-surface-300">Share this link:</label>
+              <label className="block text-sm font-medium text-gray-600">Share this link:</label>
               <div className="flex gap-2">
                 <input
                   readOnly value={inviteLink}
-                  className="flex-1 rounded-lg bg-surface-800 border border-surface-700 px-3 py-2 text-surface-200 text-sm"
+                  className="flex-1 rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm"
                 />
                 <Button variant="secondary" onClick={handleCopyLink}>
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
-              <p className="text-xs text-surface-500">This link allows up to 10 uses and expires in 7 days.</p>
+              <p className="text-xs text-gray-400">This link allows up to 10 uses and expires in 7 days.</p>
             </div>
           )}
         </div>
@@ -356,7 +356,7 @@ export default function PodDetailPage() {
                   <div className="flex items-center gap-3">
                     <Avatar name={m.displayName || m.email || 'User'} size="sm" />
                     <div>
-                      <p className="text-sm font-medium text-surface-200">{m.displayName || m.email || 'User'}</p>
+                      <p className="text-sm font-medium text-gray-800">{m.displayName || m.email || 'User'}</p>
                       <p className="text-xs text-amber-400">Pending approval</p>
                     </div>
                   </div>
@@ -377,8 +377,8 @@ export default function PodDetailPage() {
 
       {/* Members */}
       <div className="animate-fade-in-up stagger-2">
-        <h2 className="text-lg font-semibold text-surface-100 mb-3 flex items-center gap-2">
-          <Users className="h-5 w-5 text-brand-400" /> Members ({activeMembers.length})
+        <h2 className="text-lg font-semibold text-[#1a1a2e] mb-3 flex items-center gap-2">
+          <Users className="h-5 w-5 text-indigo-600" /> Members ({activeMembers.length})
         </h2>
         <div className="grid gap-2">
           {activeMembers.map((m: any) => (
@@ -387,8 +387,8 @@ export default function PodDetailPage() {
                 <div className="flex items-center gap-3">
                   <Avatar name={m.displayName || m.email || 'User'} size="sm" />
                   <div>
-                    <p className="text-sm font-medium text-surface-200">{m.displayName || m.email || 'Member'}</p>
-                    <p className="text-xs text-surface-500">{m.role || 'member'}</p>
+                    <p className="text-sm font-medium text-gray-800">{m.displayName || m.email || 'Member'}</p>
+                    <p className="text-xs text-gray-400">{m.role || 'member'}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -400,7 +400,7 @@ export default function PodDetailPage() {
                   {isDirector && m.userId !== user?.id && (
                     <button
                       onClick={() => removeMemberMutation.mutate(m.userId)}
-                      className="p-1.5 rounded-lg text-surface-500 hover:text-red-400 hover:bg-red-500/10 transition-all"
+                      className="p-1.5 rounded-lg text-gray-400 hover:text-red-400 hover:bg-red-500/10 transition-all"
                       title="Remove member"
                     >
                       <UserMinus className="h-4 w-4" />
@@ -412,7 +412,7 @@ export default function PodDetailPage() {
           ))}
           {activeMembers.length === 0 && (
             <Card>
-              <p className="text-surface-500 text-sm text-center py-4">No members yet</p>
+              <p className="text-gray-400 text-sm text-center py-4">No members yet</p>
             </Card>
           )}
         </div>

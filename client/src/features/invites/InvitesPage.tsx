@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Mail, Plus, Copy, Check } from 'lucide-react';
+import { Mail, Plus, Copy, Check, Users, Calendar, Globe } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -9,6 +9,12 @@ import { PageLoader } from '@/components/ui/Spinner';
 import { useToastStore } from '@/stores/toastStore';
 import CreateInviteModal from './CreateInviteModal';
 import api from '@/lib/api';
+
+const TYPE_CONFIG: Record<string, { label: string; icon: typeof Users; variant: 'info' | 'warning' | 'default' }> = {
+  pod: { label: 'Pod Invite', icon: Users, variant: 'info' },
+  session: { label: 'Session Invite', icon: Calendar, variant: 'warning' },
+  platform: { label: 'Platform Invite', icon: Globe, variant: 'default' },
+};
 
 export default function InvitesPage() {
   const [showCreate, setShowCreate] = useState(false);
@@ -37,7 +43,7 @@ export default function InvitesPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between animate-fade-in">
-        <h1 className="text-2xl font-bold text-surface-100">Invites</h1>
+        <h1 className="text-2xl font-bold text-[#1a1a2e]">Invites</h1>
         <Button onClick={() => setShowCreate(true)} className="btn-glow"><Plus className="h-4 w-4 mr-2" /> Create Invite</Button>
       </div>
 
@@ -50,13 +56,21 @@ export default function InvitesPage() {
         />
       ) : (
         <div className="grid gap-4 animate-fade-in-up">
-          {data.map((inv: any) => (
+          {data.map((inv: any) => {
+            const typeConf = TYPE_CONFIG[inv.type] || TYPE_CONFIG.platform;
+            const TypeIcon = typeConf.icon;
+            return (
             <Card key={inv.id}>
               <div className="flex items-center justify-between">
                 <div className="flex-1">
-                  <p className="font-medium text-surface-200 font-mono text-sm">{inv.code}</p>
-                  <p className="text-sm text-surface-400 mt-0.5">Uses: {inv.useCount || 0}{inv.maxUses ? ` / ${inv.maxUses}` : ''}</p>
-                  <p className="text-xs text-surface-500 mt-1 truncate max-w-md">{getInviteUrl(inv.code)}</p>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Badge variant={typeConf.variant} className="text-xs flex items-center gap-1">
+                      <TypeIcon className="h-3 w-3" /> {typeConf.label}
+                    </Badge>
+                  </div>
+                  <p className="font-medium text-gray-800 font-mono text-sm">{inv.code}</p>
+                  <p className="text-sm text-gray-500 mt-0.5">Uses: {inv.useCount || 0}{inv.maxUses ? ` / ${inv.maxUses}` : ''}{inv.inviteeEmail ? ` · To: ${inv.inviteeEmail}` : ''}</p>
+                  <p className="text-xs text-gray-400 mt-1 truncate max-w-md">{getInviteUrl(inv.code)}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={inv.status === 'active' || inv.status === 'pending' ? 'success' : 'default'}>{inv.status}</Badge>
@@ -70,11 +84,8 @@ export default function InvitesPage() {
                   </Button>
                 </div>
               </div>
-              <div className="mt-3 pt-3 border-t border-surface-800">
-                <p className="text-xs text-surface-500">Share this link with someone to invite them to your pod. They'll need to sign in and accept the invite.</p>
-              </div>
             </Card>
-          ))}
+          );})}
         </div>
       )}
 

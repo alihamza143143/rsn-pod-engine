@@ -23,10 +23,10 @@ export default function EncounterHistoryPage() {
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between animate-fade-in">
         <div>
-          <h1 className="text-2xl font-bold text-surface-100">Encounters</h1>
-          <p className="text-surface-400 text-sm mt-1">People you've connected with</p>
+          <h1 className="text-2xl font-bold text-[#1a1a2e]">Encounters</h1>
+          <p className="text-gray-500 text-sm mt-1">People you've connected with</p>
         </div>
-        <Heart className="h-8 w-8 text-brand-400" />
+        <Heart className="h-8 w-8 text-indigo-600" />
       </div>
 
       {/* Filter */}
@@ -69,10 +69,10 @@ export default function EncounterHistoryPage() {
                     )}
                   </div>
                   <div>
-                    <p className="font-medium text-surface-200">{e.displayName || e.otherUserName || 'Someone'}</p>
-                    {e.company && <p className="text-xs text-surface-500">{e.jobTitle ? `${e.jobTitle} at ` : ''}{e.company}</p>}
+                    <p className="font-medium text-gray-800">{e.displayName || e.otherUserName || 'Someone'}</p>
+                    {e.company && <p className="text-xs text-gray-400">{e.jobTitle ? `${e.jobTitle} at ` : ''}{e.company}</p>}
                     {e.sessionTitle && (
-                      <p className="text-xs text-surface-500 flex items-center gap-1 mt-0.5">
+                      <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
                         <Calendar className="h-3 w-3" />
                         {e.sessionTitle} • {e.sessionDate ? new Date(e.sessionDate).toLocaleDateString() : ''}
                       </p>

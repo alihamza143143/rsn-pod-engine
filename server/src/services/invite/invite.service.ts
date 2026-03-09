@@ -10,6 +10,8 @@ import {
 import { NotFoundError, ConflictError, AppError } from '../../middleware/errors';
 import * as podService from '../pod/pod.service';
 import * as sessionService from '../session/session.service';
+import * as emailService from '../email/email.service';
+import config from '../../config';
 
 // Generate URL-safe invite codes (12 chars, alphanumeric — higher entropy for brute-force resistance)
 const generateCode = customAlphabet('ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789', 12);
@@ -57,6 +59,33 @@ export async function createInvite(userId: string, input: CreateInviteInput): Pr
   );
 
   logger.info({ code, type: input.type, userId }, 'Invite created');
+
+  // Send invite email if a recipient address was provided
+  if (input.inviteeEmail) {
+    const inviterResult = await query<{ displayName: string }>(
+      `SELECT display_name AS "displayName" FROM users WHERE id = $1`,
+      [userId]
+    );
+    const inviterName = inviterResult.rows[0]?.displayName || 'Someone';
+
+    let targetName: string | undefined;
+    if (input.type === InviteType.POD && input.podId) {
+      const podResult = await query<{ name: string }>('SELECT name FROM pods WHERE id = $1', [input.podId]);
+      targetName = podResult.rows[0]?.name;
+    }
+    if (input.type === InviteType.SESSION && input.sessionId) {
+      const sessionResult = await query<{ title: string }>('SELECT title FROM sessions WHERE id = $1', [input.sessionId]);
+      targetName = sessionResult.rows[0]?.title;
+    }
+
+    emailService.sendInviteEmail(input.inviteeEmail, {
+      inviterName,
+      type: (input.type || 'platform') as 'pod' | 'session' | 'platform',
+      targetName,
+      inviteUrl: `${config.clientUrl}/invite/${code}`,
+    }).catch(err => logger.warn({ err }, 'Failed to send invite email (non-fatal)'));
+  }
+
   return result.rows[0];
 }
 
@@ -111,8 +140,9 @@ export async function acceptInvite(code: string, userId: string): Promise<Invite
       throw new AppError(400, 'INVITE_ALREADY_USED', 'This invite has reached its maximum uses');
     }
 
-    if (invite.inviteeEmail) {
-      // Check if the accepting user matches the intended email
+    if (invite.inviteeEmail && invite.maxUses === 1) {
+      // Only enforce email check for single-use targeted invites;
+      // multi-use / shared links can be accepted by anyone.
       const userResult = await client.query(
         `SELECT email FROM users WHERE id = $1`,
         [userId]

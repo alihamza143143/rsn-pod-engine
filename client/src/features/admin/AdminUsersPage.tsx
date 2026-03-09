@@ -33,9 +33,9 @@ export default function AdminUsersPage() {
   if (user?.role !== 'admin') {
     return (
       <div className="max-w-md mx-auto text-center py-20">
-        <Shield className="h-16 w-16 text-surface-600 mx-auto mb-4" />
-        <h2 className="text-xl font-bold text-surface-100 mb-2">Admin Only</h2>
-        <p className="text-surface-400 mb-4">This page is restricted to administrators.</p>
+        <Shield className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+        <h2 className="text-xl font-bold text-[#1a1a2e] mb-2">Admin Only</h2>
+        <p className="text-gray-500 mb-4">This page is restricted to administrators.</p>
         <Button variant="secondary" onClick={() => navigate('/')}>Go Home</Button>
       </div>
     );
@@ -48,29 +48,29 @@ export default function AdminUsersPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between animate-fade-in">
         <div>
-          <h1 className="text-2xl font-bold text-surface-100">User Management</h1>
-          <p className="text-surface-400 text-sm mt-1">{meta?.totalCount || 0} total users</p>
+          <h1 className="text-2xl font-bold text-[#1a1a2e]">User Management</h1>
+          <p className="text-gray-500 text-sm mt-1">{meta?.totalCount || 0} total users</p>
         </div>
-        <Shield className="h-8 w-8 text-brand-400" />
+        <Shield className="h-8 w-8 text-indigo-600" />
       </div>
 
       {/* Filters */}
       <div className="flex gap-3 animate-fade-in-up">
         <div className="flex-1">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-surface-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
             <input
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search by name or email..."
-              className="w-full rounded-xl border border-surface-700 bg-surface-800/50 pl-10 pr-4 py-2.5 text-sm text-surface-100 placeholder:text-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all duration-200"
+              className="w-full rounded-xl border border-gray-200 bg-gray-50 pl-10 pr-4 py-2.5 text-sm text-[#1a1a2e] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200"
             />
           </div>
         </div>
         <select
           value={roleFilter}
           onChange={e => { setRoleFilter(e.target.value); setPage(1); }}
-          className="rounded-xl border border-surface-700 bg-surface-800/50 px-4 py-2.5 text-sm text-surface-100 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all duration-200"
+          className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200"
         >
           <option value="">All Roles</option>
           <option value="member">Member</option>
@@ -88,8 +88,8 @@ export default function AdminUsersPage() {
                 <div className="flex items-center gap-3">
                   <Avatar name={u.displayName || u.email} size="sm" />
                   <div>
-                    <p className="text-sm font-medium text-surface-200">{u.displayName || 'No name'}</p>
-                    <p className="text-xs text-surface-500">{u.email}</p>
+                    <p className="text-sm font-medium text-gray-800">{u.displayName || 'No name'}</p>
+                    <p className="text-xs text-gray-400">{u.email}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -105,7 +105,7 @@ export default function AdminUsersPage() {
           ))}
           {users.length === 0 && (
             <Card>
-              <p className="text-surface-500 text-sm text-center py-4">No users found</p>
+              <p className="text-gray-400 text-sm text-center py-4">No users found</p>
             </Card>
           )}
         </div>
@@ -114,7 +114,7 @@ export default function AdminUsersPage() {
       {/* Pagination */}
       {meta && meta.totalPages > 1 && (
         <div className="flex items-center justify-between animate-fade-in-up stagger-2">
-          <p className="text-sm text-surface-500">Page {meta.page} of {meta.totalPages}</p>
+          <p className="text-sm text-gray-400">Page {meta.page} of {meta.totalPages}</p>
           <div className="flex gap-2">
             <Button variant="ghost" size="sm" disabled={!meta.hasPrev} onClick={() => setPage(p => p - 1)}>
               <ChevronLeft className="h-4 w-4" /> Prev

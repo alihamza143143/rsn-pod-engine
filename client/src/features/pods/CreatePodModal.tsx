@@ -28,7 +28,7 @@ const podTypes = [
   { value: 'concert', label: 'Concert', desc: 'Large audience' },
 ];
 
-const selectClass = 'w-full rounded-xl border border-surface-700 bg-surface-800/50 px-4 py-2.5 text-sm text-surface-100 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all duration-200';
+const selectClass = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200';
 
 export default function CreatePodModal({ open, onClose }: Props) {
   const qc = useQueryClient();
@@ -61,7 +61,7 @@ export default function CreatePodModal({ open, onClose }: Props) {
         <Input label="Description" {...register('description')} placeholder="What is this pod about?" />
 
         <div>
-          <label className="block text-sm font-medium text-surface-300 mb-1.5">Pod Type</label>
+          <label className="block text-sm font-medium text-gray-600 mb-1.5">Pod Type</label>
           <select {...register('podType')} className={selectClass}>
             {podTypes.map(t => (
               <option key={t.value} value={t.value}>{t.label} — {t.desc}</option>
@@ -71,7 +71,7 @@ export default function CreatePodModal({ open, onClose }: Props) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-surface-300 mb-1.5">Orchestration</label>
+            <label className="block text-sm font-medium text-gray-600 mb-1.5">Orchestration</label>
             <select {...register('orchestrationMode')} className={selectClass}>
               <option value="timed_rounds">Timed Rounds</option>
               <option value="free_form">Free Form</option>
@@ -79,7 +79,7 @@ export default function CreatePodModal({ open, onClose }: Props) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-surface-300 mb-1.5">Communication</label>
+            <label className="block text-sm font-medium text-gray-600 mb-1.5">Communication</label>
             <select {...register('communicationMode')} className={selectClass}>
               <option value="video">Video</option>
               <option value="audio">Audio Only</option>
@@ -91,7 +91,7 @@ export default function CreatePodModal({ open, onClose }: Props) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-surface-300 mb-1.5">Visibility</label>
+            <label className="block text-sm font-medium text-gray-600 mb-1.5">Visibility</label>
             <select {...register('visibility')} className={selectClass}>
               <option value="private">Private</option>
               <option value="invite_only">Invite Only</option>

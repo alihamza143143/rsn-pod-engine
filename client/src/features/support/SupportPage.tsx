@@ -38,15 +38,15 @@ export default function SupportPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="animate-fade-in">
-        <h1 className="text-2xl font-bold text-surface-100">Support</h1>
-        <p className="text-surface-400 text-sm mt-1">Get help and find answers</p>
+        <h1 className="text-2xl font-bold text-[#1a1a2e]">Support</h1>
+        <p className="text-gray-500 text-sm mt-1">Get help and find answers</p>
       </div>
 
       {/* FAQ Section */}
       <Card className="animate-fade-in-up">
         <div className="flex items-center gap-2 mb-4">
-          <HelpCircle className="h-5 w-5 text-brand-400" />
-          <h2 className="font-semibold text-surface-100">Frequently Asked Questions</h2>
+          <HelpCircle className="h-5 w-5 text-indigo-600" />
+          <h2 className="font-semibold text-[#1a1a2e]">Frequently Asked Questions</h2>
         </div>
         <div className="divide-y divide-surface-800">
           {faqs.map((faq, i) => (
@@ -56,11 +56,11 @@ export default function SupportPage() {
               className="w-full text-left py-3 group"
             >
               <div className="flex items-center justify-between">
-                <p className="text-sm font-medium text-surface-200 pr-4">{faq.q}</p>
-                <ChevronRight className={`h-4 w-4 text-surface-600 flex-shrink-0 transition-transform ${expandedFaq === i ? 'rotate-90' : ''}`} />
+                <p className="text-sm font-medium text-gray-800 pr-4">{faq.q}</p>
+                <ChevronRight className={`h-4 w-4 text-gray-300 flex-shrink-0 transition-transform ${expandedFaq === i ? 'rotate-90' : ''}`} />
               </div>
               {expandedFaq === i && (
-                <p className="text-sm text-surface-400 mt-2 pr-8">{faq.a}</p>
+                <p className="text-sm text-gray-500 mt-2 pr-8">{faq.a}</p>
               )}
             </button>
           ))}
@@ -70,8 +70,8 @@ export default function SupportPage() {
       {/* Contact Form */}
       <Card className="animate-fade-in-up">
         <div className="flex items-center gap-2 mb-4">
-          <MessageSquare className="h-5 w-5 text-brand-400" />
-          <h2 className="font-semibold text-surface-100">Contact Support</h2>
+          <MessageSquare className="h-5 w-5 text-indigo-600" />
+          <h2 className="font-semibold text-[#1a1a2e]">Contact Support</h2>
         </div>
         <form onSubmit={handleSubmit} className="space-y-4">
           <Input
@@ -81,13 +81,13 @@ export default function SupportPage() {
             placeholder="What do you need help with?"
           />
           <div>
-            <label className="text-sm font-medium text-surface-300 mb-1.5 block">Message</label>
+            <label className="text-sm font-medium text-gray-600 mb-1.5 block">Message</label>
             <textarea
               value={message}
               onChange={e => setMessage(e.target.value)}
               placeholder="Describe your issue or question..."
               rows={4}
-              className="w-full rounded-lg border border-surface-700 bg-surface-800 px-3 py-2 text-sm text-surface-100 placeholder:text-surface-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500 transition-colors"
+              className="w-full rounded-lg border border-gray-200 bg-gray-100 px-3 py-2 text-sm text-[#1a1a2e] placeholder:text-gray-400 focus:border-[#1a1a2e] focus:outline-none focus:ring-1 focus:ring-[#1a1a2e] transition-colors"
             />
           </div>
           <Button type="submit" isLoading={submitting}>
@@ -99,10 +99,10 @@ export default function SupportPage() {
       {/* Contact info */}
       <Card className="animate-fade-in-up">
         <div className="flex items-center gap-3">
-          <Mail className="h-5 w-5 text-surface-500 flex-shrink-0" />
+          <Mail className="h-5 w-5 text-gray-400 flex-shrink-0" />
           <div>
-            <p className="text-sm text-surface-300">Email us directly</p>
-            <p className="text-xs text-surface-500">support@rsn.network</p>
+            <p className="text-sm text-gray-600">Email us directly</p>
+            <p className="text-xs text-gray-400">support@rsn.network</p>
           </div>
         </div>
       </Card>

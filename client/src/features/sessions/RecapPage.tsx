@@ -98,7 +98,7 @@ export default function RecapPage() {
     <div className="max-w-3xl mx-auto py-8 px-4 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-surface-400 hover:text-surface-200 transition-colors">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors">
           <ArrowLeft className="h-4 w-4" />
           <span className="text-sm">Back</span>
         </button>
@@ -115,11 +115,11 @@ export default function RecapPage() {
             <CheckCircle className="h-6 w-6 text-emerald-400" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-surface-100">
+            <h1 className="text-xl font-bold text-[#1a1a2e]">
               {data?.sessionTitle || 'Session Recap'}
             </h1>
             {data?.sessionDate && (
-              <p className="text-sm text-surface-500 flex items-center gap-1 mt-1">
+              <p className="text-sm text-gray-400 flex items-center gap-1 mt-1">
                 <Calendar className="h-3.5 w-3.5" />
                 {new Date(data.sessionDate).toLocaleDateString(undefined, {
                   weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
@@ -134,23 +134,23 @@ export default function RecapPage() {
       {stats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card className="text-center py-4">
-            <Users className="h-5 w-5 text-brand-400 mx-auto mb-1" />
-            <p className="text-2xl font-bold text-surface-100">{data?.connections.length || 0}</p>
-            <p className="text-xs text-surface-500">People Met</p>
+            <Users className="h-5 w-5 text-indigo-600 mx-auto mb-1" />
+            <p className="text-2xl font-bold text-[#1a1a2e]">{data?.connections.length || 0}</p>
+            <p className="text-xs text-gray-400">People Met</p>
           </Card>
           <Card className="text-center py-4">
             <Heart className="h-5 w-5 text-pink-400 mx-auto mb-1" />
-            <p className="text-2xl font-bold text-surface-100">{stats.mutualMeetAgainCount}</p>
-            <p className="text-xs text-surface-500">Mutual Matches</p>
+            <p className="text-2xl font-bold text-[#1a1a2e]">{stats.mutualMeetAgainCount}</p>
+            <p className="text-xs text-gray-400">Mutual Matches</p>
           </Card>
           <Card className="text-center py-4">
             <Star className="h-5 w-5 text-amber-400 mx-auto mb-1" />
-            <p className="text-2xl font-bold text-surface-100">{stats.avgQualityScore.toFixed(1)}</p>
-            <p className="text-xs text-surface-500">Avg Rating</p>
+            <p className="text-2xl font-bold text-[#1a1a2e]">{stats.avgQualityScore.toFixed(1)}</p>
+            <p className="text-xs text-gray-400">Avg Rating</p>
           </Card>
           <Card className="text-center py-4">
-            <p className="text-2xl font-bold text-surface-100">{stats.totalRatings}</p>
-            <p className="text-xs text-surface-500">Total Ratings</p>
+            <p className="text-2xl font-bold text-[#1a1a2e]">{stats.totalRatings}</p>
+            <p className="text-xs text-gray-400">Total Ratings</p>
           </Card>
         </div>
       )}
@@ -166,9 +166,9 @@ export default function RecapPage() {
               <div key={c.userId} className="flex items-center gap-3 p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
                 <Avatar name={c.displayName || 'User'} size="md" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-surface-200 font-medium truncate">{c.displayName}</p>
+                  <p className="text-gray-800 font-medium truncate">{c.displayName}</p>
                   {(c.jobTitle || c.company) && (
-                    <p className="text-xs text-surface-500 truncate">
+                    <p className="text-xs text-gray-400 truncate">
                       {[c.jobTitle, c.company].filter(Boolean).join(' · ')}
                     </p>
                   )}
@@ -188,16 +188,16 @@ export default function RecapPage() {
       {/* All connections by round */}
       {data && data.connections.length > 0 && (
         <Card>
-          <h3 className="text-sm font-semibold text-surface-400 uppercase tracking-wider mb-4">
+          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-4">
             All Connections
           </h3>
           <div className="space-y-2">
             {data.connections.map(c => (
-              <div key={`${c.userId}-${c.roundNumber}`} className="flex items-center gap-3 p-3 rounded-lg hover:bg-surface-800/40 transition-colors">
+              <div key={`${c.userId}-${c.roundNumber}`} className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100/40 transition-colors">
                 <Avatar name={c.displayName || 'User'} size="sm" />
                 <div className="flex-1 min-w-0">
-                  <p className="text-surface-200 font-medium truncate">{c.displayName}</p>
-                  <p className="text-xs text-surface-500">
+                  <p className="text-gray-800 font-medium truncate">{c.displayName}</p>
+                  <p className="text-xs text-gray-400">
                     Round {c.roundNumber}
                     {c.jobTitle && ` · ${c.jobTitle}`}
                     {c.company && ` @ ${c.company}`}
@@ -221,8 +221,8 @@ export default function RecapPage() {
       {/* Empty state */}
       {data && data.connections.length === 0 && (
         <Card className="text-center py-8">
-          <Users className="h-10 w-10 text-surface-600 mx-auto mb-3" />
-          <p className="text-surface-400">No connections recorded for this session.</p>
+          <Users className="h-10 w-10 text-gray-300 mx-auto mb-3" />
+          <p className="text-gray-500">No connections recorded for this session.</p>
         </Card>
       )}
 

@@ -36,12 +36,16 @@ export default function InviteAcceptPage() {
   if (loading) return <PageLoader />;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface-950 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-white p-4">
       <Card className="max-w-md w-full text-center">
         {invite ? (
           <>
-            <h2 className="text-xl font-bold text-surface-100 mb-2">You&apos;re invited!</h2>
-            <p className="text-surface-400 mb-6">You&apos;ve been invited to join a pod</p>
+            <h2 className="text-xl font-bold text-[#1a1a2e] mb-2">You&apos;re invited!</h2>
+            <p className="text-gray-500 mb-6">
+              {invite.type === 'pod' ? "You've been invited to join a pod" :
+               invite.type === 'session' ? "You've been invited to a session" :
+               "You've been invited to join RSN"}
+            </p>
             {user ? (
               <Button onClick={accept} isLoading={accepting} className="w-full">Accept Invite</Button>
             ) : (
@@ -50,8 +54,8 @@ export default function InviteAcceptPage() {
           </>
         ) : (
           <>
-            <h2 className="text-xl font-bold text-surface-100 mb-2">Invalid Invite</h2>
-            <p className="text-surface-400 mb-4">This invite link is invalid or expired.</p>
+            <h2 className="text-xl font-bold text-[#1a1a2e] mb-2">Invalid Invite</h2>
+            <p className="text-gray-500 mb-4">This invite link is invalid or expired.</p>
             <Button variant="secondary" onClick={() => navigate('/')}>Go Home</Button>
           </>
         )}

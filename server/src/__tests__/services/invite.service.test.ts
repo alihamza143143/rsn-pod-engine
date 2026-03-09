@@ -23,6 +23,11 @@ jest.mock('../../config/logger', () => ({
   __esModule: true,
 }));
 
+jest.mock('../../services/email/email.service', () => ({
+  sendInviteEmail: jest.fn().mockResolvedValue(undefined),
+  __esModule: true,
+}));
+
 import * as inviteService from '../../services/invite/invite.service';
 
 const mockInvite = {
@@ -71,6 +76,10 @@ describe('Invite Service', () => {
       mockQuery.mockResolvedValueOnce({ rows: [{ id: 'pod-123', name: 'Test', status: 'active' }], rowCount: 1 });
       // INSERT invite RETURNING
       mockQuery.mockResolvedValueOnce({ rows: [mockInvite], rowCount: 1 });
+      // Inviter display name lookup (for email)
+      mockQuery.mockResolvedValueOnce({ rows: [{ displayName: 'Host User' }], rowCount: 1 });
+      // Pod name lookup (for email)
+      mockQuery.mockResolvedValueOnce({ rows: [{ name: 'Test Pod' }], rowCount: 1 });
 
       const invite = await inviteService.createInvite('user-host', {
         type: InviteType.POD,

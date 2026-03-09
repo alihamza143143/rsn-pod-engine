@@ -33,15 +33,15 @@ function LobbyMosaic() {
         const name = trackRef.participant.name || trackRef.participant.identity || 'User';
         const hasVideo = !!trackRef.publication?.track;
         return (
-          <div key={trackRef.participant.sid} className="relative rounded-xl overflow-hidden bg-surface-900 aspect-video flex items-center justify-center border border-surface-800">
+          <div key={trackRef.participant.sid} className="relative rounded-xl overflow-hidden bg-gray-50 aspect-video flex items-center justify-center border border-gray-200">
             {hasVideo && isTrackReference(trackRef) ? (
               <VideoTrack trackRef={trackRef} className="h-full w-full object-cover" />
             ) : (
               <div className="flex flex-col items-center gap-1">
-                <div className="h-12 w-12 rounded-full bg-surface-800 flex items-center justify-center text-surface-400 font-bold text-lg">
+                <div className="h-12 w-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 font-bold text-lg">
                   {name.charAt(0).toUpperCase()}
                 </div>
-                <VideoOff className="h-3 w-3 text-surface-600" />
+                <VideoOff className="h-3 w-3 text-gray-300" />
               </div>
             )}
             <div className="absolute bottom-1 left-1 bg-black/60 rounded px-1.5 py-0.5 text-[10px] text-white truncate max-w-[90%]">
@@ -51,7 +51,7 @@ function LobbyMosaic() {
         );
       })}
       {cameraTracks.length === 0 && (
-        <div className="col-span-full text-center py-8 text-surface-500 text-sm">
+        <div className="col-span-full text-center py-8 text-gray-400 text-sm">
           Waiting for participants to enable cameras...
         </div>
       )}
@@ -66,26 +66,26 @@ function LobbyStatusOverlay() {
     <div className="text-center space-y-3">
       {isByeRound ? (
         <>
-          <h2 className="text-lg font-bold text-surface-100">Bye Round</h2>
-          <p className="text-surface-400 text-sm">You have a bye this round — sit tight!</p>
+          <h2 className="text-lg font-bold text-[#1a1a2e]">Bye Round</h2>
+          <p className="text-gray-500 text-sm">You have a bye this round — sit tight!</p>
         </>
       ) : transitionStatus === 'between_rounds' ? (
         <div className="flex items-center justify-center gap-2">
-          <Loader2 className="h-4 w-4 text-brand-400 animate-spin" />
-          <p className="text-surface-400 text-sm">Preparing round {currentRound} of {totalRounds}...</p>
+          <Loader2 className="h-4 w-4 text-indigo-600 animate-spin" />
+          <p className="text-gray-500 text-sm">Preparing round {currentRound} of {totalRounds}...</p>
         </div>
       ) : transitionStatus === 'starting_session' ? (
         <div className="flex items-center justify-center gap-2">
-          <Loader2 className="h-4 w-4 text-brand-400 animate-spin" />
-          <p className="text-surface-400 text-sm">Session starting — preparing your first match...</p>
+          <Loader2 className="h-4 w-4 text-indigo-600 animate-spin" />
+          <p className="text-gray-500 text-sm">Session starting — preparing your first match...</p>
         </div>
       ) : (
         <>
-          <h2 className="text-lg font-bold text-surface-100">Lobby</h2>
-          <p className="text-surface-400 text-sm">The host will start the session soon</p>
+          <h2 className="text-lg font-bold text-[#1a1a2e]">Lobby</h2>
+          <p className="text-gray-500 text-sm">The host will start the session soon</p>
         </>
       )}
-      <div className="flex items-center justify-center gap-2 text-surface-300 text-xs">
+      <div className="flex items-center justify-center gap-2 text-gray-600 text-xs">
         <Clock className="h-3 w-3" />
         <span>{participants.length} participant{participants.length !== 1 ? 's' : ''} connected</span>
       </div>
@@ -120,13 +120,13 @@ export default function Lobby() {
   return (
     <div className="flex-1 flex items-center justify-center p-4">
       <Card className="max-w-lg w-full text-center">
-        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-brand-500/20 text-brand-400 mb-4">
+        <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-indigo-50 text-indigo-600 mb-4">
           <Users className="h-8 w-8" />
         </div>
         <LobbyStatusOverlay />
         <div className="mt-6 flex flex-wrap gap-2 justify-center">
           {participants.map(p => (
-            <span key={p.userId} className="inline-flex items-center gap-1 rounded-full bg-surface-800 px-3 py-1 text-xs text-surface-300">
+            <span key={p.userId} className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-xs text-gray-600">
               {p.displayName || 'User'}
             </span>
           ))}

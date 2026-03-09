@@ -45,124 +45,124 @@ export default function HomePage() {
     <div className="max-w-5xl mx-auto space-y-8">
       {/* Welcome header */}
       <div className="animate-fade-in">
-        <h1 className="text-2xl font-bold text-surface-100">
+        <h1 className="text-2xl font-bold text-[#1a1a2e]">
           Welcome, {user?.displayName || user?.firstName || 'there'}
         </h1>
-        <p className="text-surface-400 mt-1">Here&apos;s what&apos;s happening with your RSN account.</p>
+        <p className="text-gray-500 mt-1">Here&apos;s what&apos;s happening with your RSN account.</p>
       </div>
 
-      {/* Stats row — matching reference layout */}
+      {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in-up">
-        <Card className="cursor-pointer hover:border-surface-600 transition-colors" onClick={() => navigate('/pods')}>
+        <Card className="cursor-pointer hover:border-gray-300 transition-colors" onClick={() => navigate('/pods')}>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm text-surface-400">My Pods</p>
-            <Users className="h-4 w-4 text-surface-500" />
+            <p className="text-sm text-gray-500">My Pods</p>
+            <Users className="h-4 w-4 text-gray-400" />
           </div>
-          <p className="text-3xl font-bold text-surface-100">{podCount}</p>
-          <p className="text-xs text-surface-500 mt-1">Active pod memberships</p>
+          <p className="text-3xl font-bold text-[#1a1a2e]">{podCount}</p>
+          <p className="text-xs text-gray-400 mt-1">Active pod memberships</p>
         </Card>
 
-        <Card className="cursor-pointer hover:border-surface-600 transition-colors" onClick={() => navigate('/invites')}>
+        <Card className="cursor-pointer hover:border-gray-300 transition-colors" onClick={() => navigate('/invites')}>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm text-surface-400">Invites Created</p>
-            <Mail className="h-4 w-4 text-surface-500" />
+            <p className="text-sm text-gray-500">Invites Created</p>
+            <Mail className="h-4 w-4 text-gray-400" />
           </div>
-          <p className="text-3xl font-bold text-surface-100">{(invites || []).length}</p>
-          <p className="text-xs text-surface-500 mt-1">{acceptedInvites.length} accepted</p>
+          <p className="text-3xl font-bold text-[#1a1a2e]">{(invites || []).length}</p>
+          <p className="text-xs text-gray-400 mt-1">{acceptedInvites.length} accepted</p>
         </Card>
 
-        <Card className="cursor-pointer hover:border-surface-600 transition-colors" onClick={() => navigate('/sessions')}>
+        <Card className="cursor-pointer hover:border-gray-300 transition-colors" onClick={() => navigate('/sessions')}>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm text-surface-400">Upcoming Events</p>
-            <Calendar className="h-4 w-4 text-surface-500" />
+            <p className="text-sm text-gray-500">Upcoming Events</p>
+            <Calendar className="h-4 w-4 text-gray-400" />
           </div>
-          <p className="text-3xl font-bold text-surface-100">{upcomingSessions.length}</p>
-          <p className="text-xs text-surface-500 mt-1">Events registered</p>
+          <p className="text-3xl font-bold text-[#1a1a2e]">{upcomingSessions.length}</p>
+          <p className="text-xs text-gray-400 mt-1">Events registered</p>
         </Card>
 
-        <Card className="border-brand-500/30 bg-brand-500/5">
+        <Card className="border-indigo-200 bg-indigo-50/50">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm text-surface-400">Unlock Level</p>
-            <span className="text-xs font-medium text-brand-400">{unlockLevel}</span>
+            <p className="text-sm text-gray-500">Unlock Level</p>
+            <span className="text-xs font-medium text-indigo-600">{unlockLevel}</span>
           </div>
-          <p className="text-3xl font-bold text-surface-100">{acceptedInvites.length}/{unlockLevel === 'Starter' ? 1 : unlockLevel === 'Basic' ? 3 : '∞'}</p>
-          <p className="text-xs text-surface-500 mt-1">Accepted invites{unlockLevel === 'Starter' ? ' — invite 1 to unlock' : ''}</p>
+          <p className="text-3xl font-bold text-[#1a1a2e]">{acceptedInvites.length}/{unlockLevel === 'Starter' ? 1 : unlockLevel === 'Basic' ? 3 : '∞'}</p>
+          <p className="text-xs text-gray-400 mt-1">Accepted invites{unlockLevel === 'Starter' ? ' — invite 1 to unlock' : ''}</p>
         </Card>
       </div>
 
-      {/* Quick actions — matching reference 3-column layout */}
+      {/* Quick actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 animate-fade-in-up">
         <Card className="flex flex-col">
-          <h3 className="font-semibold text-surface-100 mb-1">Create a Pod</h3>
-          <p className="text-sm text-surface-400 mb-4 flex-1">Start your own pod and invite members</p>
+          <h3 className="font-semibold text-[#1a1a2e] mb-1">Create a Pod</h3>
+          <p className="text-sm text-gray-500 mb-4 flex-1">Start your own pod and invite members</p>
           <Button onClick={() => navigate('/pods')} className="w-full">
             <Plus className="h-4 w-4 mr-2" /> Create Pod
           </Button>
         </Card>
 
         <Card className="flex flex-col">
-          <h3 className="font-semibold text-surface-100 mb-1">Invite Someone</h3>
-          <p className="text-sm text-surface-400 mb-4 flex-1">Grow the network, unlock more features</p>
+          <h3 className="font-semibold text-[#1a1a2e] mb-1">Invite Someone</h3>
+          <p className="text-sm text-gray-500 mb-4 flex-1">Grow the network, unlock more features</p>
           <Button variant="secondary" onClick={() => navigate('/invites')} className="w-full">
             <Mail className="h-4 w-4 mr-2" /> Send Invite
           </Button>
         </Card>
 
         <Card className="flex flex-col">
-          <h3 className="font-semibold text-surface-100 mb-1">Browse Events</h3>
-          <p className="text-sm text-surface-400 mb-4 flex-1">Find upcoming networking events</p>
+          <h3 className="font-semibold text-[#1a1a2e] mb-1">Browse Events</h3>
+          <p className="text-sm text-gray-500 mb-4 flex-1">Find upcoming networking events</p>
           <Button variant="secondary" onClick={() => navigate('/sessions')} className="w-full">
             <Eye className="h-4 w-4 mr-2" /> View Events
           </Button>
         </Card>
       </div>
 
-      {/* Getting Started checklist — matching reference design */}
+      {/* Getting Started checklist */}
       <Card className="animate-fade-in-up">
-        <h2 className="font-semibold text-surface-100 mb-1">Getting Started</h2>
-        <p className="text-sm text-surface-400 mb-5">Complete these steps to get the most out of RSN</p>
+        <h2 className="font-semibold text-[#1a1a2e] mb-1">Getting Started</h2>
+        <p className="text-sm text-gray-500 mb-5">Complete these steps to get the most out of RSN</p>
 
-        <div className="divide-y divide-surface-800">
+        <div className="divide-y divide-gray-100">
           <button
             onClick={() => navigate('/profile')}
-            className="flex items-center gap-4 w-full py-3 group hover:bg-surface-800/30 -mx-2 px-2 rounded-lg transition-colors"
+            className="flex items-center gap-4 w-full py-3 group hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors"
           >
-            <span className={`flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold ${hasProfile ? 'bg-emerald-500/20 text-emerald-400' : 'bg-brand-500/20 text-brand-400'}`}>
+            <span className={`flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold ${hasProfile ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'}`}>
               {hasProfile ? '✓' : '1'}
             </span>
             <div className="flex-1 text-left">
-              <p className="text-sm font-medium text-surface-200">Complete your profile</p>
-              <p className="text-xs text-surface-500">Add your bio and LinkedIn</p>
+              <p className="text-sm font-medium text-gray-800">Complete your profile</p>
+              <p className="text-xs text-gray-400">Add your bio and LinkedIn</p>
             </div>
-            <ChevronRight className="h-4 w-4 text-surface-600 group-hover:text-surface-400 transition-colors" />
+            <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
           </button>
 
           <button
             onClick={() => navigate('/invites')}
-            className="flex items-center gap-4 w-full py-3 group hover:bg-surface-800/30 -mx-2 px-2 rounded-lg transition-colors"
+            className="flex items-center gap-4 w-full py-3 group hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors"
           >
-            <span className={`flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold ${hasInvite ? 'bg-emerald-500/20 text-emerald-400' : 'bg-brand-500/20 text-brand-400'}`}>
+            <span className={`flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold ${hasInvite ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'}`}>
               {hasInvite ? '✓' : '2'}
             </span>
             <div className="flex-1 text-left">
-              <p className="text-sm font-medium text-surface-200">Invite someone great</p>
-              <p className="text-xs text-surface-500">Unlock your first pod slot</p>
+              <p className="text-sm font-medium text-gray-800">Invite someone great</p>
+              <p className="text-xs text-gray-400">Unlock your first pod slot</p>
             </div>
-            <ChevronRight className="h-4 w-4 text-surface-600 group-hover:text-surface-400 transition-colors" />
+            <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
           </button>
 
           <button
             onClick={() => navigate('/pods')}
-            className="flex items-center gap-4 w-full py-3 group hover:bg-surface-800/30 -mx-2 px-2 rounded-lg transition-colors"
+            className="flex items-center gap-4 w-full py-3 group hover:bg-gray-50 -mx-2 px-2 rounded-lg transition-colors"
           >
-            <span className={`flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold ${hasPod ? 'bg-emerald-500/20 text-emerald-400' : 'bg-brand-500/20 text-brand-400'}`}>
+            <span className={`flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold ${hasPod ? 'bg-emerald-50 text-emerald-600' : 'bg-indigo-50 text-indigo-600'}`}>
               {hasPod ? '✓' : '3'}
             </span>
             <div className="flex-1 text-left">
-              <p className="text-sm font-medium text-surface-200">Join or create a pod</p>
-              <p className="text-xs text-surface-500">Start meeting with founders</p>
+              <p className="text-sm font-medium text-gray-800">Join or create a pod</p>
+              <p className="text-xs text-gray-400">Start meeting with founders</p>
             </div>
-            <ChevronRight className="h-4 w-4 text-surface-600 group-hover:text-surface-400 transition-colors" />
+            <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
           </button>
         </div>
       </Card>

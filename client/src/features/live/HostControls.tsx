@@ -19,9 +19,9 @@ export default function HostControls({ sessionId }: Props) {
   const endSession = () => socket?.emit('host:end_session', { sessionId });
 
   return (
-    <div className="border-t border-surface-800 bg-surface-900/60 backdrop-blur-sm p-4">
+    <div className="border-t border-gray-200 bg-gray-50/60 backdrop-blur-sm p-4">
       <div className="max-w-4xl mx-auto flex items-center justify-between">
-        <p className="text-sm text-surface-400">{participants.length} in lobby</p>
+        <p className="text-sm text-gray-500">{participants.length} in lobby</p>
         <div className="flex gap-2">
           {/* Start Session — only shown before session has started */}
           {!sessionStarted && (

@@ -93,17 +93,17 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-surface-950 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-white p-4">
       <div className="w-full max-w-md animate-fade-in-up">
         <div className="text-center mb-8">
           <div className="inline-flex items-center gap-2 mb-4">
-            <Sparkles className="h-8 w-8 text-brand-400 animate-pulse-slow" />
+            <Sparkles className="h-8 w-8 text-indigo-600 animate-pulse-slow" />
             <h1 className="text-3xl font-bold bg-gradient-to-r from-brand-400 to-purple-400 bg-clip-text text-transparent">RSN</h1>
           </div>
-          <p className="text-surface-400 animate-fade-in" style={{ animationDelay: '0.2s' }}>Real-time peer networking for professionals</p>
+          <p className="text-gray-500 animate-fade-in" style={{ animationDelay: '0.2s' }}>Real-time peer networking for professionals</p>
         </div>
 
-        <div className="rounded-2xl border border-surface-800 bg-surface-900/60 backdrop-blur-sm p-8 animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
+        <div className="rounded-2xl border border-gray-200 bg-gray-50/60 backdrop-blur-sm p-8 animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
           {displayError && (
             <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-2">
               <AlertCircle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
@@ -113,13 +113,13 @@ export default function LoginPage() {
 
           {!sent ? (
             <>
-              <h2 className="text-xl font-semibold text-surface-100 mb-6">Sign in to RSN</h2>
+              <h2 className="text-xl font-semibold text-[#1a1a2e] mb-6">Sign in to RSN</h2>
 
               {/* Google Login */}
               <button
                 type="button"
                 onClick={handleGoogleLogin}
-                className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-surface-700 bg-surface-800/50 text-surface-200 hover:bg-surface-800 hover:border-surface-600 transition-all text-sm font-medium"
+                className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-800 hover:bg-gray-100 hover:border-gray-300 transition-all text-sm font-medium"
               >
                 <svg className="h-5 w-5" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
@@ -131,8 +131,8 @@ export default function LoginPage() {
               </button>
 
               <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-surface-700" /></div>
-                <div className="relative flex justify-center text-xs"><span className="bg-surface-900 px-3 text-surface-500">or use email</span></div>
+                <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
+                <div className="relative flex justify-center text-xs"><span className="bg-gray-50 px-3 text-gray-400">or use email</span></div>
               </div>
 
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -149,27 +149,27 @@ export default function LoginPage() {
                   error={errors.inviteCode?.message}
                   {...register('inviteCode')}
                 />
-                <p className="text-xs text-surface-500 -mt-2">Optional — only if you received an invite</p>
+                <p className="text-xs text-gray-400 -mt-2">Optional — only if you received an invite</p>
                 <Button type="submit" className="w-full group" isLoading={isSubmitting}>
                   Send magic link
                   <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </Button>
               </form>
               {redirectPath && (
-                <p className="mt-4 text-xs text-surface-500 text-center">You'll be redirected after signing in</p>
+                <p className="mt-4 text-xs text-gray-400 text-center">You'll be redirected after signing in</p>
               )}
             </>
           ) : (
             <div className="text-center space-y-4 animate-fade-in">
-              <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-brand-500/20 text-brand-400 mb-2">
+              <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-indigo-50 text-indigo-600 mb-2">
                 <Sparkles className="h-8 w-8" />
               </div>
-              <h2 className="text-xl font-semibold text-surface-100">Check your email</h2>
-              <p className="text-surface-400 text-sm">
-                We sent a magic link to <span className="font-medium text-surface-200">{getValues('email')}</span>
+              <h2 className="text-xl font-semibold text-[#1a1a2e]">Check your email</h2>
+              <p className="text-gray-500 text-sm">
+                We sent a magic link to <span className="font-medium text-gray-800">{getValues('email')}</span>
               </p>
-              <p className="text-surface-500 text-xs mt-1">Click the link in your email to sign in. It expires in 60 minutes.</p>
-              <p className="text-surface-500 text-xs">This page will continue automatically after you verify the link.</p>
+              <p className="text-gray-400 text-xs mt-1">Click the link in your email to sign in. It expires in 60 minutes.</p>
+              <p className="text-gray-400 text-xs">This page will continue automatically after you verify the link.</p>
 
               {/* Dev mode: show direct link */}
               {devLink && (
@@ -185,7 +185,7 @@ export default function LoginPage() {
                 </div>
               )}
 
-              <button onClick={() => setSent(false)} className="text-sm text-surface-500 hover:text-surface-300 transition-colors">
+              <button onClick={() => setSent(false)} className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
                 Try a different email
               </button>
             </div>

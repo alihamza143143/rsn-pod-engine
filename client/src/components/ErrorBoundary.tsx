@@ -29,13 +29,13 @@ export default class ErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) return this.props.fallback;
 
       return (
-        <div className="min-h-screen bg-surface-950 flex items-center justify-center p-4">
+        <div className="min-h-screen bg-white flex items-center justify-center p-4">
           <Card className="max-w-md w-full text-center">
             <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-red-500/20 text-red-400 mb-4">
               <AlertTriangle className="h-8 w-8" />
             </div>
-            <h2 className="text-xl font-bold text-surface-100 mb-2">Something went wrong</h2>
-            <p className="text-surface-400 mb-6 text-sm">
+            <h2 className="text-xl font-bold text-[#1a1a2e] mb-2">Something went wrong</h2>
+            <p className="text-gray-500 mb-6 text-sm">
               {this.state.error?.message || 'An unexpected error occurred.'}
             </p>
             <div className="flex gap-3 justify-center">

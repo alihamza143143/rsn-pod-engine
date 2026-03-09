@@ -61,19 +61,19 @@ export default function HostDashboardPage() {
   };
 
   if (isLoading) return <PageLoader />;
-  if (!session) return <p className="text-surface-400 text-center py-20">Session not found</p>;
+  if (!session) return <p className="text-gray-500 text-center py-20">Session not found</p>;
 
   // Auth check: Only host or admin can access
   const isHost = session.hostUserId === user?.id || user?.role === 'admin';
   if (!isHost) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-surface-950 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-white p-4">
         <Card className="max-w-md text-center">
           <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-red-500/20 text-red-400 mx-auto mb-4">
             <Settings className="h-8 w-8" />
           </div>
-          <h2 className="text-xl font-bold text-surface-100 mb-2">Access Denied</h2>
-          <p className="text-surface-400 mb-4">Only the session host can access this dashboard.</p>
+          <h2 className="text-xl font-bold text-[#1a1a2e] mb-2">Access Denied</h2>
+          <p className="text-gray-500 mb-4">Only the session host can access this dashboard.</p>
           <Button variant="secondary" onClick={() => navigate(`/sessions/${sessionId}`)}>Back to Session</Button>
         </Card>
       </div>
@@ -88,48 +88,48 @@ export default function HostDashboardPage() {
 
   return (
     <div className="max-w-4xl mx-auto space-y-6 p-4 md:p-8">
-      <button onClick={() => navigate('/sessions')} className="flex items-center gap-2 text-surface-400 hover:text-surface-200 transition-colors text-sm">
+      <button onClick={() => navigate('/sessions')} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors text-sm">
         <ArrowLeft className="h-4 w-4" /> Back to Sessions
       </button>
 
       <div className="flex items-center justify-between animate-fade-in">
-        <h1 className="text-2xl font-bold text-surface-100">Host Dashboard</h1>
+        <h1 className="text-2xl font-bold text-[#1a1a2e]">Host Dashboard</h1>
         <Badge variant={statusVariant}>{session.status?.replace(/_/g, ' ')}</Badge>
       </div>
 
       {/* Session Info */}
       <Card className="animate-fade-in-up">
-        <h2 className="font-semibold text-surface-200 mb-3 flex items-center gap-2">
-          <Settings className="h-5 w-5 text-brand-400" /> Session Info
+        <h2 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+          <Settings className="h-5 w-5 text-indigo-600" /> Session Info
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-          <div><span className="text-surface-500">Title:</span> <span className="text-surface-200 ml-1">{session.title || 'Open'}</span></div>
-          <div><span className="text-surface-500">Scheduled:</span> <span className="text-surface-200 ml-1">{new Date(session.scheduledAt).toLocaleString()}</span></div>
-          <div><span className="text-surface-500">Participants:</span> <span className="text-surface-200 ml-1">{(participants || []).length}</span></div>
-          <div><span className="text-surface-500">Rounds:</span> <span className="text-surface-200 ml-1">{session.config?.numberOfRounds || 5}</span></div>
-          <div><span className="text-surface-500">Round Duration:</span> <span className="text-surface-200 ml-1">{Math.floor((session.config?.roundDurationSeconds || 480) / 60)}m</span></div>
-          <div><span className="text-surface-500">Current Round:</span> <span className="text-surface-200 ml-1">{session.currentRound || 0}</span></div>
+          <div><span className="text-gray-400">Title:</span> <span className="text-gray-800 ml-1">{session.title || 'Open'}</span></div>
+          <div><span className="text-gray-400">Scheduled:</span> <span className="text-gray-800 ml-1">{new Date(session.scheduledAt).toLocaleString()}</span></div>
+          <div><span className="text-gray-400">Participants:</span> <span className="text-gray-800 ml-1">{(participants || []).length}</span></div>
+          <div><span className="text-gray-400">Rounds:</span> <span className="text-gray-800 ml-1">{session.config?.numberOfRounds || 5}</span></div>
+          <div><span className="text-gray-400">Round Duration:</span> <span className="text-gray-800 ml-1">{Math.floor((session.config?.roundDurationSeconds || 480) / 60)}m</span></div>
+          <div><span className="text-gray-400">Current Round:</span> <span className="text-gray-800 ml-1">{session.currentRound || 0}</span></div>
         </div>
       </Card>
 
       {/* Live State (if active) */}
       {liveState?.active && (
         <Card className="border-brand-500/30 animate-fade-in-up stagger-1">
-          <h2 className="font-semibold text-surface-200 mb-3 flex items-center gap-2">
+          <h2 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
             <Radio className="h-5 w-5 text-green-400 animate-pulse-soft" /> Live State
           </h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 text-sm">
-            <div><span className="text-surface-500">Status:</span> <Badge variant="success" className="ml-1">{liveState.status?.replace(/_/g, ' ')}</Badge></div>
-            <div><span className="text-surface-500">Round:</span> <span className="text-surface-200 ml-1">{liveState.currentRound || 0} / {session.config?.numberOfRounds || 5}</span></div>
-            <div><span className="text-surface-500">Active Users:</span> <span className="text-surface-200 ml-1">{liveState.participantCount || 0}</span></div>
+            <div><span className="text-gray-400">Status:</span> <Badge variant="success" className="ml-1">{liveState.status?.replace(/_/g, ' ')}</Badge></div>
+            <div><span className="text-gray-400">Round:</span> <span className="text-gray-800 ml-1">{liveState.currentRound || 0} / {session.config?.numberOfRounds || 5}</span></div>
+            <div><span className="text-gray-400">Active Users:</span> <span className="text-gray-800 ml-1">{liveState.participantCount || 0}</span></div>
           </div>
         </Card>
       )}
 
       {/* Controls */}
       <Card className="animate-fade-in-up stagger-2">
-        <h2 className="font-semibold text-surface-200 mb-4 flex items-center gap-2">
-          <Play className="h-5 w-5 text-brand-400" /> Controls
+        <h2 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
+          <Play className="h-5 w-5 text-indigo-600" /> Controls
         </h2>
         <div className="flex flex-wrap gap-3">
           {session.status === 'scheduled' && (
@@ -161,15 +161,15 @@ export default function HostDashboardPage() {
       {/* Broadcast */}
       {isActive && (
         <Card className="animate-fade-in-up stagger-3">
-          <h2 className="font-semibold text-surface-200 mb-3 flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-brand-400" /> Broadcast Message
+          <h2 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+            <MessageSquare className="h-5 w-5 text-indigo-600" /> Broadcast Message
           </h2>
           <div className="flex gap-2">
             <input
               value={broadcastMsg}
               onChange={e => setBroadcastMsg(e.target.value)}
               placeholder="Type a message to all participants..."
-              className="flex-1 rounded-xl border border-surface-700 bg-surface-800/50 px-4 py-2.5 text-sm text-surface-100 placeholder:text-surface-500 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-all duration-200"
+              className="flex-1 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200"
               onKeyDown={e => e.key === 'Enter' && sendBroadcast()}
             />
             <Button onClick={sendBroadcast} isLoading={loading === 'broadcast'}>
@@ -181,11 +181,11 @@ export default function HostDashboardPage() {
 
       {/* Participants */}
       <div className="animate-fade-in-up stagger-4">
-        <h2 className="text-lg font-semibold text-surface-100 mb-3 flex items-center gap-2">
-          <Users className="h-5 w-5 text-brand-400" /> Participants ({(participants || []).length})
+        <h2 className="text-lg font-semibold text-[#1a1a2e] mb-3 flex items-center gap-2">
+          <Users className="h-5 w-5 text-indigo-600" /> Participants ({(participants || []).length})
         </h2>
         {(participants || []).length === 0 ? (
-          <Card><p className="text-surface-500 text-sm text-center py-4">No participants yet</p></Card>
+          <Card><p className="text-gray-400 text-sm text-center py-4">No participants yet</p></Card>
         ) : (
           <div className="grid gap-2">
             {(participants || []).map((p: any) => (
@@ -194,8 +194,8 @@ export default function HostDashboardPage() {
                   <div className="flex items-center gap-3">
                     <Avatar name={p.displayName || p.email || 'User'} size="sm" />
                     <div>
-                      <p className="text-sm font-medium text-surface-200">{p.displayName || p.email || 'Participant'}</p>
-                      <p className="text-xs text-surface-500">Rounds: {p.roundsCompleted || 0}</p>
+                      <p className="text-sm font-medium text-gray-800">{p.displayName || p.email || 'Participant'}</p>
+                      <p className="text-xs text-gray-400">Rounds: {p.roundsCompleted || 0}</p>
                     </div>
                   </div>
                   <Badge variant={p.status === 'in_round' ? 'success' : p.status === 'disconnected' ? 'warning' : 'default'} className="text-xs">

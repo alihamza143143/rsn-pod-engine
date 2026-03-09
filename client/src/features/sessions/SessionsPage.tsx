@@ -29,7 +29,7 @@ export default function SessionsPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between animate-fade-in">
-        <h1 className="text-2xl font-bold text-surface-100">Sessions</h1>
+        <h1 className="text-2xl font-bold text-[#1a1a2e]">Sessions</h1>
         <Button onClick={() => navigate('/sessions/new')} className="btn-glow"><Plus className="h-4 w-4 mr-2" /> New Session</Button>
       </div>
 
@@ -49,7 +49,7 @@ export default function SessionsPage() {
                 <div className="flex items-center justify-between">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium text-surface-200">
+                      <p className="font-medium text-gray-800">
                         {s.title || 'Open session'}
                       </p>
                       {isHost && (
@@ -58,11 +58,11 @@ export default function SessionsPage() {
                         </Badge>
                       )}
                     </div>
-                    <p className="text-sm text-surface-400 mt-0.5">
+                    <p className="text-sm text-gray-500 mt-0.5">
                       {s.scheduledAt ? new Date(s.scheduledAt).toLocaleString() : 'No date'}
-                      {s.podName && <span className="ml-2 text-surface-500">· {s.podName}</span>}
+                      {s.podName && <span className="ml-2 text-gray-400">· {s.podName}</span>}
                       {s.hostDisplayName && !isHost && (
-                        <span className="ml-2 text-surface-500">· Host: {s.hostDisplayName}</span>
+                        <span className="ml-2 text-gray-400">· Host: {s.hostDisplayName}</span>
                       )}
                     </p>
                   </div>

@@ -48,10 +48,10 @@ export default function RatingPrompt(_props: Props) {
           <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-500/20 text-emerald-400 mb-4">
             <CheckCircle className="h-8 w-8" />
           </div>
-          <h2 className="text-xl font-bold text-surface-100 mb-2">Rating Submitted!</h2>
+          <h2 className="text-xl font-bold text-[#1a1a2e] mb-2">Rating Submitted!</h2>
           <div className="flex items-center justify-center gap-2">
-            <Loader2 className="h-4 w-4 text-surface-400 animate-spin" />
-            <p className="text-surface-400">Waiting for the next round to begin...</p>
+            <Loader2 className="h-4 w-4 text-gray-500 animate-spin" />
+            <p className="text-gray-500">Waiting for the next round to begin...</p>
           </div>
         </Card>
       </div>
@@ -61,8 +61,8 @@ export default function RatingPrompt(_props: Props) {
   return (
     <div className="flex-1 flex items-center justify-center p-4">
       <Card className="max-w-md w-full text-center">
-        <h2 className="text-xl font-bold text-surface-100 mb-2">Rate your conversation</h2>
-        <p className="text-surface-400 mb-6">
+        <h2 className="text-xl font-bold text-[#1a1a2e] mb-2">Rate your conversation</h2>
+        <p className="text-gray-500 mb-6">
           How was your chat with {currentMatch?.displayName || 'your partner'}?
         </p>
 
@@ -74,7 +74,7 @@ export default function RatingPrompt(_props: Props) {
               className="transition-transform hover:scale-110"
             >
               <Star
-                className={`h-10 w-10 ${n <= rating ? 'text-amber-400 fill-amber-400' : 'text-surface-600'}`}
+                className={`h-10 w-10 ${n <= rating ? 'text-amber-400 fill-amber-400' : 'text-gray-300'}`}
               />
             </button>
           ))}
@@ -83,7 +83,7 @@ export default function RatingPrompt(_props: Props) {
         <button
           onClick={() => setMeetAgain(!meetAgain)}
           className={`flex items-center justify-center gap-2 w-full py-2 rounded-lg border transition-colors mb-4 ${
-            meetAgain ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-surface-700 text-surface-400 hover:border-surface-600'
+            meetAgain ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-gray-200 text-gray-500 hover:border-gray-300'
           }`}
         >
           <UserCheck className="h-4 w-4" />
@@ -94,7 +94,7 @@ export default function RatingPrompt(_props: Props) {
           Submit Rating
         </Button>
 
-        <button onClick={() => setPhase('lobby')} className="text-sm text-surface-500 hover:text-surface-300 mt-4 transition-colors">
+        <button onClick={() => setPhase('lobby')} className="text-sm text-gray-400 hover:text-gray-600 mt-4 transition-colors">
           Skip
         </button>
       </Card>

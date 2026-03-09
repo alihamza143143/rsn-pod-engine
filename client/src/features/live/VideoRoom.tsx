@@ -43,15 +43,15 @@ function VideoStage() {
   return (
     <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Local video */}
-      <div className="relative rounded-xl overflow-hidden bg-surface-900 min-h-[300px] flex items-center justify-center border border-surface-800">
+      <div className="relative rounded-xl overflow-hidden bg-gray-50 min-h-[300px] flex items-center justify-center border border-gray-200">
         {localTrack?.publication?.track ? (
           <VideoTrack trackRef={localTrack} className="h-full w-full object-cover" />
         ) : (
           <div className="flex flex-col items-center gap-2">
-            <div className="h-20 w-20 rounded-full bg-surface-800 flex items-center justify-center">
-              <Video className="h-8 w-8 text-surface-500" />
+            <div className="h-20 w-20 rounded-full bg-gray-100 flex items-center justify-center">
+              <Video className="h-8 w-8 text-gray-400" />
             </div>
-            <p className="text-surface-400 text-sm">Camera off</p>
+            <p className="text-gray-500 text-sm">Camera off</p>
           </div>
         )}
         <div className="absolute bottom-2 left-2 bg-black/60 rounded px-2 py-1 text-xs text-white">
@@ -60,15 +60,15 @@ function VideoStage() {
       </div>
 
       {/* Remote video */}
-      <div className="relative rounded-xl overflow-hidden bg-surface-900 min-h-[300px] flex items-center justify-center border border-surface-800">
+      <div className="relative rounded-xl overflow-hidden bg-gray-50 min-h-[300px] flex items-center justify-center border border-gray-200">
         {remoteTrack?.publication?.track ? (
           <VideoTrack trackRef={remoteTrack} className="h-full w-full object-cover" />
         ) : (
           <div className="flex flex-col items-center gap-2">
-            <div className="h-20 w-20 rounded-full bg-surface-800 flex items-center justify-center animate-pulse">
-              <Video className="h-8 w-8 text-surface-600" />
+            <div className="h-20 w-20 rounded-full bg-gray-100 flex items-center justify-center animate-pulse">
+              <Video className="h-8 w-8 text-gray-300" />
             </div>
-            <p className="text-surface-500 text-sm">
+            <p className="text-gray-400 text-sm">
               {participants.length < 2 ? 'Waiting for partner...' : 'Partner camera off'}
             </p>
           </div>
@@ -102,13 +102,13 @@ function MediaControls() {
     <div className="flex items-center gap-3">
       <button
         onClick={toggleMic}
-        className={`p-2 rounded-full transition-colors ${micEnabled ? 'bg-surface-700 hover:bg-surface-600 text-surface-200' : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'}`}
+        className={`p-2 rounded-full transition-colors ${micEnabled ? 'bg-gray-200 hover:bg-surface-600 text-gray-800' : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'}`}
       >
         {micEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
       </button>
       <button
         onClick={toggleCam}
-        className={`p-2 rounded-full transition-colors ${camEnabled ? 'bg-surface-700 hover:bg-surface-600 text-surface-200' : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'}`}
+        className={`p-2 rounded-full transition-colors ${camEnabled ? 'bg-gray-200 hover:bg-surface-600 text-gray-800' : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'}`}
       >
         {camEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
       </button>
@@ -134,14 +134,14 @@ export default function VideoRoom() {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
         <Card className="max-w-md w-full text-center">
-          <div className="h-20 w-20 rounded-full bg-surface-800 flex items-center justify-center mx-auto mb-4">
-            <Video className="h-8 w-8 text-surface-500" />
+          <div className="h-20 w-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+            <Video className="h-8 w-8 text-gray-400" />
           </div>
-          <h3 className="text-lg font-semibold text-surface-200 mb-2">Bye Round</h3>
-          <p className="text-surface-400 text-sm">
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">Bye Round</h3>
+          <p className="text-gray-500 text-sm">
             You have a bye this round — sit tight, you'll be matched in the next round!
           </p>
-          <p className="text-surface-500 text-xs mt-3">Round {currentRound} of {totalRounds}</p>
+          <p className="text-gray-400 text-xs mt-3">Round {currentRound} of {totalRounds}</p>
         </Card>
       </div>
     );
@@ -154,11 +154,11 @@ export default function VideoRoom() {
           <div className="h-20 w-20 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
             <VideoOff className="h-8 w-8 text-red-400" />
           </div>
-          <h3 className="text-lg font-semibold text-surface-200 mb-2">Video Error</h3>
-          <p className="text-surface-400 text-sm mb-3">{connectionError}</p>
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">Video Error</h3>
+          <p className="text-gray-500 text-sm mb-3">{connectionError}</p>
           <button
             onClick={() => { setConnectionError(null); setLiveKitToken('', ''); }}
-            className="text-sm text-brand-400 hover:text-brand-300 underline"
+            className="text-sm text-indigo-600 hover:text-brand-300 underline"
           >Retry</button>
         </Card>
       </div>
@@ -169,10 +169,10 @@ export default function VideoRoom() {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
         <Card className="max-w-md w-full text-center">
-          <div className="h-16 w-16 rounded-full bg-surface-800 flex items-center justify-center mx-auto mb-4 animate-pulse">
-            <Video className="h-6 w-6 text-surface-500" />
+          <div className="h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4 animate-pulse">
+            <Video className="h-6 w-6 text-gray-400" />
           </div>
-          <p className="text-surface-400 text-sm">Connecting to video room — please wait...</p>
+          <p className="text-gray-500 text-sm">Connecting to video room — please wait...</p>
         </Card>
       </div>
     );
@@ -191,7 +191,7 @@ export default function VideoRoom() {
     >
       {/* Connecting to partner overlay */}
       {transitionStatus === 'preparing_match' && (
-        <div className="bg-brand-500/10 border-b border-brand-500/20 px-4 py-2 flex items-center justify-center gap-2">
+        <div className="bg-[#1a1a2e]/10 border-b border-brand-500/20 px-4 py-2 flex items-center justify-center gap-2">
           <div className="h-4 w-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
           <p className="text-sm text-brand-300">Connecting to your partner...</p>
         </div>
@@ -199,13 +199,13 @@ export default function VideoRoom() {
 
       <div className="flex-1 flex flex-col p-4 gap-4">
         {/* Timer bar */}
-        <div className="flex items-center justify-between bg-surface-900/60 rounded-xl px-4 py-3 border border-surface-800">
+        <div className="flex items-center justify-between bg-gray-50/60 rounded-xl px-4 py-3 border border-gray-200">
           <div className="flex items-center gap-3">
-            <span className="text-sm text-surface-400">Round {currentRound} of {totalRounds}</span>
+            <span className="text-sm text-gray-500">Round {currentRound} of {totalRounds}</span>
             <ConnectionIndicator />
             <MediaControls />
           </div>
-          <div className="flex items-center gap-2 text-surface-200">
+          <div className="flex items-center gap-2 text-gray-800">
             <Clock className="h-4 w-4" />
             <span className={`font-mono text-lg ${timerSeconds <= 30 ? 'text-amber-400' : ''} ${timerSeconds <= 10 ? 'text-red-400 animate-pulse' : ''}`}>
               {formatTime(timerSeconds)}
