@@ -62,6 +62,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 5. Profile completion should be encouraged/required before quality matching can occur.
 6. Pod deletion is a soft-delete (archive) — sessions and data are always preserved for potential reactivation.
 7. Invite flow requires explicit user action to share the link — system does not auto-email invites yet.
+8. **Always fix tests after code changes** — After any service/route/middleware change, run tests, fix any failures, and ensure all tests pass before committing.
 
 ---
 
