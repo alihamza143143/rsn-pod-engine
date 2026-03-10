@@ -44,7 +44,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 - Active Milestone: **Change 1.0 Complete — Font, Logo, Landing, Login, Admin, Role Tiers**
 - Current Session: Change 1.0 implementation (T-051 through T-055)
 - Overall Build Status: Shared + Client + Server production builds passing, 277/277 tests passing (248 server + 29 shared)
-- Last Updated: March 10, 2026 (T-059)
+- Last Updated: March 10, 2026 (T-060)
 
 ---
 
@@ -124,6 +124,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-057 | Fix Render backend build failure | Completed | Copilot | Updated join-request service for new AppError signature and typed COUNT query; Render build command now passes locally |
 | T-058 | Improve backend testing observability logs | Completed | Copilot | Added request lifecycle logs (request-id, status, duration) and correlated error logs for faster test debugging |
 | T-059 | Fix sessions listing, invite counts, DB reset | Completed | Copilot | Sessions from private pods now visible to members on Events page; dashboard invite accepted count uses useCount sum; DB reset includes join_requests table/enum; errorHandler test mock fixed |
+| T-060 | Enable super_admin join-request approvals + fresh DB cleanup | Completed | Copilot | Fixed AdminJoinRequestsPage guard to allow super_admin; cleaned production DB to keep only alihamza user and zero pods/sessions/invites/join-requests |
 
 ---
 
@@ -2678,3 +2679,23 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - ✅ shared, server, client production builds all pass
 - Next immediate action:
   - Deploy, then run SQL to make alihamza891840 super_admin, then flush DB for clean testing
+
+### 2026-03-10 22:30 - Entry T-060
+- Task ID: T-060
+- Task Title: Enable super_admin join-request approvals + fresh DB cleanup
+- Status: Completed
+- What changed:
+  1. Fixed frontend admin gate bug in Join Requests page: changed strict `user?.role !== 'admin'` check to `!isAdmin(user?.role)` so `super_admin` can review/approve requests.
+  2. Executed targeted production DB cleanup to preserve only `alihamza891840` super_admin account and remove all other users/test data.
+  3. Verified post-cleanup counts: users=1, pods=0, sessions=0, invites=0, join_requests=0.
+- Files touched:
+  - client/src/features/admin/AdminJoinRequestsPage.tsx
+  - progress.md
+- Decisions made:
+  - Preserve alihamza super_admin account so admin testing can continue immediately after cleanup.
+  - Keep cleanup script one-time and remove it after execution (no repository artifact).
+- Validation Results:
+  - ✅ DB cleanup executed successfully on production DB
+  - ✅ Remaining counts confirmed empty for core test entities
+- Next immediate action:
+  - Log out/in, then test Request-to-Join approval flow and pod invite flow from clean state

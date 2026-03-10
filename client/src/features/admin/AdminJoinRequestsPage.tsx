@@ -57,7 +57,7 @@ export default function AdminJoinRequestsPage() {
     onError: () => addToast('Failed to review request', 'error'),
   });
 
-  if (user?.role !== 'admin') {
+  if (!isAdmin(user?.role)) {
     return (
       <div className="max-w-md mx-auto text-center py-20">
         <Shield className="h-16 w-16 text-gray-300 mx-auto mb-4" />
