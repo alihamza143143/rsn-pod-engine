@@ -29,3 +29,7 @@ export function getInitials(name: string): string {
 export function truncate(str: string, len: number): string {
   return str.length > len ? str.slice(0, len) + '…' : str;
 }
+
+export function isAdmin(role?: string): boolean {
+  return role === 'admin' || role === 'super_admin';
+}

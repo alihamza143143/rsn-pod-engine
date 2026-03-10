@@ -20,11 +20,15 @@ describe('UserRole enum', () => {
     expect(UserRole.MEMBER).toBe('member');
     expect(UserRole.HOST).toBe('host');
     expect(UserRole.ADMIN).toBe('admin');
+    expect(UserRole.SUPER_ADMIN).toBe('super_admin');
+    expect(UserRole.FOUNDING_MEMBER).toBe('founding_member');
+    expect(UserRole.PRO).toBe('pro');
+    expect(UserRole.FREE).toBe('free');
   });
 
-  it('should contain exactly 3 roles', () => {
+  it('should contain exactly 7 roles', () => {
     const values = Object.values(UserRole);
-    expect(values).toHaveLength(3);
+    expect(values).toHaveLength(7);
   });
 });
 

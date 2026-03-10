@@ -39,7 +39,7 @@ export default function SessionDetailPage() {
     enabled: !!sessionId,
   });
 
-  const isHost = session?.hostUserId === user?.id || user?.role === 'admin';
+  const isHost = session?.hostUserId === user?.id || user?.role === 'admin' || user?.role === 'super_admin';
   const isRegistered = (participants || []).some((p: any) => p.userId === user?.id);
 
   const updateMutation = useMutation({

@@ -47,7 +47,7 @@ export default function RecapPage() {
     enabled: !!sessionId,
   });
 
-  const isHost = session?.hostUserId === user?.id || user?.role === 'admin';
+  const isHost = session?.hostUserId === user?.id || user?.role === 'admin' || user?.role === 'super_admin';
 
   const [data, setData] = useState<PeopleMetData | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);

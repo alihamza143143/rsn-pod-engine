@@ -9,6 +9,7 @@ import { PageLoader } from '@/components/ui/Spinner';
 import { useAuthStore } from '@/stores/authStore';
 import { useNavigate } from 'react-router-dom';
 import api from '@/lib/api';
+import { isAdmin } from '@/lib/utils';
 
 export default function AdminUsersPage() {
   const { user } = useAuthStore();
@@ -27,10 +28,10 @@ export default function AdminUsersPage() {
       if (roleFilter) params.set('role', roleFilter);
       return api.get(`/users?${params.toString()}`).then(r => r.data);
     },
-    enabled: user?.role === 'admin',
+    enabled: isAdmin(user?.role),
   });
 
-  if (user?.role !== 'admin') {
+  if (!isAdmin(user?.role)) {
     return (
       <div className="max-w-md mx-auto text-center py-20">
         <Shield className="h-16 w-16 text-gray-300 mx-auto mb-4" />
@@ -73,9 +74,13 @@ export default function AdminUsersPage() {
           className="rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200"
         >
           <option value="">All Roles</option>
-          <option value="member">Member</option>
-          <option value="host">Host</option>
+          <option value="super_admin">Super Admin</option>
           <option value="admin">Admin</option>
+          <option value="host">Host</option>
+          <option value="founding_member">Founding Member</option>
+          <option value="pro">Pro</option>
+          <option value="member">Member</option>
+          <option value="free">Free</option>
         </select>
       </div>
 
@@ -93,7 +98,7 @@ export default function AdminUsersPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <Badge variant={u.role === 'admin' ? 'brand' : u.role === 'host' ? 'info' : 'default'}>
+                  <Badge variant={u.role === 'admin' || u.role === 'super_admin' ? 'brand' : u.role === 'host' ? 'info' : u.role === 'founding_member' ? 'success' : u.role === 'pro' ? 'warning' : 'default'}>
                     {u.role}
                   </Badge>
                   <Badge variant={u.status === 'active' ? 'success' : 'warning'}>

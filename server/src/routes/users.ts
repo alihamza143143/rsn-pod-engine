@@ -26,6 +26,7 @@ const updateUserSchema = z.object({
   reasonsToConnect: z.array(z.string().max(100)).max(10).optional(),
   languages: z.array(z.string().max(30)).max(10).optional(),
   timezone: z.string().max(50).nullable().optional(),
+  phone: z.string().max(30).nullable().optional(),
 });
 
 const listUsersQuerySchema = z.object({

@@ -18,19 +18,19 @@ const REASONS = [
 ];
 
 const WHO_ITS_FOR = [
-  { title: 'Founders', desc: 'who want real connections, not pitch competitions' },
-  { title: 'Leaders', desc: 'looking for peers who understand the weight of decisions' },
-  { title: 'Operators', desc: 'tired of networking events that waste their time' },
+  { title: 'Founders', desc: 'who value honesty over hype' },
+  { title: 'Leaders', desc: 'who understand the weight of decisions' },
+  { title: 'Company Owners', desc: 'who want real connections, not transactions' },
 ];
 
 const HOW_STEPS = [
-  { num: '01', title: 'Sign up', desc: 'Create your profile in under a minute. No password needed.' },
-  { num: '02', title: 'Get matched', desc: 'Our engine pairs you 1-on-1 with another member via live video.' },
-  { num: '03', title: 'Connect', desc: '8 minutes of real conversation. Rate, match, follow up.' },
+  { num: '01', title: 'You sign up for a session.', desc: '' },
+  { num: '02', title: 'You join a live call.', desc: '' },
+  { num: '03', title: 'You meet five people in focused 8-minute conversations.', desc: '' },
 ];
 
-const AVOID = ['Awkward mixers', 'Cold outreach', 'Small talk with strangers', 'Events that waste your time'];
-const LEAVE_WITH = ['Clarity', 'Energy', 'Real connections', 'People who get it'];
+const AVOID = ['Another evening pretending to network', 'Another room full of hidden agendas', 'Another round of follow-ups that lead nowhere'];
+const LEAVE_WITH = ['Clarity', 'Energy', 'Real connections'];
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -50,15 +50,16 @@ export default function LandingPage() {
       {/* Nav */}
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
-          <button onClick={() => navigate('/welcome')} className="text-2xl font-extrabold tracking-tight text-[#1a1a2e]">
-            RSN
+          <button onClick={() => navigate('/welcome')} className="flex items-center gap-2">
+            <img src="/rsn-logo.png" alt="RSN" className="h-8 w-auto" />
+            <span className="text-2xl font-extrabold tracking-tight text-[#1a1a2e]">RSN</span>
           </button>
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
             <button onClick={() => navigate('/how-it-works')} className="hover:text-[#1a1a2e] transition-colors">The Format</button>
             <button onClick={() => navigate('/reasons')} className="hover:text-[#1a1a2e] transition-colors">Reasons To Join</button>
             <button onClick={() => navigate('/about')} className="hover:text-[#1a1a2e] transition-colors">About</button>
             <button onClick={() => navigate('/login')} className="hover:text-[#1a1a2e] transition-colors">Join</button>
-            <button onClick={() => navigate('/login')} className="bg-red-600 text-white px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-red-700 transition-all hover:scale-[1.02] shadow-md">
+            <button onClick={() => navigate('/request-to-join')} className="bg-red-600 text-white px-5 py-2.5 rounded-full text-sm font-semibold hover:bg-red-700 transition-all hover:scale-[1.02] shadow-md">
               Request to Join <ArrowRight className="h-4 w-4 inline ml-1" />
             </button>
           </nav>
@@ -78,14 +79,13 @@ export default function LandingPage() {
 
         <div className="max-w-4xl mx-auto relative">
           <h1 className="text-5xl md:text-7xl font-extrabold text-[#1a1a2e] leading-[1.05] tracking-tight animate-fade-in-up">
-            8 MINUTES<br />WITH PEOPLE<br />WHO GET IT
+            FAST, FOCUSED,<br />AND HUMAN
           </h1>
-          <p className="mt-8 text-lg md:text-xl text-gray-500 max-w-2xl mx-auto leading-relaxed animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-            Speed networking, stripped back to what actually works.<br />
-            Real conversations. Real people. No fluff.
+          <p className="mt-8 text-lg md:text-2xl text-[#1a1a2e] font-semibold tracking-wide border-b-2 border-[#1a1a2e] inline-block pb-1 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+            8 MINUTES WITH PEOPLE WHO GET IT
           </p>
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-            <button onClick={() => navigate('/login')} className="bg-red-600 text-white px-10 py-4 rounded-full text-lg font-semibold hover:bg-red-700 transition-all hover:scale-[1.03] shadow-lg hover:shadow-red-200">
+            <button onClick={() => navigate('/request-to-join')} className="bg-red-600 text-white px-10 py-4 rounded-full text-lg font-semibold hover:bg-red-700 transition-all hover:scale-[1.03] shadow-lg hover:shadow-red-200">
               Request to Join <ArrowRight className="h-5 w-5 inline ml-2" />
             </button>
             <button onClick={() => navigate('/how-it-works')} className="text-[#1a1a2e] border-2 border-[#1a1a2e] px-8 py-4 rounded-full text-lg font-semibold hover:bg-[#1a1a2e] hover:text-white transition-all">
@@ -156,6 +156,10 @@ export default function LandingPage() {
               </div>
             ))}
           </div>
+          <div className="mt-12 text-center space-y-2">
+            <p className="text-lg text-gray-500 italic">No pitching. No selling. No scripts.</p>
+            <p className="text-lg text-gray-500 italic">Just two people. One conversation at a time.</p>
+          </div>
         </div>
       </section>
 
@@ -165,12 +169,12 @@ export default function LandingPage() {
       <section className="py-20 md:py-28 px-6 text-center scroll-reveal">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-3xl md:text-4xl font-extrabold text-[#1a1a2e] mb-8 tracking-tight">Why It Matters</h2>
-          <p className="text-lg md:text-xl text-gray-500 leading-relaxed">
-            Most networking is performative. We built RSN to be the opposite —
-            a space where you show up as yourself, meet someone real, and leave with
-            something that actually matters. No pitch decks. No forced follow-ups.
-            Just people connecting.
-          </p>
+          <div className="text-lg md:text-xl text-gray-500 leading-relaxed space-y-6 text-left">
+            <p>Leadership can be isolating.</p>
+            <p>Not because you want it to be. But because so few people truly understand what you're dealing with.</p>
+            <p>RSN creates a space where you don't have to explain yourself.</p>
+            <p>Where you can listen, be heard, and think out loud with someone who gets it.</p>
+          </div>
         </div>
       </section>
 
@@ -208,8 +212,12 @@ export default function LandingPage() {
       <section className="py-24 md:py-32 text-center px-6 bg-[#1a1a2e]">
         <div className="max-w-3xl mx-auto">
           <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-6 tracking-tight">Join Raw Speed Networking</h2>
-          <p className="text-gray-400 text-lg mb-10">Sign up, get matched, connect. It&apos;s that simple.</p>
-          <button onClick={() => navigate('/login')} className="bg-red-600 text-white px-10 py-4 rounded-full text-lg font-semibold hover:bg-red-700 transition-all hover:scale-[1.02] shadow-lg hover:shadow-red-500/30">
+          <div className="text-gray-400 text-sm mb-10 space-y-1">
+            <p>No pitching. No selling. Ever.</p>
+            <p>5 conversations. 8 minutes each. Live.</p>
+            <p>Founders, leaders, and company owners.</p>
+          </div>
+          <button onClick={() => navigate('/request-to-join')} className="bg-red-600 text-white px-10 py-4 rounded-full text-lg font-semibold hover:bg-red-700 transition-all hover:scale-[1.02] shadow-lg hover:shadow-red-500/30">
             Request to Join <ArrowRight className="h-5 w-5 inline ml-2" />
           </button>
         </div>
@@ -219,7 +227,7 @@ export default function LandingPage() {
       <footer className="bg-white border-t border-gray-100 py-10">
         <div className="max-w-6xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
-            <span className="text-xl font-extrabold text-[#1a1a2e]">RSN</span>
+            <img src="/rsn-logo.png" alt="RSN" className="h-8 w-auto" />
             <span className="text-sm text-gray-400">© {new Date().getFullYear()}</span>
           </div>
           <nav className="flex items-center gap-6 text-sm text-gray-500">

@@ -175,7 +175,7 @@ export default function PodDetailPage() {
   const myMembership = membersList.find((m: any) => m.userId === user?.id);
   const isMember = myMembership?.status === 'active' || !!pod.memberRole;
   const isPending = myMembership?.status === 'pending_approval';
-  const isDirector = myMembership?.role === 'director' || pod.memberRole === 'director' || user?.role === 'admin';
+  const isDirector = myMembership?.role === 'director' || pod.memberRole === 'director' || user?.role === 'admin' || user?.role === 'super_admin';
   const isDirectorOrHost = isDirector || myMembership?.role === 'host' || pod.memberRole === 'host';
   const vis = visibilityLabels[pod.visibility] || visibilityLabels.public;
   const VisIcon = vis.icon;

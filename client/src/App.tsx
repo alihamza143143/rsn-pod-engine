@@ -22,11 +22,14 @@ import LiveSessionPage from '@/features/live/LiveSessionPage';
 import HostDashboardPage from '@/features/host/HostDashboardPage';
 import RecapPage from '@/features/sessions/RecapPage';
 import EncounterHistoryPage from '@/features/sessions/EncounterHistoryPage';
+import AdminDashboardPage from '@/features/admin/AdminDashboardPage';
 import AdminUsersPage from '@/features/admin/AdminUsersPage';
+import AdminJoinRequestsPage from '@/features/admin/AdminJoinRequestsPage';
 import SettingsPage from '@/features/settings/SettingsPage';
 import BillingPage from '@/features/billing/BillingPage';
 import SupportPage from '@/features/support/SupportPage';
 import NotFoundPage from '@/features/misc/NotFoundPage';
+import RequestToJoinPage from '@/features/auth/RequestToJoinPage';
 
 export default function App() {
   const { checkSession } = useAuthStore();
@@ -43,6 +46,7 @@ export default function App() {
       <Route path="/about" element={<AboutPage />} />
       <Route path="/reasons" element={<ReasonsPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/request-to-join" element={<RequestToJoinPage />} />
       <Route path="/auth/verify" element={<VerifyPage />} />
       <Route path="/invite/:code" element={<InviteAcceptPage />} />
 
@@ -61,7 +65,9 @@ export default function App() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/billing" element={<BillingPage />} />
         <Route path="/support" element={<SupportPage />} />
+        <Route path="/admin" element={<AdminDashboardPage />} />
         <Route path="/admin/users" element={<AdminUsersPage />} />
+        <Route path="/admin/join-requests" element={<AdminJoinRequestsPage />} />
       </Route>
 
       {/* Protected without layout (full-screen) */}

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, Mail, User, LogOut, Menu, X, Shield, Settings, CreditCard, HelpCircle, Heart } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { LayoutDashboard, Users, Calendar, Mail, User, LogOut, Menu, X, Shield, Settings, HelpCircle, Heart, ClipboardList } from 'lucide-react';
+import { cn, isAdmin } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { useScrollReveal } from '@/hooks/useScrollReveal';
 import Avatar from '@/components/ui/Avatar';
@@ -24,13 +24,15 @@ export default function AppLayout() {
     { to: '/invites', icon: Mail, label: 'Invite' },
     { to: '/sessions', icon: Calendar, label: 'Events' },
     { to: '/encounters', icon: Heart, label: 'Encounters' },
-    ...(user?.role === 'admin' ? [{ to: '/admin/users', icon: Shield, label: 'Admin' }] : []),
+    ...(isAdmin(user?.role) ? [
+      { to: '/admin', icon: Shield, label: 'Admin' },
+      { to: '/admin/join-requests', icon: ClipboardList, label: 'Requests' },
+    ] : []),
   ];
 
   const bottomLinks = [
     { to: '/profile', icon: User, label: 'Profile' },
     { to: '/settings', icon: Settings, label: 'Settings' },
-    { to: '/billing', icon: CreditCard, label: 'Billing' },
     { to: '/support', icon: HelpCircle, label: 'Support' },
   ];
 
@@ -75,7 +77,7 @@ export default function AppLayout() {
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-60 border-r border-gray-200 bg-gray-50/60 backdrop-blur-sm">
         <div className="px-5 py-5 flex items-center gap-2.5">
-          <div className="h-8 w-8 rounded-lg bg-[#1a1a2e] flex items-center justify-center text-white font-bold text-sm">R</div>
+          <img src="/rsn-logo.png" alt="RSN" className="h-8 w-auto" />
           <h1 className="text-lg font-bold text-[#1a1a2e] cursor-pointer hover:opacity-80 transition-opacity" onClick={() => navigate('/')}>RSN</h1>
         </div>
         {sidebarContent()}
@@ -94,7 +96,7 @@ export default function AppLayout() {
       <div className="flex flex-1 flex-col overflow-hidden">
         <header className="md:hidden flex items-center justify-between border-b border-gray-200 bg-white/90 px-4 py-3 backdrop-blur-sm">
           <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-lg bg-[#1a1a2e] flex items-center justify-center text-white font-bold text-xs">R</div>
+            <img src="/rsn-logo.png" alt="RSN" className="h-7 w-auto" />
             <h1 className="text-lg font-bold text-[#1a1a2e]">RSN</h1>
           </div>
           <button onClick={() => setMobileOpen(!mobileOpen)} className="text-gray-500 hover:text-gray-800 transition-colors">

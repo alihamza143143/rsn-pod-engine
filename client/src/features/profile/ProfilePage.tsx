@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
 import Avatar from '@/components/ui/Avatar';
-import { X, User, Briefcase, MapPin, Globe, Languages, Sparkles } from 'lucide-react';
+import { X, User, Briefcase, MapPin, Globe, Languages, Sparkles, Camera, Phone, Info } from 'lucide-react';
 import api from '@/lib/api';
 
 interface ProfileForm {
@@ -20,6 +20,7 @@ interface ProfileForm {
   location: string;
   linkedinUrl: string;
   timezone: string;
+  phone: string;
 }
 
 function TagInput({ label, tags, setTags, placeholder, icon: Icon }: {
@@ -63,6 +64,8 @@ export default function ProfilePage() {
   const [interests, setInterests] = useState<string[]>([]);
   const [reasons, setReasons] = useState<string[]>([]);
   const [languages, setLanguages] = useState<string[]>([]);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm<ProfileForm>();
 
@@ -79,12 +82,50 @@ export default function ProfilePage() {
         location: user.location || '',
         linkedinUrl: user.linkedinUrl || '',
         timezone: user.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+        phone: (user as any).phone || '',
       });
       setInterests(user.interests || []);
       setReasons(user.reasonsToConnect || []);
       setLanguages(user.languages || []);
     }
   }, [user]);
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type and size
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      addToast('Please upload a JPG, PNG, or WebP image', 'error');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      addToast('Image must be under 5MB', 'error');
+      return;
+    }
+
+    setAvatarUploading(true);
+    try {
+      // Convert to base64 and upload as data URL for now
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const dataUrl = reader.result as string;
+        await api.put('/users/me', { avatarUrl: dataUrl });
+        await checkSession();
+        addToast('Avatar updated!', 'success');
+        setAvatarUploading(false);
+      };
+      reader.onerror = () => {
+        addToast('Failed to read image', 'error');
+        setAvatarUploading(false);
+      };
+      reader.readAsDataURL(file);
+    } catch {
+      addToast('Failed to upload avatar', 'error');
+      setAvatarUploading(false);
+    }
+  };
 
   const onSubmit = async (data: ProfileForm) => {
     try {
@@ -111,10 +152,26 @@ export default function ProfilePage() {
       <Card className="animate-fade-in-up">
         <div className="flex items-center gap-4 mb-2">
           <div className="relative group">
-            <Avatar name={user.displayName || user.email} size="xl" />
-            <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <User className="h-5 w-5 text-white" />
-            </div>
+            {user.avatarUrl ? (
+              <img src={user.avatarUrl} alt={user.displayName || 'Avatar'} className="h-16 w-16 rounded-full object-cover" />
+            ) : (
+              <Avatar name={user.displayName || user.email} size="xl" />
+            )}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={avatarUploading}
+              className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+            >
+              <Camera className="h-5 w-5 text-white" />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleAvatarUpload}
+              className="hidden"
+            />
           </div>
           <div>
             <p className="text-lg font-semibold text-[#1a1a2e]">{user.displayName || 'Set your name'}</p>
@@ -122,6 +179,13 @@ export default function ProfilePage() {
             {user.jobTitle && user.company && (
               <p className="text-xs text-gray-400 mt-0.5">{user.jobTitle} at {user.company}</p>
             )}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="text-xs text-indigo-600 hover:text-indigo-700 mt-1 font-medium"
+            >
+              {avatarUploading ? 'Uploading...' : 'Change photo'}
+            </button>
           </div>
         </div>
       </Card>
@@ -139,6 +203,29 @@ export default function ProfilePage() {
           </div>
           <div className="mt-4">
             <Input label="Display Name" {...register('displayName')} placeholder="How others see you" />
+          </div>
+          <div className="mt-4">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-600 mb-1.5">
+              Email
+            </label>
+            <div className="flex items-center gap-2">
+              <input
+                value={user.email}
+                disabled
+                className="w-full rounded-xl border border-gray-200 bg-gray-100 px-4 py-2.5 text-sm text-gray-500 cursor-not-allowed"
+              />
+            </div>
+            <p className="flex items-center gap-1 text-xs text-gray-400 mt-1">
+              <Info className="h-3 w-3" /> Email cannot be changed. It&apos;s tied to your account identity.
+            </p>
+          </div>
+          <div className="mt-4">
+            <Input
+              label="Phone / WhatsApp"
+              placeholder="+1 234 567 8900"
+              {...register('phone')}
+            />
+            <p className="text-xs text-gray-400 mt-1">Optional — for WhatsApp group invites and direct communication</p>
           </div>
           <div className="mt-4">
             <label className="block text-sm font-medium text-gray-600 mb-1.5">Bio</label>

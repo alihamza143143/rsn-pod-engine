@@ -21,7 +21,8 @@ export async function getUserById(id: string): Promise<User> {
     `SELECT id, email, display_name AS "displayName", first_name AS "firstName", last_name AS "lastName",
             avatar_url AS "avatarUrl", bio, company, job_title AS "jobTitle", industry, location,
             linkedin_url AS "linkedinUrl", interests, reasons_to_connect AS "reasonsToConnect",
-            languages, timezone, role, status, profile_complete AS "profileComplete",
+            languages, timezone, phone, invited_by_user_id AS "invitedByUserId",
+            role, status, profile_complete AS "profileComplete",
             email_verified AS "emailVerified", last_active_at AS "lastActiveAt",
             created_at AS "createdAt", updated_at AS "updatedAt"
      FROM users WHERE id = $1`,
@@ -39,7 +40,8 @@ export async function getUserByEmail(email: string): Promise<User | null> {
     `SELECT id, email, display_name AS "displayName", first_name AS "firstName", last_name AS "lastName",
             avatar_url AS "avatarUrl", bio, company, job_title AS "jobTitle", industry, location,
             linkedin_url AS "linkedinUrl", interests, reasons_to_connect AS "reasonsToConnect",
-            languages, timezone, role, status, profile_complete AS "profileComplete",
+            languages, timezone, phone, invited_by_user_id AS "invitedByUserId",
+            role, status, profile_complete AS "profileComplete",
             email_verified AS "emailVerified", last_active_at AS "lastActiveAt",
             created_at AS "createdAt", updated_at AS "updatedAt"
      FROM users WHERE email = $1`,
@@ -102,6 +104,7 @@ export async function updateUser(id: string, input: UpdateUserInput): Promise<Us
     reasonsToConnect: 'reasons_to_connect',
     languages: 'languages',
     timezone: 'timezone',
+    phone: 'phone',
   };
 
   for (const [key, dbCol] of Object.entries(fieldMap)) {
@@ -373,10 +376,11 @@ export async function findOrCreateGoogleUser(
     let invUseCount = 0;
     let invMaxUses = 0;
     let invStatus = '';
+    let inviterId: string | null = null;
 
     if (inviteCode) {
-      const invResult = await query<{ id: string; status: string; use_count: number; max_uses: number; expires_at: Date | null }>(
-        `SELECT id, status, use_count, max_uses, expires_at FROM invites WHERE code = $1`,
+      const invResult = await query<{ id: string; status: string; use_count: number; max_uses: number; expires_at: Date | null; inviter_id: string }>(
+        `SELECT id, status, use_count, max_uses, expires_at, inviter_id FROM invites WHERE code = $1`,
         [inviteCode]
       );
       if (invResult.rows.length === 0) {
@@ -392,6 +396,7 @@ export async function findOrCreateGoogleUser(
       invUseCount = inv.use_count;
       invMaxUses = inv.max_uses;
       invStatus = inv.status;
+      inviterId = inv.inviter_id;
     }
 
     // Create the user
@@ -400,9 +405,9 @@ export async function findOrCreateGoogleUser(
     const firstName = profile.givenName || (profile.name ? profile.name.split(' ')[0] : '');
     const lastName = profile.familyName || (profile.name && profile.name.includes(' ') ? profile.name.split(' ').slice(1).join(' ') : '');
     await query(
-      `INSERT INTO users (id, email, display_name, first_name, last_name, avatar_url, role, status, email_verified)
-       VALUES ($1, $2, $3, $4, $5, $6, 'member', 'active', TRUE)`,
-      [id, normalizedEmail, displayName, firstName, lastName, profile.picture || null]
+      `INSERT INTO users (id, email, display_name, first_name, last_name, avatar_url, invited_by_user_id, role, status, email_verified)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'member', 'active', TRUE)`,
+      [id, normalizedEmail, displayName, firstName, lastName, profile.picture || null, inviterId]
     );
     await query(`INSERT INTO user_subscriptions (user_id, plan, status) VALUES ($1, 'free', 'active')`, [id]);
     await query(`INSERT INTO user_entitlements (user_id) VALUES ($1)`, [id]);
@@ -479,7 +484,8 @@ export async function getUsers(params: {
     `SELECT id, email, display_name AS "displayName", first_name AS "firstName", last_name AS "lastName",
             avatar_url AS "avatarUrl", bio, company, job_title AS "jobTitle", industry, location,
             linkedin_url AS "linkedinUrl", interests, reasons_to_connect AS "reasonsToConnect",
-            languages, timezone, role, status, profile_complete AS "profileComplete",
+            languages, timezone, phone, invited_by_user_id AS "invitedByUserId",
+            role, status, profile_complete AS "profileComplete",
             email_verified AS "emailVerified", last_active_at AS "lastActiveAt",
             created_at AS "createdAt", updated_at AS "updatedAt"
      FROM users ${whereClause}

@@ -64,7 +64,7 @@ export default function HostDashboardPage() {
   if (!session) return <p className="text-gray-500 text-center py-20">Session not found</p>;
 
   // Auth check: Only host or admin can access
-  const isHost = session.hostUserId === user?.id || user?.role === 'admin';
+  const isHost = session.hostUserId === user?.id || user?.role === 'admin' || user?.role === 'super_admin';
   if (!isHost) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white p-4">

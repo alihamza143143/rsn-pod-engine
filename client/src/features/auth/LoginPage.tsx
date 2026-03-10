@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { Sparkles, ArrowRight, AlertCircle } from 'lucide-react';
+import { ArrowRight, AlertCircle, KeyRound, UserPlus, Mail } from 'lucide-react';
 import { API_BASE_URL } from '@/lib/runtimeEndpoints';
 
 const API_URL = API_BASE_URL;
@@ -93,33 +93,36 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white p-4">
+    <div className="min-h-screen flex items-center justify-center bg-white p-4 font-display">
       <div className="w-full max-w-md animate-fade-in-up">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-2 mb-4">
-            <Sparkles className="h-8 w-8 text-indigo-600 animate-pulse-slow" />
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-brand-400 to-purple-400 bg-clip-text text-transparent">RSN</h1>
-          </div>
-          <p className="text-gray-500 animate-fade-in" style={{ animationDelay: '0.2s' }}>Real-time peer networking for professionals</p>
+        {/* RSN Logo + Header */}
+        <div className="text-center mb-10">
+          <img src="/rsn-logo.png" alt="RSN" className="h-14 w-auto mx-auto mb-6" />
+          <h1 className="text-3xl md:text-4xl font-extrabold text-[#1a1a2e] tracking-tight">CONNECT WITH REASON</h1>
+          <p className="text-gray-400 text-sm mt-2 tracking-wide">RSN Access System</p>
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-gray-50/60 backdrop-blur-sm p-8 animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
-          {displayError && (
-            <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 text-red-400 mt-0.5 shrink-0" />
-              <p className="text-sm text-red-300">{displayError}</p>
-            </div>
-          )}
+        {displayError && (
+          <div className="mb-6 p-3 rounded-lg bg-red-50 border border-red-200 flex items-start gap-2">
+            <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 shrink-0" />
+            <p className="text-sm text-red-600">{displayError}</p>
+          </div>
+        )}
 
-          {!sent ? (
-            <>
-              <h2 className="text-xl font-semibold text-[#1a1a2e] mb-6">Sign in to RSN</h2>
+        {!sent ? (
+          <div className="space-y-5">
+            {/* Path 1: Existing User */}
+            <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <KeyRound className="h-5 w-5 text-[#1a1a2e]" />
+                <h2 className="text-base font-semibold text-[#1a1a2e]">Existing Member</h2>
+              </div>
 
               {/* Google Login */}
               <button
                 type="button"
                 onClick={handleGoogleLogin}
-                className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-gray-800 hover:bg-gray-100 hover:border-gray-300 transition-all text-sm font-medium"
+                className="w-full flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-800 hover:bg-gray-100 hover:border-gray-300 transition-all text-sm font-medium mb-3"
               >
                 <svg className="h-5 w-5" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" />
@@ -130,12 +133,12 @@ export default function LoginPage() {
                 Continue with Google
               </button>
 
-              <div className="relative my-6">
+              <div className="relative my-4">
                 <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-200" /></div>
                 <div className="relative flex justify-center text-xs"><span className="bg-gray-50 px-3 text-gray-400">or use email</span></div>
               </div>
 
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
                 <Input
                   label="Email address"
                   type="email"
@@ -143,53 +146,82 @@ export default function LoginPage() {
                   error={errors.email?.message}
                   {...register('email', { required: 'Email is required', pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: 'Invalid email' } })}
                 />
-                <Input
-                  label="Invite code (optional)"
-                  placeholder="Enter invite code if you have one"
-                  error={errors.inviteCode?.message}
-                  {...register('inviteCode')}
-                />
-                <p className="text-xs text-gray-400 -mt-2">Optional — only if you received an invite</p>
                 <Button type="submit" className="w-full group" isLoading={isSubmitting}>
+                  <Mail className="h-4 w-4 mr-2" />
                   Send magic link
                   <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
                 </Button>
               </form>
-              {redirectPath && (
-                <p className="mt-4 text-xs text-gray-400 text-center">You'll be redirected after signing in</p>
-              )}
-            </>
-          ) : (
-            <div className="text-center space-y-4 animate-fade-in">
-              <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-indigo-50 text-indigo-600 mb-2">
-                <Sparkles className="h-8 w-8" />
+            </div>
+
+            {/* Path 2: New User with Invite */}
+            <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <UserPlus className="h-5 w-5 text-[#1a1a2e]" />
+                <h2 className="text-base font-semibold text-[#1a1a2e]">Have an Invite Code?</h2>
               </div>
-              <h2 className="text-xl font-semibold text-[#1a1a2e]">Check your email</h2>
-              <p className="text-gray-500 text-sm">
-                We sent a magic link to <span className="font-medium text-gray-800">{getValues('email')}</span>
-              </p>
-              <p className="text-gray-400 text-xs mt-1">Click the link in your email to sign in. It expires in 60 minutes.</p>
-              <p className="text-gray-400 text-xs">This page will continue automatically after you verify the link.</p>
+              <Input
+                label="Invite code"
+                placeholder="Enter your invite code"
+                error={errors.inviteCode?.message}
+                {...register('inviteCode')}
+              />
+              <p className="text-xs text-gray-400 mt-1.5 mb-3">Enter your invite code, then sign in above to join.</p>
+            </div>
 
-              {/* Dev mode: show direct link */}
-              {devLink && (
-                <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 mt-4 animate-fade-in">
-                  <p className="text-xs text-amber-300 mb-2 font-semibold">DEV MODE — Direct Link</p>
-                  <a
-                    href={devLink}
-                    className="inline-flex items-center gap-2 text-sm text-amber-400 hover:text-amber-300 underline"
-                  >
-                    Click here to verify
-                    <ArrowRight className="h-4 w-4" />
-                  </a>
-                </div>
-              )}
-
-              <button onClick={() => setSent(false)} className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
-                Try a different email
+            {/* Path 3: New User without Invite */}
+            <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-6 text-center">
+              <h2 className="text-base font-semibold text-[#1a1a2e] mb-2">Don&apos;t have an invite?</h2>
+              <p className="text-sm text-gray-500 mb-4">RSN is invite-only. Request access below.</p>
+              <button
+                onClick={() => navigate('/request-to-join')}
+                className="bg-red-600 text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-red-700 transition-all hover:scale-[1.02] shadow-md inline-flex items-center gap-2"
+              >
+                Request to Join <ArrowRight className="h-4 w-4" />
               </button>
             </div>
-          )}
+
+            {redirectPath && (
+              <p className="text-xs text-gray-400 text-center">You&apos;ll be redirected after signing in</p>
+            )}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-8 text-center space-y-4 animate-fade-in">
+            <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-50 text-emerald-600 mb-2">
+              <Mail className="h-8 w-8" />
+            </div>
+            <h2 className="text-xl font-semibold text-[#1a1a2e]">Check your email</h2>
+            <p className="text-gray-500 text-sm">
+              We sent a magic link to <span className="font-medium text-gray-800">{getValues('email')}</span>
+            </p>
+            <p className="text-gray-400 text-xs mt-1">Click the link in your email to sign in. It expires in 60 minutes.</p>
+            <p className="text-gray-400 text-xs">This page will continue automatically after you verify the link.</p>
+
+            {/* Dev mode: show direct link */}
+            {devLink && (
+              <div className="p-4 rounded-lg bg-amber-50 border border-amber-200 mt-4 animate-fade-in">
+                <p className="text-xs text-amber-600 mb-2 font-semibold">DEV MODE — Direct Link</p>
+                <a
+                  href={devLink}
+                  className="inline-flex items-center gap-2 text-sm text-amber-600 hover:text-amber-700 underline"
+                >
+                  Click here to verify
+                  <ArrowRight className="h-4 w-4" />
+                </a>
+              </div>
+            )}
+
+            <button onClick={() => setSent(false)} className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
+              Try a different email
+            </button>
+          </div>
+        )}
+
+        {/* Back to landing */}
+        <div className="text-center mt-6">
+          <button onClick={() => navigate('/welcome')} className="text-sm text-gray-400 hover:text-[#1a1a2e] transition-colors">
+            ← Back to RSN
+          </button>
         </div>
       </div>
     </div>

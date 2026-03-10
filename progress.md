@@ -41,9 +41,9 @@ Purpose: Persistent execution history and current state, independent of chat mem
 ## Current Phase Snapshot
 
 - Active Phase: Implementation
-- Active Milestone: **Milestone 2 (Complete) — Pod Visibility, Lobby Mosaic & rsn.network Design** ✅
-- Current Session: Invites, light theme, landing page, animations (T-050)
-- Overall Build Status: Shared + Client + Server production builds passing, 248/248 tests passing
+- Active Milestone: **Change 1.0 Complete — Font, Logo, Landing, Login, Admin, Role Tiers**
+- Current Session: Change 1.0 implementation (T-051 through T-055)
+- Overall Build Status: Shared + Client + Server production builds passing, 277/277 tests passing (248 server + 29 shared)
 - Last Updated: March 10, 2026
 
 ---
@@ -115,6 +115,11 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-048 | Test fixes and git push | Completed | Copilot | Fixed session.service.test.ts mocks, all 248 tests passing, pushed to GitHub |
 | T-049 | Fix Vercel client build TS2322 in Lobby | Completed | Copilot | Added LiveKit type guard before VideoTrack usage; build command now passes |
 | T-050 | Fix invites, light theme, landing page, animations | Completed | Copilot | 7 fixes: invite 403, email delivery, type labels, landing redesign, light theme, animations, round audit |
+| T-051 | Change 1.0: Font, logo, landing page overhaul | Completed | Copilot | Sora font, RSN logo assets, landing page matching rsn.network exactly |
+| T-052 | Change 1.0: Login redesign + Request to Join | Completed | Copilot | "CONNECT WITH REASON" login, 3 entry paths, RequestToJoinPage with backend (migration, service, routes, emails) |
+| T-053 | Change 1.0: Admin Join Requests + Invite Tracking | Completed | Copilot | Admin join request vetting panel, invite tracking DB migration, identity service updates |
+| T-054 | Change 1.0: Profile, Settings/Billing, Admin Dashboard | Completed | Copilot | Avatar upload, phone/WhatsApp, email read-only, billing under settings, full admin dashboard with stats/health |
+| T-055 | Change 1.0: User role tiers + RBAC hierarchy | Completed | Copilot | 7 roles (super_admin, admin, host, founding_member, pro, member, free), hierarchy-based RBAC, all admin gates updated |
 
 ---
 
@@ -2461,3 +2466,111 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - ✅ Git pushed: 42 files changed, 722 insertions, 482 deletions
 - Next immediate action:
   - Verify Render + Vercel redeploys on latest commit
+
+---
+
+### 2026-03-10 06:00 - Entry T-051
+- Task ID: T-051
+- Task Title: Change 1.0: Font, logo, landing page overhaul
+- Status: Completed
+- What changed:
+  1. **Font change**: DM Sans → Sora across the entire app (tailwind.config.js fontFamily, index.html Google Fonts link)
+  2. **Logo assets**: Copied rsn-logo.png, rsn-logo-black.png, rsn-logo-white.png, favicon.ico to client/public/
+  3. **Logo integration**: Updated AppLayout desktop + mobile sidebar logos, favicon in index.html
+  4. **Landing page overhaul**: Complete rewrite matching rsn.network — "FAST, FOCUSED, AND HUMAN" hero, "8 MINUTES WITH PEOPLE WHO GET IT" subheadline, HOW_STEPS, AVOID/LEAVE_WITH arrays, WHO_ITS_FOR section, "Why It Matters" leadership isolation copy, "No pitching. No selling. No scripts." manifesto line, all CTAs → /request-to-join, footer logo updated
+- Files touched:
+  - client/tailwind.config.js
+  - client/index.html
+  - client/public/rsn-logo.png, rsn-logo-black.png, rsn-logo-white.png, favicon.ico (NEW)
+  - client/src/components/layout/AppLayout.tsx
+  - client/src/features/public/LandingPage.tsx
+
+---
+
+### 2026-03-10 06:30 - Entry T-052
+- Task ID: T-052
+- Task Title: Change 1.0: Login redesign + Request to Join system
+- Status: Completed
+- What changed:
+  1. **Login page rewrite**: RSN logo, "CONNECT WITH REASON" header, "RSN Access System" subtitle, three entry paths (Existing Member with Google/magic link, Have an Invite Code, Don't have an invite → Request to Join)
+  2. **RequestToJoinPage**: New public form page with Full Name, Email, LinkedIn URL (validated), "Why do you want to join?" textarea, success confirmation state
+  3. **Backend**: DB migration 003_join_requests.sql, join-request.service.ts (CRUD + email integration), join-requests.ts routes (POST public, GET/PATCH admin-only), registered in server index.ts
+  4. **Email templates**: sendJoinRequestConfirmationEmail, sendJoinRequestWelcomeEmail, sendJoinRequestDeclineEmail — branded HTML via Resend
+- Files touched:
+  - client/src/features/auth/LoginPage.tsx (rewritten)
+  - client/src/features/auth/RequestToJoinPage.tsx (NEW)
+  - client/src/App.tsx
+  - server/src/db/migrations/003_join_requests.sql (NEW)
+  - server/src/services/join-request/join-request.service.ts (NEW)
+  - server/src/routes/join-requests.ts (NEW)
+  - server/src/index.ts
+  - server/src/services/email/email.service.ts
+
+---
+
+### 2026-03-10 07:00 - Entry T-053
+- Task ID: T-053
+- Task Title: Change 1.0: Admin Join Requests panel + Invite Tracking
+- Status: Completed
+- What changed:
+  1. **AdminJoinRequestsPage**: Status filter tabs (pending/approved/declined/all), request cards with LinkedIn link, approve/decline buttons, review modal with notes textarea, pagination
+  2. **Invite tracking**: DB migration 004_invite_tracking.sql (added invited_by_user_id UUID + phone column to users), updated shared/types/user.ts, identity.service.ts captures inviter_id from invite during Google OAuth signup
+  3. **AppLayout sidebar**: Added ClipboardList icon for Requests link, removed Billing from bottom links
+- Files touched:
+  - client/src/features/admin/AdminJoinRequestsPage.tsx (NEW)
+  - client/src/components/layout/AppLayout.tsx
+  - server/src/db/migrations/004_invite_tracking.sql (NEW)
+  - shared/src/types/user.ts
+  - server/src/services/identity/identity.service.ts
+  - server/src/routes/users.ts
+
+---
+
+### 2026-03-10 07:30 - Entry T-054
+- Task ID: T-054
+- Task Title: Change 1.0: Profile, Settings/Billing merge, Admin Dashboard
+- Status: Completed
+- What changed:
+  1. **Profile improvements**: Avatar upload (Camera icon overlay, file input, base64 upload), phone/WhatsApp field, email displayed as disabled input with "cannot be changed" note
+  2. **Billing under Settings**: Full Billing & Subscription section with plan cards (Starter free / Pro $19/mo), upgrade buttons, "Billing not yet active" notice. Removed from sidebar.
+  3. **Admin Dashboard**: New AdminDashboardPage with stats cards (Total Users, Pending Requests, Active Pods, Open Tickets), System Health panel (Database/Auth/Edge Functions/Stripe), Quick Actions navigation, Recent Activity placeholder. Route at /admin.
+- Files touched:
+  - client/src/features/profile/ProfilePage.tsx
+  - client/src/features/settings/SettingsPage.tsx
+  - client/src/features/admin/AdminDashboardPage.tsx (NEW)
+  - client/src/App.tsx
+
+---
+
+### 2026-03-10 08:00 - Entry T-055
+- Task ID: T-055
+- Task Title: Change 1.0: User role tiers + RBAC hierarchy
+- Status: Completed
+- What changed:
+  1. **7 user roles**: super_admin, admin, host, founding_member, pro, member, free — added to PostgreSQL enum (migration 005_user_role_tiers.sql) and TypeScript enum (shared/types/user.ts)
+  2. **Role hierarchy**: ROLE_HIERARCHY array + hasRoleAtLeast() utility function in shared types
+  3. **RBAC update**: requireRole() and requireOwnerOrRole() now use hierarchy — super_admin automatically passes any admin check
+  4. **Client-side isAdmin()**: Added to lib/utils.ts, updated all 13 admin role checks across AppLayout, AdminDashboardPage, AdminUsersPage, AdminJoinRequestsPage, HostDashboardPage, LiveSessionPage, SessionDetailPage, RecapPage, PodDetailPage
+  5. **AdminUsersPage**: Role filter dropdown updated with all 7 roles, badge colors differentiated per tier
+  6. **Tests fixed**: Updated shared/index.test.ts to expect 7 roles
+- Files touched:
+  - server/src/db/migrations/005_user_role_tiers.sql (NEW)
+  - shared/src/types/user.ts
+  - shared/src/__tests__/index.test.ts
+  - server/src/middleware/rbac.ts
+  - client/src/lib/utils.ts
+  - client/src/components/layout/AppLayout.tsx
+  - client/src/features/admin/AdminDashboardPage.tsx
+  - client/src/features/admin/AdminUsersPage.tsx
+  - client/src/features/admin/AdminJoinRequestsPage.tsx
+  - client/src/features/host/HostDashboardPage.tsx
+  - client/src/features/live/LiveSessionPage.tsx
+  - client/src/features/sessions/SessionDetailPage.tsx
+  - client/src/features/sessions/RecapPage.tsx
+  - client/src/features/pods/PodDetailPage.tsx
+- Validation Results:
+  - ✅ 277/277 tests passing (248 server + 29 shared)
+  - ✅ 0 TypeScript errors across all modified files
+- Next immediate action:
+  - Git push all Change 1.0 work
+  - Verify Render + Vercel redeploys
