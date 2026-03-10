@@ -22,17 +22,27 @@ export default function VerifyPage() {
       // Signal original login tab that auth is complete
       localStorage.setItem('rsn_auth_completed_at', String(Date.now()));
 
-      // Try to close this tab (works when opened via link from email)
-      // If the browser blocks window.close(), fall back to redirect
       const redirect = sessionStorage.getItem('rsn_redirect');
       sessionStorage.removeItem('rsn_redirect');
+      const destination = redirect || '/';
 
-      // Small delay to let localStorage event propagate to the original tab
-      setTimeout(() => {
-        window.close();
-        // If window.close() was blocked (some browsers), redirect normally
-        navigate(redirect || '/', { replace: true });
-      }, 500);
+      // Only try window.close() if we detect another RSN tab is listening.
+      // The login page sets 'rsn_magic_link_sent' when the magic link state is active.
+      // If no other tab is waiting, redirect in THIS tab instead of closing it.
+      const loginTabWaiting = localStorage.getItem('rsn_magic_link_sent');
+
+      if (loginTabWaiting) {
+        localStorage.removeItem('rsn_magic_link_sent');
+        // Small delay to let localStorage event propagate to the original tab
+        setTimeout(() => {
+          window.close();
+          // If window.close() was blocked, redirect normally
+          navigate(destination, { replace: true });
+        }, 500);
+      } else {
+        // No login tab waiting — this is the only tab (e.g. opened from email link)
+        navigate(destination, { replace: true });
+      }
     };
 
     if (accessToken && refreshToken) {

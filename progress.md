@@ -2731,3 +2731,32 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - ✅ All 3 production builds pass (shared, server, client)
 - Next immediate action:
   - Deploy, test the full Request-to-Join → Admin Approve → User Sign Up flow
+
+---
+
+### T-062 – Fix email deliverability, magic link tab behavior, flush ahmed data
+- Timestamp: 2026-03-07
+- Status: **Completed**
+- What changed:
+  1. **Email deliverability** – Centralised all Resend sends through a new `sendEmail()` helper in email.service.ts:
+     - Sender format changed from bare address to `RSN <noreply@rsn.network>`
+     - Added `replyTo` header on every email
+     - Added `X-Entity-Ref-ID` header (unique UUID per email) to prevent Gmail thread-grouping
+     - Added plain-text `text` fallback alongside HTML for all 6 email types
+  2. **Magic link tab-close fix** – VerifyPage no longer calls `window.close()` unconditionally. LoginPage now sets `rsn_magic_link_sent` in localStorage when a magic link is requested. VerifyPage checks for this flag: if present, it tries to close the tab (login tab is waiting); otherwise it navigates in the current tab. This prevents the "tab disappears" bug when a user clicks the magic link from their email client.
+  3. **Ahmed Rashid DB flush** – Deleted user `5db1a0b9` (ahmedrashidptw@gmail.com), join request `a7d29da7`, and all related records (magic_links, refresh_tokens, subscriptions, entitlements). DB clean: users=1, join_requests=0.
+- Files touched:
+  - server/src/services/email/email.service.ts (centralised sendEmail helper, deliverability headers)
+  - client/src/features/auth/VerifyPage.tsx (conditional tab-close logic)
+  - client/src/features/auth/LoginPage.tsx (rsn_magic_link_sent localStorage signal)
+  - progress.md
+- Decisions made:
+  - Use localStorage flag to coordinate between LoginPage and VerifyPage tabs.
+  - Plain-text email body is a stripped version of the HTML content.
+  - If emails still hit spam after these code changes, DNS records (SPF/DKIM/DMARC) for rsn.network need to be verified in the Resend dashboard.
+- Validation Results:
+  - ✅ 250 server tests passing
+  - ✅ 29 shared tests passing
+  - ✅ All 3 production builds pass (shared, server, client)
+- Next immediate action:
+  - Deploy and re-test with ahmed rashid: Request-to-Join → Approve → Magic Link → Sign In (verify email lands in primary inbox and tab doesn't close)

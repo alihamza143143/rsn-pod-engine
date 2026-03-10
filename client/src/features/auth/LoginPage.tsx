@@ -73,6 +73,8 @@ export default function LoginPage() {
     try {
       const response = await login(data.email, window.location.origin, data.inviteCode || undefined);
       setSent(true);
+      // Signal that this login tab is waiting for magic link verification
+      localStorage.setItem('rsn_magic_link_sent', '1');
       // Capture devLink if returned (dev mode only)
       // Backend returns { success, data: { devLink, sent, message } }
       if (response?.data?.devLink) {

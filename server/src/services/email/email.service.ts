@@ -2,6 +2,7 @@
 // Handles sending emails via Resend (production) or console logging (dev).
 
 import { Resend } from 'resend';
+import { v4 as uuid } from 'uuid';
 import config from '../../config';
 import logger from '../../config/logger';
 
@@ -15,6 +16,45 @@ function getResendClient(): Resend {
     resend = new Resend(config.resendApiKey);
   }
   return resend;
+}
+
+// Centralized email sender with deliverability best-practices headers
+async function sendEmail(opts: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  replyTo?: string;
+}): Promise<{ sent: boolean }> {
+  if (!config.resendApiKey) {
+    logger.warn({ to: opts.to, subject: opts.subject }, 'No email provider — email skipped');
+    return { sent: false };
+  }
+
+  const senderName = 'RSN';
+  const fromRaw = config.emailFrom; // e.g. noreply@rsn.network
+  const from = fromRaw.includes('<') ? fromRaw : `${senderName} <${fromRaw}>`;
+
+  const client = getResendClient();
+  const { error } = await client.emails.send({
+    from,
+    to: [opts.to],
+    subject: opts.subject,
+    html: opts.html,
+    text: opts.text,
+    replyTo: opts.replyTo || fromRaw.replace(/.*<|>.*/g, ''),
+    headers: {
+      'X-Entity-Ref-ID': uuid(), // unique per email — prevents Gmail grouping into one thread
+    },
+  });
+
+  if (error) {
+    logger.error({ error, to: opts.to }, `Failed to send email: ${opts.subject}`);
+    return { sent: false };
+  }
+
+  logger.info({ to: opts.to }, `Email sent: ${opts.subject}`);
+  return { sent: true };
 }
 
 export async function sendMagicLinkEmail(
@@ -64,20 +104,11 @@ export async function sendMagicLinkEmail(
 
   // Use Resend if API key is configured
   if (config.resendApiKey) {
-    const client = getResendClient();
-    const { error } = await client.emails.send({
-      from: config.emailFrom,
-      to: [to],
-      subject,
-      html,
-    });
-
-    if (error) {
-      logger.error({ error, to }, 'Failed to send magic link email via Resend');
-      throw new Error(`Email send failed: ${error.message}`);
+    const text = `Sign in to RSN\n\nClick the link below to sign in to your account. This link expires in ${config.magicLinkExpiryMinutes} minutes.\n\n${magicLinkUrl}\n\nIf you didn't request this email, you can safely ignore it.`;
+    const result = await sendEmail({ to, subject, html, text });
+    if (!result.sent) {
+      throw new Error('Email send failed');
     }
-
-    logger.info({ to }, 'Magic link email sent via Resend');
     return;
   }
 
@@ -153,20 +184,8 @@ export async function sendSessionRecapEmail(
   `;
 
   if (config.resendApiKey) {
-    const client = getResendClient();
-    const { error } = await client.emails.send({
-      from: config.emailFrom,
-      to: [to],
-      subject,
-      html,
-    });
-
-    if (error) {
-      logger.error({ error, to }, 'Failed to send session recap email');
-      return; // Non-fatal — don't throw
-    }
-
-    logger.info({ to, sessionTitle: data.sessionTitle }, 'Session recap email sent');
+    const text = `Hey ${displayName},\n\nThanks for joining ${data.sessionTitle}!\n\nPeople Met: ${data.peopleMet}\nMutual Matches: ${data.mutualConnections}\nAvg Rating: ${data.avgRating.toFixed(1)}\n\nView Full Recap: ${data.recapUrl}\n\nRSN — Raw Speed Networking`;
+    await sendEmail({ to, subject, html, text });
     return;
   }
 
@@ -231,20 +250,8 @@ export async function sendInviteEmail(
   `;
 
   if (config.resendApiKey) {
-    const client = getResendClient();
-    const { error } = await client.emails.send({
-      from: config.emailFrom,
-      to: [to],
-      subject,
-      html,
-    });
-
-    if (error) {
-      logger.error({ error, to }, 'Failed to send invite email');
-      return; // Non-fatal
-    }
-
-    logger.info({ to, type: data.type }, 'Invite email sent');
+    const text = `${data.inviterName} has invited you to join ${typeLabel}${data.targetName ? ` — ${data.targetName}` : ''} on RSN.\n\nAccept Invite: ${data.inviteUrl}\n\nRSN — Raw Speed Networking`;
+    await sendEmail({ to, subject, html, text });
     return;
   }
 
@@ -293,13 +300,8 @@ export async function sendJoinRequestConfirmationEmail(
   `;
 
   if (config.resendApiKey) {
-    const client = getResendClient();
-    const { error } = await client.emails.send({ from: config.emailFrom, to: [to], subject, html });
-    if (error) {
-      logger.error({ error, to }, 'Failed to send join request confirmation email');
-      return;
-    }
-    logger.info({ to }, 'Join request confirmation email sent');
+    const text = `Hi ${fullName},\n\nThank you for requesting to join RSN. We've received your application and our team will review it shortly.\n\nRSN is an invite-only community for founders, leaders, and company owners who value honesty over hype. We review every application carefully to maintain the quality of our community.\n\nYou'll hear from us within 1-3 business days.\n\nRSN — Fast, focused, and human.`;
+    await sendEmail({ to, subject, html, text });
     return;
   }
 
@@ -357,13 +359,8 @@ export async function sendJoinRequestWelcomeEmail(
   `;
 
   if (config.resendApiKey) {
-    const client = getResendClient();
-    const { error } = await client.emails.send({ from: config.emailFrom, to: [to], subject, html });
-    if (error) {
-      logger.error({ error, to }, 'Failed to send welcome email');
-      return;
-    }
-    logger.info({ to }, 'Join request welcome email sent');
+    const text = `Hi ${fullName},\n\nGreat news — your request to join RSN has been approved!\n\nYou're now part of a community of founders, leaders, and company owners who connect with honesty and purpose. No pitching. No selling. Just real conversations.\n\nSign In to RSN: ${loginUrl}\n\nYour first step: sign up for a session and meet five people in focused 8-minute conversations.\n\nRSN — Fast, focused, and human.`;
+    await sendEmail({ to, subject, html, text });
     return;
   }
 
@@ -412,13 +409,8 @@ export async function sendJoinRequestDeclineEmail(
   `;
 
   if (config.resendApiKey) {
-    const client = getResendClient();
-    const { error } = await client.emails.send({ from: config.emailFrom, to: [to], subject, html });
-    if (error) {
-      logger.error({ error, to }, 'Failed to send decline email');
-      return;
-    }
-    logger.info({ to }, 'Join request decline email sent');
+    const text = `Hi ${fullName},\n\nThank you for your interest in RSN. After reviewing your application, we're unable to offer access at this time.\n\nRSN is a curated community, and we carefully consider each application. This decision is based on our current community composition and needs.\n\nIf your circumstances change or you receive an invite from a current member, you're welcome to reapply.\n\nRSN — Fast, focused, and human.`;
+    await sendEmail({ to, subject, html, text });
     return;
   }
 
