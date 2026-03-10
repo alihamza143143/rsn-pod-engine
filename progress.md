@@ -122,6 +122,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-055 | Change 1.0: User role tiers + RBAC hierarchy | Completed | Copilot | 7 roles (super_admin, admin, host, founding_member, pro, member, free), hierarchy-based RBAC, all admin gates updated |
 | T-056 | Fix main deployment build failure | Completed | Copilot | Removed unused `Phone` import in ProfilePage; shared + client production builds pass locally |
 | T-057 | Fix Render backend build failure | Completed | Copilot | Updated join-request service for new AppError signature and typed COUNT query; Render build command now passes locally |
+| T-058 | Improve backend testing observability logs | Completed | Copilot | Added request lifecycle logs (request-id, status, duration) and correlated error logs for faster test debugging |
 
 ---
 
@@ -2623,3 +2624,29 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - ✅ migrations copy step succeeded locally
 - Next immediate action:
   - Push `T-057` fix to `main` and re-trigger Render deploy
+
+---
+
+### 2026-03-10 22:00 - Entry T-058
+- Task ID: T-058
+- Task Title: Improve backend testing observability logs
+- Status: Completed
+- What changed:
+  1. Upgraded HTTP logging middleware to log both request start and completion.
+  2. Added generated/passthrough `x-request-id` per request and returned it in response headers.
+  3. Added structured completion logs with method, path, status code, duration, IP.
+  4. Added severity-based completion logging:
+     - `info` for success (`2xx/3xx`)
+     - `warn` for client errors (`4xx`)
+     - `error` for server errors (`5xx`)
+  5. Updated global error handler logs to include request context (`requestId`, `method`, `path`) for direct correlation with request logs.
+- Files touched:
+  - server/src/index.ts
+  - server/src/middleware/errorHandler.ts
+  - progress.md
+- Decisions made:
+  - Keep logs structured and compact for Render log stream readability while preserving enough context for debugging.
+- Validation Results:
+  - ✅ `npm run build:server` passed
+- Next immediate action:
+  - Deploy and tail Render logs while testing auth, joins, invites, and admin actions

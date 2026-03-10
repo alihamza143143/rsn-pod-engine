@@ -6,10 +6,12 @@ import { ApiResponse } from '@rsn/shared';
 
 export function errorHandler(
   err: Error,
-  _req: Request,
+  req: Request,
   res: Response,
   _next: NextFunction
 ): void {
+  const requestId = String(res.getHeader('x-request-id') || req.headers['x-request-id'] || 'unknown');
+
   // Handle known application errors
   if (err instanceof AppError) {
     const response: ApiResponse = {
@@ -22,9 +24,9 @@ export function errorHandler(
     };
 
     if (err.statusCode >= 500) {
-      logger.error({ err, code: err.code }, err.message);
+      logger.error({ err, code: err.code, requestId, method: req.method, path: req.path }, err.message);
     } else {
-      logger.warn({ code: err.code, statusCode: err.statusCode }, err.message);
+      logger.warn({ code: err.code, statusCode: err.statusCode, requestId, method: req.method, path: req.path }, err.message);
     }
 
     res.status(err.statusCode).json(response);
@@ -32,7 +34,7 @@ export function errorHandler(
   }
 
   // Handle unexpected errors
-  logger.error({ err }, 'Unhandled error');
+  logger.error({ err, requestId, method: req.method, path: req.path }, 'Unhandled error');
 
   const response: ApiResponse = {
     success: false,

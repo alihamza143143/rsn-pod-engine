@@ -3,6 +3,7 @@
 
 import express from 'express';
 import http from 'http';
+import { randomUUID } from 'crypto';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
@@ -120,8 +121,46 @@ app.set('trust proxy', 1);
 app.use('/api', apiLimiter);
 
 // Request logging
-app.use((req, _res, next) => {
-  logger.debug({ method: req.method, url: req.url }, 'Incoming request');
+app.use((req, res, next) => {
+  const start = Date.now();
+  const requestId = (req.headers['x-request-id'] as string | undefined) || randomUUID();
+
+  res.setHeader('x-request-id', requestId);
+
+  logger.debug(
+    {
+      requestId,
+      method: req.method,
+      path: req.path,
+      ip: req.ip,
+    },
+    'Incoming request'
+  );
+
+  res.on('finish', () => {
+    const durationMs = Date.now() - start;
+    const payload = {
+      requestId,
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      durationMs,
+      ip: req.ip,
+    };
+
+    if (res.statusCode >= 500) {
+      logger.error(payload, 'Request completed with server error');
+      return;
+    }
+
+    if (res.statusCode >= 400) {
+      logger.warn(payload, 'Request completed with client error');
+      return;
+    }
+
+    logger.info(payload, 'Request completed');
+  });
+
   next();
 });
 
