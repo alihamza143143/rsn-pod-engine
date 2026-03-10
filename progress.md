@@ -44,7 +44,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 - Active Milestone: **Change 1.0 Complete — Font, Logo, Landing, Login, Admin, Role Tiers**
 - Current Session: Change 1.0 implementation (T-051 through T-055)
 - Overall Build Status: Shared + Client + Server production builds passing, 279/279 tests passing (250 server + 29 shared)
-- Last Updated: March 11, 2026 (T-067)
+- Last Updated: March 11, 2026 (T-068)
 
 ---
 
@@ -129,6 +129,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-065 | Fix live session — video errors, participants, round flow, recap email | Completed | Copilot | 6 bugs fixed: room ID mismatch (match- vs session- prefix), late joiner participant sync (session:state), closing_lobby client handler, per-user recap email stats, partner display names in match:assigned |
 | T-066 | Fix session completion flow, host-aware lobby, video retry, mosaic polish, join gating | Completed | Copilot | 7 fixes: video auto-retry + 3s grace, HostControls derives state from store + hides Start Round after all rounds, host-aware lobby text, polished mosaic grid, JWT displayName fix (lobby shows real names), disabled Join for non-host when scheduled, session_ending on last round |
 | T-067 | Fix Vercel deploy failure after T-066 | Completed | Copilot | Removed unused `Clock` import in Lobby.tsx causing TS6133 during Vercel build; verified Vercel-equivalent build passes |
+| T-068 | Fix session participant tracking, real-time status, join flow | Completed | Copilot | Fixed currentRound=0 default, server sends socket-connected users only, added sessionStatus/hostInLobby tracking, non-host can enter scheduled sessions, lobby shows appropriate state |
 
 ---
 
@@ -2894,3 +2895,36 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - ✅ Vercel-equivalent build flow passes end-to-end
 - Next immediate action:
   - Trigger a new Vercel deploy for commit containing this import fix; if it still fails, capture full Vercel log tail for the next blocker.
+
+---
+
+### T-068 – Fix session participant tracking, real-time status updates, join flow
+- Timestamp: 2026-03-11
+- Status: **Completed**
+- What changed:
+  1. **Fixed store initial state**: Changed `currentRound` default from `1` to `0` in sessionStore.ts. This was causing `sessionStarted` to be true on load, which showed "Start Round" instead of "Start Session".
+  2. **Added sessionStatus and hostInLobby tracking**: New store fields track the actual session status (`scheduled`, `lobby_open`, etc.) and whether the host is connected to the lobby.
+  3. **Server sends only socket-connected participants**: Changed `handleJoinSession` to query actual socket connections in the session room instead of all registered participants from the database. This fixes the "2 in lobby" count showing when only the host was there.
+  4. **Server sends full session state**: `session:state` event now includes `sessionStatus`, `hostInLobby`, `currentRound`, and `totalRounds` so clients have complete context.
+  5. **Non-host can join scheduled sessions**: Removed the disabled button gating on SessionDetailPage. Now everyone can click "Enter Lobby" and go to the live page. Non-hosts see a "Waiting Room" with appropriate messages based on whether the host has joined.
+  6. **Lobby shows contextual messages**: When session is `scheduled`, shows "Waiting Room" with amber icon. For host: "Click Start Session when ready". For non-host: "Waiting for host to join..." or "The host is here! They'll start shortly." based on `hostInLobby`.
+  7. **HostControls uses sessionStatus**: `sessionStarted` now derives from `sessionStatus !== 'scheduled'` instead of just `currentRound > 0`.
+  8. **Updated shared types**: Added `isHost` to `participant:joined` and `participant:left` events, and expanded `session:state` payload.
+- Files touched:
+  - client/src/stores/sessionStore.ts (added sessionStatus, hostInLobby, fixed currentRound default)
+  - client/src/features/sessions/SessionDetailPage.tsx (removed disabled gating)
+  - client/src/features/live/Lobby.tsx (contextual messages based on session state)
+  - client/src/features/live/HostControls.tsx (derive sessionStarted from sessionStatus)
+  - client/src/hooks/useSessionSocket.ts (handle session:state with new fields)
+  - server/src/services/orchestration/orchestration.service.ts (send socket-connected users, isHost, session state)
+  - shared/src/types/events.ts (updated event types)
+- Decisions made:
+  - Allow everyone to join live page for any non-completed session. Use lobby UI to communicate state.
+  - Participant count should reflect actual socket connections, not registrations.
+  - Host presence tracking enables better UX messages for waiting participants.
+- Validation Results:
+  - ✅ 250 server tests passing
+  - ✅ 29 shared tests passing
+  - ✅ All 3 production builds pass (shared, server, client)
+- Next immediate action:
+  - Deploy and verify: host creates session → non-host enters lobby (sees "Waiting for host") → host enters (non-host sees "Host is here") → host starts session → everyone sees lobby with correct participant count
