@@ -13,6 +13,7 @@ function mockResponse(): Response {
   const res = {
     status: jest.fn().mockReturnThis(),
     json: jest.fn().mockReturnThis(),
+    getHeader: jest.fn().mockReturnValue(undefined),
   } as unknown as Response;
   return res;
 }
@@ -21,6 +22,7 @@ function mockRequest(overrides: Partial<Request> = {}): Request {
   return {
     method: 'GET',
     path: '/test',
+    headers: {},
     ...overrides,
   } as Request;
 }

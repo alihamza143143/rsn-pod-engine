@@ -30,11 +30,11 @@ export default function HomePage() {
 
   const activePods = (pods || []).filter((p: any) => p.status === 'active');
   const upcomingSessions = (sessions || []).filter((s: any) => s.status === 'scheduled');
-  const acceptedInvites = (invites || []).filter((i: any) => i.status === 'accepted');
+  const totalAccepted = (invites || []).reduce((sum: number, i: any) => sum + (i.useCount || 0), 0);
   const podCount = activePods.length;
 
   // Unlock level logic (matching reference site)
-  const unlockLevel = acceptedInvites.length >= 3 ? 'Pro' : acceptedInvites.length >= 1 ? 'Basic' : 'Starter';
+  const unlockLevel = totalAccepted >= 3 ? 'Pro' : totalAccepted >= 1 ? 'Basic' : 'Starter';
 
   // Getting started checklist
   const hasProfile = !!(user?.bio || user?.linkedinUrl);
@@ -68,7 +68,7 @@ export default function HomePage() {
             <Mail className="h-4 w-4 text-gray-400" />
           </div>
           <p className="text-3xl font-bold text-[#1a1a2e]">{(invites || []).length}</p>
-          <p className="text-xs text-gray-400 mt-1">{acceptedInvites.length} accepted</p>
+          <p className="text-xs text-gray-400 mt-1">{totalAccepted} accepted</p>
         </Card>
 
         <Card className="cursor-pointer hover:border-gray-300 transition-colors" onClick={() => navigate('/sessions')}>
@@ -85,7 +85,7 @@ export default function HomePage() {
             <p className="text-sm text-gray-500">Unlock Level</p>
             <span className="text-xs font-medium text-indigo-600">{unlockLevel}</span>
           </div>
-          <p className="text-3xl font-bold text-[#1a1a2e]">{acceptedInvites.length}/{unlockLevel === 'Starter' ? 1 : unlockLevel === 'Basic' ? 3 : '∞'}</p>
+          <p className="text-3xl font-bold text-[#1a1a2e]">{totalAccepted}/{unlockLevel === 'Starter' ? 1 : unlockLevel === 'Basic' ? 3 : '∞'}</p>
           <p className="text-xs text-gray-400 mt-1">Accepted invites{unlockLevel === 'Starter' ? ' — invite 1 to unlock' : ''}</p>
         </Card>
       </div>

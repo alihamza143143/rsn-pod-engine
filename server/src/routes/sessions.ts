@@ -145,6 +145,7 @@ router.get(
 
       const result = await sessionService.listSessions({
         podId,
+        userId: podId ? undefined : req.user!.userId,
         status: status as SessionStatus | undefined,
         page: page ? parseInt(page) : undefined,
         pageSize: pageSize ? parseInt(pageSize) : undefined,

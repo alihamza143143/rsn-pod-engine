@@ -18,6 +18,7 @@ async function reset(): Promise<void> {
       DROP TABLE IF EXISTS audit_log CASCADE;
       DROP TABLE IF EXISTS user_entitlements CASCADE;
       DROP TABLE IF EXISTS user_subscriptions CASCADE;
+      DROP TABLE IF EXISTS join_requests CASCADE;
       DROP TABLE IF EXISTS invites CASCADE;
       DROP TABLE IF EXISTS encounter_history CASCADE;
       DROP TABLE IF EXISTS ratings CASCADE;
@@ -50,6 +51,7 @@ async function reset(): Promise<void> {
       DROP TYPE IF EXISTS invite_type CASCADE;
       DROP TYPE IF EXISTS subscription_plan CASCADE;
       DROP TYPE IF EXISTS subscription_status CASCADE;
+      DROP TYPE IF EXISTS join_request_status CASCADE;
     `);
 
     await client.query('COMMIT');

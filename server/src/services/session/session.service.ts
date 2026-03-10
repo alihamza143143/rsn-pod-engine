@@ -156,8 +156,8 @@ export async function listSessions(params: {
     values.push(params.podId);
     paramIdx++;
   } else if (params.userId) {
-    // Scope to pods where user is an active member
-    whereClause += ` AND s.pod_id IN (SELECT pod_id FROM pod_members WHERE user_id = $${paramIdx} AND status = 'active')`;
+    // Show sessions from public/invite_only pods AND private pods user is a member of
+    whereClause += ` AND (s.pod_id IN (SELECT id FROM pods WHERE visibility IN ('public', 'invite_only')) OR s.pod_id IN (SELECT pod_id FROM pod_members WHERE user_id = $${paramIdx} AND status = 'active'))`;
     values.push(params.userId);
     paramIdx++;
   } else {

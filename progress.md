@@ -44,7 +44,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 - Active Milestone: **Change 1.0 Complete — Font, Logo, Landing, Login, Admin, Role Tiers**
 - Current Session: Change 1.0 implementation (T-051 through T-055)
 - Overall Build Status: Shared + Client + Server production builds passing, 277/277 tests passing (248 server + 29 shared)
-- Last Updated: March 10, 2026
+- Last Updated: March 10, 2026 (T-059)
 
 ---
 
@@ -123,6 +123,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-056 | Fix main deployment build failure | Completed | Copilot | Removed unused `Phone` import in ProfilePage; shared + client production builds pass locally |
 | T-057 | Fix Render backend build failure | Completed | Copilot | Updated join-request service for new AppError signature and typed COUNT query; Render build command now passes locally |
 | T-058 | Improve backend testing observability logs | Completed | Copilot | Added request lifecycle logs (request-id, status, duration) and correlated error logs for faster test debugging |
+| T-059 | Fix sessions listing, invite counts, DB reset | Completed | Copilot | Sessions from private pods now visible to members on Events page; dashboard invite accepted count uses useCount sum; DB reset includes join_requests table/enum; errorHandler test mock fixed |
 
 ---
 
@@ -2650,3 +2651,30 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - ✅ `npm run build:server` passed
 - Next immediate action:
   - Deploy and tail Render logs while testing auth, joins, invites, and admin actions
+
+### 2026-03-10 23:00 - Entry T-059
+- Task ID: T-059
+- Task Title: Fix sessions listing, invite counts, DB reset
+- Status: Completed
+- What changed:
+  1. **Sessions listing fix**: `listSessions()` userId branch now shows sessions from BOTH public/invite_only pods AND private pods where user is an active member. Previously only showed sessions from member pods, hiding public pod sessions.
+  2. **Sessions route fix**: `GET /sessions` now passes `req.user.userId` to `listSessions()` when no podId is specified. Previously userId was never passed, falling into the anonymous "hide private" path.
+  3. **Dashboard invite count fix**: HomePage now calculates accepted invites as `sum(useCount)` across all invites instead of `filter(status === 'accepted').length`. Multi-use invites stay status='pending' until fully consumed, so status filter was always 0.
+  4. **DB reset fix**: Added `DROP TABLE IF EXISTS join_requests CASCADE` and `DROP TYPE IF EXISTS join_request_status CASCADE` to reset.ts (missing since migration 003).
+  5. **ErrorHandler test fix**: Added `getHeader` mock and `headers` property to test mock objects (broken since T-058 logging changes).
+- Files touched:
+  - server/src/services/session/session.service.ts
+  - server/src/routes/sessions.ts
+  - client/src/features/home/HomePage.tsx
+  - server/src/db/reset.ts
+  - server/src/__tests__/middleware/errorHandler.test.ts
+  - progress.md
+- Decisions made:
+  - Authenticated users see: all public/invite_only pod sessions + private pod sessions where they're members
+  - Invite "accepted" on dashboard = sum(useCount), not status filter — accurately reflects how many people accepted any invite
+  - alihamza891840 super_admin promotion is a one-time SQL command (run against production DB), not a code change
+- Validation Results:
+  - ✅ 277/277 tests passing (248 server + 29 shared)
+  - ✅ shared, server, client production builds all pass
+- Next immediate action:
+  - Deploy, then run SQL to make alihamza891840 super_admin, then flush DB for clean testing
