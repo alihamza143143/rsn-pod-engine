@@ -120,6 +120,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-053 | Change 1.0: Admin Join Requests + Invite Tracking | Completed | Copilot | Admin join request vetting panel, invite tracking DB migration, identity service updates |
 | T-054 | Change 1.0: Profile, Settings/Billing, Admin Dashboard | Completed | Copilot | Avatar upload, phone/WhatsApp, email read-only, billing under settings, full admin dashboard with stats/health |
 | T-055 | Change 1.0: User role tiers + RBAC hierarchy | Completed | Copilot | 7 roles (super_admin, admin, host, founding_member, pro, member, free), hierarchy-based RBAC, all admin gates updated |
+| T-056 | Fix main deployment build failure | Completed | Copilot | Removed unused `Phone` import in ProfilePage; shared + client production builds pass locally |
 
 ---
 
@@ -2574,3 +2575,25 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
 - Next immediate action:
   - Git push all Change 1.0 work
   - Verify Render + Vercel redeploys
+
+---
+
+### 2026-03-10 21:25 - Entry T-056
+- Task ID: T-056
+- Task Title: Fix main deployment build failure
+- Status: Completed
+- What changed:
+  1. Reproduced Vercel failure path locally using the same shared + client build sequence.
+  2. Identified TypeScript blocker in profile page: unused `Phone` import (`TS6133`) in `ProfilePage.tsx`.
+  3. Removed unused icon import and re-ran production build pipeline.
+- Files touched:
+  - client/src/features/profile/ProfilePage.tsx
+  - progress.md
+- Decisions made:
+  - Keep strict TypeScript checks enabled; fix root cause instead of loosening tsconfig rules.
+- Validation Results:
+  - ✅ `npm run build:shared` passed
+  - ✅ `cd client && npm run build` passed
+  - ✅ Vite production bundle generated successfully
+- Next immediate action:
+  - Push fix commit to `main` and trigger Vercel redeploy

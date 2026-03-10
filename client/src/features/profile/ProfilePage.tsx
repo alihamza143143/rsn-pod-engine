@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
 import Avatar from '@/components/ui/Avatar';
-import { X, User, Briefcase, MapPin, Globe, Languages, Sparkles, Camera, Phone, Info } from 'lucide-react';
+import { X, User, Briefcase, MapPin, Globe, Languages, Sparkles, Camera, Info } from 'lucide-react';
 import api from '@/lib/api';
 
 interface ProfileForm {
