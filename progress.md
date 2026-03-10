@@ -44,7 +44,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 - Active Milestone: **Change 1.0 Complete — Font, Logo, Landing, Login, Admin, Role Tiers**
 - Current Session: Change 1.0 implementation (T-051 through T-055)
 - Overall Build Status: Shared + Client + Server production builds passing, 279/279 tests passing (250 server + 29 shared)
-- Last Updated: March 11, 2026 (T-066)
+- Last Updated: March 11, 2026 (T-067)
 
 ---
 
@@ -128,6 +128,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-061 | Auth gate: require approved join request or invite code to sign up | Completed | Copilot | New users blocked from magic link + Google OAuth signup unless email has approved join_request or valid invite code; existing users can login normally; REGISTRATION_BLOCKED error code added; Google OAuth redirect passes error; LoginPage shows gate error message; 7 tests added/updated |
 | T-065 | Fix live session — video errors, participants, round flow, recap email | Completed | Copilot | 6 bugs fixed: room ID mismatch (match- vs session- prefix), late joiner participant sync (session:state), closing_lobby client handler, per-user recap email stats, partner display names in match:assigned |
 | T-066 | Fix session completion flow, host-aware lobby, video retry, mosaic polish, join gating | Completed | Copilot | 7 fixes: video auto-retry + 3s grace, HostControls derives state from store + hides Start Round after all rounds, host-aware lobby text, polished mosaic grid, JWT displayName fix (lobby shows real names), disabled Join for non-host when scheduled, session_ending on last round |
+| T-067 | Fix Vercel deploy failure after T-066 | Completed | Copilot | Removed unused `Clock` import in Lobby.tsx causing TS6133 during Vercel build; verified Vercel-equivalent build passes |
 
 ---
 
@@ -2870,3 +2871,26 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - ✅ Zero TypeScript errors across entire workspace
 - Next immediate action:
   - Deploy and verify: session completes after all rounds (no stuck Start Round), lobby shows display names not emails, host sees correct text, video retries on disconnect, Join button gated for non-host
+
+---
+
+### T-067 – Fix Vercel deploy failure after T-066
+- Timestamp: 2026-03-11
+- Status: **Completed**
+- What changed:
+  1. Reproduced Vercel build command locally using the same monorepo flow from `client/vercel.json`: `cd .. && npm run build:shared && cd client && npm run build`.
+  2. Found the exact failing error: `TS6133 'Clock' is declared but its value is never read` in `client/src/features/live/Lobby.tsx`.
+  3. Removed unused `Clock` import from `Lobby.tsx`.
+  4. Re-ran the same Vercel-equivalent build command and confirmed it passes.
+- Files touched:
+  - client/src/features/live/Lobby.tsx
+  - progress.md
+- Decisions made:
+  - Keep fix minimal and surgical to unblock deploy quickly (single import cleanup).
+  - Validate against the exact Vercel command path, not just generic local build.
+- Validation Results:
+  - ✅ `npm run build:shared` passes
+  - ✅ `npm run build` in `client` passes
+  - ✅ Vercel-equivalent build flow passes end-to-end
+- Next immediate action:
+  - Trigger a new Vercel deploy for commit containing this import fix; if it still fails, capture full Vercel log tail for the next blocker.

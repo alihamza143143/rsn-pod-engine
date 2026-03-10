@@ -1,4 +1,4 @@
-import { Users, Clock, Loader2, VideoOff, Sparkles } from 'lucide-react';
+import { Users, Loader2, VideoOff, Sparkles } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import { useSessionStore } from '@/stores/sessionStore';
 import {
