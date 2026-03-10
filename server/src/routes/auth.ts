@@ -231,7 +231,8 @@ router.get(
       res.redirect(`${config.clientUrl}/auth/verify?${params}`);
     } catch (err: any) {
       logger.error({ err }, 'Google OAuth callback error');
-      res.redirect(`${config.clientUrl}/login?error=google_auth_failed`);
+      const errorCode = err?.code === 'REGISTRATION_BLOCKED' ? 'REGISTRATION_BLOCKED' : 'google_auth_failed';
+      res.redirect(`${config.clientUrl}/login?error=${errorCode}`);
     }
   }
 );

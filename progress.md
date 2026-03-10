@@ -43,8 +43,8 @@ Purpose: Persistent execution history and current state, independent of chat mem
 - Active Phase: Implementation
 - Active Milestone: **Change 1.0 Complete — Font, Logo, Landing, Login, Admin, Role Tiers**
 - Current Session: Change 1.0 implementation (T-051 through T-055)
-- Overall Build Status: Shared + Client + Server production builds passing, 277/277 tests passing (248 server + 29 shared)
-- Last Updated: March 10, 2026 (T-060)
+- Overall Build Status: Shared + Client + Server production builds passing, 279/279 tests passing (250 server + 29 shared)
+- Last Updated: March 10, 2026 (T-061)
 
 ---
 
@@ -125,6 +125,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-058 | Improve backend testing observability logs | Completed | Copilot | Added request lifecycle logs (request-id, status, duration) and correlated error logs for faster test debugging |
 | T-059 | Fix sessions listing, invite counts, DB reset | Completed | Copilot | Sessions from private pods now visible to members on Events page; dashboard invite accepted count uses useCount sum; DB reset includes join_requests table/enum; errorHandler test mock fixed |
 | T-060 | Enable super_admin join-request approvals + fresh DB cleanup | Completed | Copilot | Fixed AdminJoinRequestsPage guard to allow super_admin; cleaned production DB to keep only alihamza user and zero pods/sessions/invites/join-requests |
+| T-061 | Auth gate: require approved join request or invite code to sign up | Completed | Copilot | New users blocked from magic link + Google OAuth signup unless email has approved join_request or valid invite code; existing users can login normally; REGISTRATION_BLOCKED error code added; Google OAuth redirect passes error; LoginPage shows gate error message; 7 tests added/updated |
 
 ---
 
@@ -2699,3 +2700,34 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - ✅ Remaining counts confirmed empty for core test entities
 - Next immediate action:
   - Log out/in, then test Request-to-Join approval flow and pod invite flow from clean state
+
+### 2026-03-10 23:00 - Entry T-061
+- Task ID: T-061
+- Task Title: Auth gate: require approved join request or invite code to sign up
+- Status: Completed
+- What changed:
+  1. Added `REGISTRATION_BLOCKED` error code to shared ErrorCodes.
+  2. Added `isEmailApproved()` helper and `assertRegistrationAllowed()` gate function to identity service.
+  3. Gated `sendMagicLink()` — existing users can log in freely; new users must have approved join_request or valid invite code.
+  4. Gated `verifyMagicLink()` — safety net before `createUser()` for new users.
+  5. Gated `findOrCreateGoogleUser()` — same check before creating new user via Google OAuth.
+  6. Updated Google OAuth callback to redirect with `?error=REGISTRATION_BLOCKED` when gate blocks.
+  7. Updated LoginPage error messages to display helpful gate error.
+  8. Updated identity service tests: 7 sendMagicLink tests now cover both gate-blocked and gate-allowed scenarios.
+- Files touched:
+  - shared/src/types/api.ts (REGISTRATION_BLOCKED error code)
+  - server/src/services/identity/identity.service.ts (auth gate logic)
+  - server/src/routes/auth.ts (Google OAuth error redirect)
+  - client/src/features/auth/LoginPage.tsx (REGISTRATION_BLOCKED error message)
+  - server/src/__tests__/services/identity.service.test.ts (updated + new tests)
+  - progress.md
+- Decisions made:
+  - Gate at magic link send time (early feedback) AND at verify/create time (safety net).
+  - Existing users bypass gate entirely (it's a login, not registration).
+  - Two paths to registration: approved join request OR valid invite code.
+- Validation Results:
+  - ✅ 250 server tests passing
+  - ✅ 29 shared tests passing
+  - ✅ All 3 production builds pass (shared, server, client)
+- Next immediate action:
+  - Deploy, test the full Request-to-Join → Admin Approve → User Sign Up flow

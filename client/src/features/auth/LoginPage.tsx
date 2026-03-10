@@ -12,6 +12,7 @@ const API_URL = API_BASE_URL;
 const ERROR_MESSAGES: Record<string, string> = {
   google_auth_failed: 'Google sign-in failed. Please try again.',
   INVALID_INVITE: 'The invite code is invalid or expired.',
+  REGISTRATION_BLOCKED: 'You need an approved join request or a valid invite code to sign up. Please request to join first.',
 };
 
 export default function LoginPage() {

@@ -177,7 +177,9 @@ describe('Identity Service', () => {
   });
 
   describe('sendMagicLink', () => {
-    it('should invalidate existing links and create a new one', async () => {
+    it('should invalidate existing links and create a new one for existing user', async () => {
+      // getUserByEmail — existing user
+      mockQuery.mockResolvedValueOnce({ rows: [mockUser], rowCount: 1 });
       // Invalidate existing magic links
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       // INSERT magic_links
@@ -188,21 +190,25 @@ describe('Identity Service', () => {
       expect(result).toBeDefined();
       expect(result).toHaveProperty('sent');
       expect(result.sent).toBe(true);
-      expect(mockQuery).toHaveBeenCalledTimes(2);
+      expect(mockQuery).toHaveBeenCalledTimes(3);
     });
 
     it('should normalize email to lowercase', async () => {
+      // getUserByEmail
+      mockQuery.mockResolvedValueOnce({ rows: [mockUser], rowCount: 1 });
       // Invalidate existing magic links
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       // INSERT magic_links
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
       await identityService.sendMagicLink('TEST@EXAMPLE.COM');
-      // First call: UPDATE magic_links with lowercase email
+      // First call: getUserByEmail with lowercase email
       expect(mockQuery.mock.calls[0][1]).toEqual(['test@example.com']);
     });
 
     it('should return devLink in dev mode', async () => {
+      // getUserByEmail — existing user
+      mockQuery.mockResolvedValueOnce({ rows: [mockUser], rowCount: 1 });
       // Invalidate existing magic links
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       // INSERT magic_links
@@ -214,6 +220,8 @@ describe('Identity Service', () => {
     });
 
     it('should validate invite code when provided', async () => {
+      // getUserByEmail — no existing user
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       // Invalid invite code check
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
@@ -221,13 +229,39 @@ describe('Identity Service', () => {
         .rejects.toThrow('Invalid invite code');
     });
 
-    it('should allow registration without invite code', async () => {
+    it('should block new user without approved request or invite', async () => {
+      // getUserByEmail — no existing user
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+      // isEmailApproved — no approved join request
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+      await expect(identityService.sendMagicLink('new@example.com'))
+        .rejects.toThrow('Registration requires an approved join request');
+    });
+
+    it('should allow new user with approved join request', async () => {
+      // getUserByEmail — no existing user
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+      // isEmailApproved — approved join request found
+      mockQuery.mockResolvedValueOnce({ rows: [{ id: 'jr-1' }], rowCount: 1 });
       // Invalidate existing magic links
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
       // INSERT magic_links
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 1 });
 
-      const result = await identityService.sendMagicLink('new@example.com');
+      const result = await identityService.sendMagicLink('approved@example.com');
+      expect(result.sent).toBe(true);
+    });
+
+    it('should allow existing user to login without approval', async () => {
+      // getUserByEmail — existing user (login, not registration)
+      mockQuery.mockResolvedValueOnce({ rows: [mockUser], rowCount: 1 });
+      // Invalidate existing magic links
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+      // INSERT magic_links
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 1 });
+
+      const result = await identityService.sendMagicLink('test@example.com');
       expect(result.sent).toBe(true);
     });
   });

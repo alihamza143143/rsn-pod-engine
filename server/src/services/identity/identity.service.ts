@@ -14,6 +14,29 @@ import {
 import { NotFoundError, ConflictError, UnauthorizedError, AppError } from '../../middleware/errors';
 import { sendMagicLinkEmail } from '../email/email.service';
 
+// ─── Registration Gate ──────────────────────────────────────────────────────
+// New users can only sign up if they have an approved join request OR a valid invite code.
+
+async function isEmailApproved(email: string): Promise<boolean> {
+  const result = await query<{ id: string }>(
+    `SELECT id FROM join_requests WHERE email = $1 AND status = 'approved' LIMIT 1`,
+    [email.toLowerCase().trim()]
+  );
+  return result.rows.length > 0;
+}
+
+async function assertRegistrationAllowed(email: string, hasValidInvite: boolean): Promise<void> {
+  if (hasValidInvite) return; // invite code already validated upstream
+  const approved = await isEmailApproved(email);
+  if (!approved) {
+    throw new AppError(
+      403,
+      ErrorCodes.REGISTRATION_BLOCKED,
+      'Registration requires an approved join request or a valid invite code. Please request to join first.'
+    );
+  }
+}
+
 // ─── User Operations ────────────────────────────────────────────────────────
 
 export async function getUserById(id: string): Promise<User> {
@@ -168,6 +191,10 @@ function resolveClientBaseUrl(requestedClientUrl?: string): string {
 export async function sendMagicLink(email: string, requestedClientUrl?: string, inviteCode?: string): Promise<{ sent: boolean; devLink?: string }> {
   const normalizedEmail = email.toLowerCase().trim();
 
+  // Allow existing users to log in without gate check
+  const existingUser = await getUserByEmail(normalizedEmail);
+  let hasValidInvite = false;
+
   // Invite codes are optional - validate only if provided
   if (inviteCode) {
     const invResult = await query<{ id: string; status: string; use_count: number; max_uses: number; expires_at: Date | null }>(
@@ -187,6 +214,12 @@ export async function sendMagicLink(email: string, requestedClientUrl?: string, 
     if (inv.use_count >= inv.max_uses) {
       throw new AppError(400, ErrorCodes.INVALID_INVITE, 'This invite code has already been used');
     }
+    hasValidInvite = true;
+  }
+
+  // Gate: new users need approved join request or valid invite
+  if (!existingUser) {
+    await assertRegistrationAllowed(normalizedEmail, hasValidInvite);
   }
 
   // Generate a secure random token
@@ -259,6 +292,8 @@ export async function verifyMagicLink(token: string): Promise<AuthTokenPair> {
   // Find or create the user (handle concurrent verify race condition)
   let user = await getUserByEmail(magicLink.email);
   if (!user) {
+    // Safety net: block new user creation if not approved and no invite
+    await assertRegistrationAllowed(magicLink.email, false);
     try {
       user = await createUser({
         email: magicLink.email,
@@ -371,12 +406,13 @@ export async function findOrCreateGoogleUser(
   let user = await getUserByEmail(normalizedEmail);
 
   if (!user) {
-    // New user — invite codes are optional, validate only if provided
+    // New user — require approved join request or valid invite code
     let inviteId: string | null = null;
     let invUseCount = 0;
     let invMaxUses = 0;
     let invStatus = '';
     let inviterId: string | null = null;
+    let hasValidInvite = false;
 
     if (inviteCode) {
       const invResult = await query<{ id: string; status: string; use_count: number; max_uses: number; expires_at: Date | null; inviter_id: string }>(
@@ -397,7 +433,11 @@ export async function findOrCreateGoogleUser(
       invMaxUses = inv.max_uses;
       invStatus = inv.status;
       inviterId = inv.inviter_id;
+      hasValidInvite = true;
     }
+
+    // Gate: require approved join request or valid invite
+    await assertRegistrationAllowed(normalizedEmail, hasValidInvite);
 
     // Create the user
     const id = uuid();
