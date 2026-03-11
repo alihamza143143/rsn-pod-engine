@@ -6,7 +6,7 @@ import { getSocket } from '@/lib/socket';
 interface Props { sessionId: string; }
 
 export default function HostControls({ sessionId }: Props) {
-  const { participants, phase, currentRound, totalRounds, transitionStatus, sessionStatus, timerSeconds } = useSessionStore();
+  const { participants, phase, currentRound, totalRounds, transitionStatus, sessionStatus } = useSessionStore();
   const socket = getSocket();
 
   // Session has been started if status is lobby_open or later, OR if we're in a transition state
