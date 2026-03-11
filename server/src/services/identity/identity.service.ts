@@ -16,6 +16,13 @@ import { sendMagicLinkEmail } from '../email/email.service';
 
 // ─── Registration Gate ──────────────────────────────────────────────────────
 // New users can only sign up if they have an approved join request OR a valid invite code.
+// Super admin emails are always whitelisted.
+
+const WHITELISTED_EMAILS = [
+  'im@mister-raw.com',
+  'sa@mister-raw.com',
+  'alihamza891840@gmail.com',
+];
 
 async function isEmailApproved(email: string): Promise<boolean> {
   const result = await query<{ id: string }>(
@@ -26,6 +33,7 @@ async function isEmailApproved(email: string): Promise<boolean> {
 }
 
 async function assertRegistrationAllowed(email: string, hasValidInvite: boolean): Promise<void> {
+  if (WHITELISTED_EMAILS.includes(email.toLowerCase().trim())) return;
   if (hasValidInvite) return; // invite code already validated upstream
   const approved = await isEmailApproved(email);
   if (!approved) {
@@ -492,6 +500,7 @@ export async function getUsers(params: {
   page?: number;
   pageSize?: number;
   role?: UserRole;
+  status?: 'active' | 'suspended' | 'banned' | 'deactivated';
   search?: string;
 }): Promise<{ users: User[]; total: number }> {
   const page = params.page || 1;
@@ -505,6 +514,12 @@ export async function getUsers(params: {
   if (params.role) {
     whereClause += ` AND role = $${paramIdx}`;
     values.push(params.role);
+    paramIdx++;
+  }
+
+  if (params.status) {
+    whereClause += ` AND status = $${paramIdx}`;
+    values.push(params.status);
     paramIdx++;
   }
 

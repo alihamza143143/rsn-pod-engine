@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Shield, Search, ChevronLeft, ChevronRight, Ban, Trash2, UserCheck, UserX } from 'lucide-react';
+import { Shield, Search, ChevronLeft, ChevronRight, Ban, Trash2, UserX, RotateCcw } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
@@ -12,6 +12,14 @@ import api from '@/lib/api';
 import { isAdmin } from '@/lib/utils';
 import { useToastStore } from '@/stores/toastStore';
 
+type StatusTab = 'active' | 'removed' | 'banned';
+
+const TAB_CONFIG: { key: StatusTab; label: string; apiStatus?: string }[] = [
+  { key: 'active', label: 'Active' },
+  { key: 'removed', label: 'Removed', apiStatus: 'deactivated' },
+  { key: 'banned', label: 'Banned', apiStatus: 'banned' },
+];
+
 export default function AdminUsersPage() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
@@ -20,15 +28,19 @@ export default function AdminUsersPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
+  const [statusTab, setStatusTab] = useState<StatusTab>('active');
+
+  const activeTabConfig = TAB_CONFIG.find(t => t.key === statusTab)!;
 
   const { data, isLoading } = useQuery({
-    queryKey: ['admin-users', page, search, roleFilter],
+    queryKey: ['admin-users', page, search, roleFilter, statusTab],
     queryFn: () => {
       const params = new URLSearchParams();
       params.set('page', String(page));
       params.set('pageSize', '20');
       if (search) params.set('search', search);
       if (roleFilter) params.set('role', roleFilter);
+      if (activeTabConfig.apiStatus) params.set('status', activeTabConfig.apiStatus);
       return api.get(`/users?${params.toString()}`).then(r => r.data);
     },
     enabled: isAdmin(user?.role),
@@ -49,25 +61,31 @@ export default function AdminUsersPage() {
   const meta = data?.meta;
   const isSuperAdmin = user?.role === 'super_admin';
 
+  const invalidateUsers = () => queryClient.invalidateQueries({ queryKey: ['admin-users'] });
+
   const banMutation = useMutation({
     mutationFn: (userId: string) => api.put(`/users/${userId}/status`, { status: 'banned' }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-users'] }); addToast('User banned', 'success'); },
+    onSuccess: () => { invalidateUsers(); addToast('User banned', 'success'); },
   });
   const suspendMutation = useMutation({
     mutationFn: (userId: string) => api.put(`/users/${userId}/status`, { status: 'suspended' }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-users'] }); addToast('User suspended', 'success'); },
+    onSuccess: () => { invalidateUsers(); addToast('User suspended', 'success'); },
   });
   const activateMutation = useMutation({
     mutationFn: (userId: string) => api.put(`/users/${userId}/status`, { status: 'active' }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-users'] }); addToast('User activated', 'success'); },
+    onSuccess: () => { invalidateUsers(); addToast('User reactivated', 'success'); },
+  });
+  const removeMutation = useMutation({
+    mutationFn: (userId: string) => api.put(`/users/${userId}/status`, { status: 'deactivated' }),
+    onSuccess: () => { invalidateUsers(); addToast('User removed', 'success'); },
   });
   const deleteMutation = useMutation({
     mutationFn: (userId: string) => api.delete(`/users/${userId}`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-users'] }); addToast('User deleted', 'success'); },
+    onSuccess: () => { invalidateUsers(); addToast('User permanently deleted', 'success'); },
   });
   const roleMutation = useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: string }) => api.put(`/users/${userId}/role`, { role }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['admin-users'] }); addToast('Role updated', 'success'); },
+    onSuccess: () => { invalidateUsers(); addToast('Role updated', 'success'); },
   });
 
   return (
@@ -75,9 +93,26 @@ export default function AdminUsersPage() {
       <div className="flex items-center justify-between animate-fade-in">
         <div>
           <h1 className="text-2xl font-bold text-[#1a1a2e]">User Management</h1>
-          <p className="text-gray-500 text-sm mt-1">{meta?.totalCount || 0} total users</p>
+          <p className="text-gray-500 text-sm mt-1">{meta?.totalCount || 0} users</p>
         </div>
         <Shield className="h-8 w-8 text-indigo-600" />
+      </div>
+
+      {/* Status Tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 animate-fade-in">
+        {TAB_CONFIG.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => { setStatusTab(tab.key); setPage(1); }}
+            className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+              statusTab === tab.key
+                ? 'bg-white text-[#1a1a2e] shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* Filters */}
@@ -134,38 +169,44 @@ export default function AdminUsersPage() {
               {/* Admin actions (don't show for self) */}
               {u.id !== user?.id && (
                 <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
-                  {/* Role selector */}
-                  <select
-                    value={u.role}
-                    onChange={e => roleMutation.mutate({ userId: u.id, role: e.target.value })}
-                    className="text-xs rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-300"
-                  >
-                    <option value="free">Free</option>
-                    <option value="member">Member</option>
-                    <option value="pro">Pro</option>
-                    <option value="founding_member">Founding Member</option>
-                    <option value="host">Host</option>
-                    {isSuperAdmin && <option value="admin">Admin</option>}
-                    {isSuperAdmin && <option value="super_admin">Super Admin</option>}
-                  </select>
-                  {u.status === 'active' ? (
+                  {statusTab === 'active' && (
                     <>
+                      {/* Role selector */}
+                      <select
+                        value={u.role}
+                        onChange={e => roleMutation.mutate({ userId: u.id, role: e.target.value })}
+                        className="text-xs rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 text-gray-700 focus:outline-none focus:ring-1 focus:ring-indigo-300"
+                      >
+                        <option value="free">Free</option>
+                        <option value="member">Member</option>
+                        <option value="pro">Pro</option>
+                        <option value="founding_member">Founding Member</option>
+                        <option value="host">Host</option>
+                        {isSuperAdmin && <option value="admin">Admin</option>}
+                        {isSuperAdmin && <option value="super_admin">Super Admin</option>}
+                      </select>
                       <Button size="sm" variant="ghost" onClick={() => suspendMutation.mutate(u.id)} className="!text-amber-600 !text-xs">
                         <UserX className="h-3 w-3 mr-1" /> Suspend
                       </Button>
-                      <Button size="sm" variant="ghost" onClick={() => { if (confirm('Ban this user?')) banMutation.mutate(u.id); }} className="!text-red-600 !text-xs">
+                      <Button size="sm" variant="ghost" onClick={() => { if (confirm('Ban this user? They will be moved to the Banned tab.')) banMutation.mutate(u.id); }} className="!text-red-600 !text-xs">
                         <Ban className="h-3 w-3 mr-1" /> Ban
                       </Button>
+                      <Button size="sm" variant="ghost" onClick={() => { if (confirm('Remove this user? They will be moved to the Removed tab and can be reactivated later.')) removeMutation.mutate(u.id); }} className="!text-orange-600 !text-xs">
+                        <UserX className="h-3 w-3 mr-1" /> Remove
+                      </Button>
                     </>
-                  ) : (
-                    <Button size="sm" variant="ghost" onClick={() => activateMutation.mutate(u.id)} className="!text-emerald-600 !text-xs">
-                      <UserCheck className="h-3 w-3 mr-1" /> Activate
-                    </Button>
                   )}
-                  {isSuperAdmin && (
-                    <Button size="sm" variant="ghost" onClick={() => { if (confirm('Permanently delete this user? This cannot be undone.')) deleteMutation.mutate(u.id); }} className="!text-red-600 !text-xs">
-                      <Trash2 className="h-3 w-3 mr-1" /> Delete
-                    </Button>
+                  {(statusTab === 'removed' || statusTab === 'banned') && (
+                    <>
+                      <Button size="sm" variant="ghost" onClick={() => { if (confirm('Reactivate this user? They will be moved back to the Active tab.')) activateMutation.mutate(u.id); }} className="!text-emerald-600 !text-xs">
+                        <RotateCcw className="h-3 w-3 mr-1" /> Reactivate
+                      </Button>
+                      {isSuperAdmin && (
+                        <Button size="sm" variant="ghost" onClick={() => { if (confirm('Permanently delete this user and all their data? This cannot be undone.')) deleteMutation.mutate(u.id); }} className="!text-red-600 !text-xs">
+                          <Trash2 className="h-3 w-3 mr-1" /> Delete Forever
+                        </Button>
+                      )}
+                    </>
                   )}
                 </div>
               )}
@@ -173,7 +214,9 @@ export default function AdminUsersPage() {
           ))}
           {users.length === 0 && (
             <Card>
-              <p className="text-gray-400 text-sm text-center py-4">No users found</p>
+              <p className="text-gray-400 text-sm text-center py-4">
+                {statusTab === 'active' ? 'No active users found' : statusTab === 'removed' ? 'No removed users' : 'No banned users'}
+              </p>
             </Card>
           )}
         </div>

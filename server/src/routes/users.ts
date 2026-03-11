@@ -33,6 +33,7 @@ const listUsersQuerySchema = z.object({
   page: z.coerce.number().int().positive().optional(),
   pageSize: z.coerce.number().int().positive().max(100).optional(),
   role: z.enum(['member', 'host', 'admin', 'super_admin', 'free', 'pro', 'founding_member']).optional(),
+  status: z.enum(['active', 'suspended', 'banned', 'deactivated']).optional(),
   search: z.string().max(100).optional(),
 });
 
@@ -115,11 +116,12 @@ router.get(
   validate(listUsersQuerySchema, 'query'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { page, pageSize, role, search } = req.query as Record<string, string>;
+      const { page, pageSize, role, status, search } = req.query as Record<string, string>;
       const result = await identityService.getUsers({
         page: page ? parseInt(page) : undefined,
         pageSize: pageSize ? parseInt(pageSize) : undefined,
         role: role as UserRole | undefined,
+        status: status as 'active' | 'suspended' | 'banned' | 'deactivated' | undefined,
         search,
       });
 
