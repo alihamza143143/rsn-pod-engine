@@ -131,6 +131,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 | T-067 | Fix Vercel deploy failure after T-066 | Completed | Copilot | Removed unused `Clock` import in Lobby.tsx causing TS6133 during Vercel build; verified Vercel-equivalent build passes |
 | T-068 | Fix session participant tracking, real-time status, join flow | Completed | Copilot | Fixed currentRound=0 default, server sends socket-connected users only, added sessionStatus/hostInLobby tracking, non-host can enter scheduled sessions, lobby shows appropriate state |
 | C1.1-P1P2 | Change 1.1 Phase 1+2: DB purge, auth whitelist, admin tabs | Completed | Copilot | Migration 009 purge, WHITELISTED_EMAILS bypass, status filter on GET /users, AdminUsersPage Active/Removed/Banned tabs |
+| T-069 | Invite modal: two clear paths (email + link) | Completed | Copilot | Pod + Session invite modals redesigned with Option 1 (Send Email) + Option 2 (Generate Link); email sends via Resend; context-aware toasts |
 
 ---
 
@@ -3041,3 +3042,36 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - ✅ Vite production build passes
 - Next immediate action:
   - Continue Change 1.1: Landing page design update, real-time broadcast system, received invites dashboard
+
+### 2026-03-12 — Entry (Migration 009 FK Fix)
+- Task ID: C1.1-P1P2-fix
+- Task Title: Fix migration 009 FK ordering for Render deploy
+- Status: **Completed**
+- What changed:
+  - Moved `DELETE FROM invites` before `DELETE FROM pods` in migration 009_purge_and_reset.sql. The `invites` table has a foreign key (`invites_pod_id_fkey`) referencing `pods(id)`, so pods cannot be deleted while invites still reference them.
+- Files touched:
+  - server/src/db/migrations/009_purge_and_reset.sql (reordered DELETE statements)
+- Decisions made:
+  - Correct FK-safe delete order: audit_log → encounter_history → ratings → matches → session_participants → sessions → invites → pod_members → pods → magic_links → refresh_tokens → user_subscriptions → user_entitlements
+- Next immediate action:
+  - Verify Render deploy succeeds after push
+
+### 2026-03-12 — Entry T-069
+- Task ID: T-069
+- Task Title: Invite modal: two clear paths (email + link)
+- Status: **Completed**
+- What changed:
+  1. **Pod invite modal** (PodDetailPage.tsx): Replaced single "Generate Invite Link" flow with two boxed options — "Option 1: Send Email Invite" (requires email, single-use, sends via Resend) and "Option 2: Generate Shareable Link" (no email, 10 uses, 7 days). Email button disabled until email entered. Context-aware toast: "Invite sent to X" vs "Invite link generated!".
+  2. **Session invite modal** (SessionDetailPage.tsx): Same two-option redesign applied. Mutation updated with maxUses=1 for email, maxUses=10 for link. Context-aware toasts.
+  3. **plan.md**: Updated invite flow description from "No system email delivery yet" to document both email send and shareable link paths.
+  4. **Backend already worked**: invite.service.ts already calls emailService.sendInviteEmail() when inviteeEmail is provided — no backend changes needed.
+- Files touched:
+  - client/src/features/pods/PodDetailPage.tsx (invite modal + mutation)
+  - client/src/features/sessions/SessionDetailPage.tsx (invite modal + mutation)
+  - plan.md (invite flow description)
+  - progress.md
+- Validation Results:
+  - ✅ 279 tests passing (250 server + 29 shared)
+  - ✅ tsc --noEmit clean (zero TS errors)
+- Next immediate action:
+  - Verify Render + Vercel deploy

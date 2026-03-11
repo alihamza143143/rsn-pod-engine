@@ -146,16 +146,21 @@ export default function PodDetailPage() {
       type: 'pod',
       podId,
       inviteeEmail: data.inviteeEmail || undefined,
-      maxUses: 10,
+      maxUses: data.inviteeEmail ? 1 : 10,
       expiresInHours: 168,
     }),
-    onSuccess: (res) => {
+    onSuccess: (res, variables) => {
       const code = res.data.data?.code;
       if (code) {
         const link = `${window.location.origin}/invite/${code}`;
         setInviteLink(link);
       }
-      addToast('Pod invite created!', 'success');
+      if (variables.inviteeEmail) {
+        addToast(`Invite sent to ${variables.inviteeEmail}`, 'success');
+        setInviteEmail('');
+      } else {
+        addToast('Invite link generated!', 'success');
+      }
     },
     onError: () => addToast('Failed to create invite', 'error'),
   });
@@ -319,27 +324,56 @@ export default function PodDetailPage() {
 
       {/* Invite Members Modal */}
       <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Invite Members to Pod">
-        <div className="space-y-4">
-          <p className="text-sm text-gray-500">Create an invite link that people can use to join this pod.</p>
-          <Input label="Invitee Email (optional)" type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="user@example.com" />
-          <Button onClick={() => createInviteMutation.mutate({ inviteeEmail: inviteEmail || undefined })} isLoading={createInviteMutation.isPending} className="w-full">
-            Generate Invite Link
-          </Button>
-          {inviteLink && (
-            <div className="mt-4 space-y-2">
-              <label className="block text-sm font-medium text-gray-600">Share this link:</label>
-              <div className="flex gap-2">
-                <input
-                  readOnly value={inviteLink}
-                  className="flex-1 rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm"
-                />
-                <Button variant="secondary" onClick={handleCopyLink}>
-                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                </Button>
+        <div className="space-y-5">
+          {/* Option 1: Send Email Invite */}
+          <div className="rounded-lg border border-gray-200 p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-[#1a1a2e]">Option 1 — Send Email Invite</h3>
+            <p className="text-xs text-gray-500">Enter their email and we'll send the invite directly.</p>
+            <Input label="Email Address" type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="user@example.com" />
+            <Button
+              onClick={() => createInviteMutation.mutate({ inviteeEmail: inviteEmail || undefined })}
+              isLoading={createInviteMutation.isPending}
+              disabled={!inviteEmail}
+              className="w-full"
+            >
+              <Mail className="h-4 w-4 mr-2" /> Send Invite Email
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="h-px flex-1 bg-gray-200" />
+            <span className="text-xs font-medium text-gray-400 uppercase">or</span>
+            <div className="h-px flex-1 bg-gray-200" />
+          </div>
+
+          {/* Option 2: Generate Shareable Link */}
+          <div className="rounded-lg border border-gray-200 p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-[#1a1a2e]">Option 2 — Generate Shareable Link</h3>
+            <p className="text-xs text-gray-500">Create a reusable link to share manually (up to 10 uses, expires in 7 days).</p>
+            {!inviteLink ? (
+              <Button
+                variant="secondary"
+                onClick={() => createInviteMutation.mutate({})}
+                isLoading={createInviteMutation.isPending}
+                className="w-full"
+              >
+                <Copy className="h-4 w-4 mr-2" /> Generate Link
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    readOnly value={inviteLink}
+                    className="flex-1 rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm"
+                  />
+                  <Button variant="secondary" onClick={handleCopyLink}>
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-400">Link copied or ready to share. Up to 10 uses, expires in 7 days.</p>
               </div>
-              <p className="text-xs text-gray-400">This link allows up to 10 uses and expires in 7 days.</p>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </Modal>
 

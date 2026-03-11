@@ -48,7 +48,7 @@ Remaining for M2:
 
 ### Important Design Decisions (March 8, 2026)
 - **Pod deletion = soft archive**: Pods are never hard-deleted. "Delete" sets status='archived'. Sessions/data preserved. Directors can reactivate.
-- **Invite flow**: Invites are **optional** for registration. Users can sign up freely. Invite codes can be used to track referrals and onboard specific users, but are not required. When used: User creates invite → gets shareable link → manually shares with recipient → recipient navigates to link → signs in → accepts. No system email delivery yet.
+- **Invite flow**: Invites are **optional** for registration. Users can sign up freely. Invite codes can be used to track referrals and onboard specific users, but are not required. Two invite paths: (1) **Send Email Invite** — enter email, backend sends invite email via Resend, single-use; (2) **Generate Shareable Link** — create multi-use link to share manually. Both options available from pod detail, session detail, and standalone invite page.
 - **Matching quality depends on profile data**: The matching engine uses interests, reasons, industry, company, languages. Without profile data, matches are random. Profile completion should be strongly encouraged or gated before session entry.
 - **Session creation permission**: Only `director` and `host` pod members can create sessions. Regular `member` cannot. Host is auto-registered as a participant when creating a session.
 - **Pod visibility**: All active pods are visible to all authenticated users via the "Browse All" tab. Users can self-join any active pod. "My Pods" filters show only pods where user is an active member. Creating a pod auto-adds creator as director.
