@@ -3190,3 +3190,20 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - ✅ Server + Client tsc --noEmit clean
   - ✅ 279 tests passing (15 suites)
   - ✅ All Change 1.2 items fully implemented
+
+---
+
+### C1.2-005 — Logo clickable on Login + RequestToJoin pages
+- Date: 2026-03-13
+- Status: Completed
+- Task: Section 15 of Change 1.2 — RSN logo must act as home button on ALL pages. The logo on LoginPage and RequestToJoinPage was a plain `<img>` with no click handler.
+- What changed:
+  - LoginPage.tsx: Added `cursor-pointer hover:opacity-80 transition-opacity` and `onClick={() => navigate('/welcome')}` to logo img
+  - RequestToJoinPage.tsx: Same fix — logo now navigates to `/welcome` on click
+  - AppLayout (desktop + mobile) and LandingPage already had clickable logos — no change needed
+- Files touched:
+  - client/src/features/auth/LoginPage.tsx
+  - client/src/features/auth/RequestToJoinPage.tsx
+- Validation Results:
+  - ✅ 250 tests passing (14 suites)
+  - ✅ Committed de3c53d, pushed to main
