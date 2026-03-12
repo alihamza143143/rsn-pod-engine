@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Calendar, Users, Play, Clock, UserPlus, UserMinus, Settings, CheckCircle, Pencil, Trash2, Mail, Copy, Check, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Calendar, Users, Play, Clock, UserPlus, UserMinus, Settings, CheckCircle, Pencil, Trash2, Mail, Copy, Check, AlertTriangle, ShieldAlert } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
@@ -33,6 +33,13 @@ export default function SessionDetailPage() {
     queryFn: () => api.get(`/sessions/${sessionId}`).then(r => r.data.data),
   });
 
+  // Fetch pod to check membership and visibility
+  const { data: pod } = useQuery({
+    queryKey: ['pod', session?.podId],
+    queryFn: () => api.get(`/pods/${session.podId}`).then(r => r.data.data),
+    enabled: !!session?.podId,
+  });
+
   const { data: participants } = useQuery({
     queryKey: ['session-participants', sessionId],
     queryFn: () => api.get(`/sessions/${sessionId}/participants`).then(r => r.data.data ?? []),
@@ -41,6 +48,10 @@ export default function SessionDetailPage() {
 
   const isHost = session?.hostUserId === user?.id || user?.role === 'admin' || user?.role === 'super_admin';
   const isRegistered = (participants || []).some((p: any) => p.userId === user?.id);
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const isMember = !!pod?.memberRole || isAdmin;
+  const isRestrictedPod = pod?.visibility === 'invite_only' || pod?.visibility === 'private';
+  const canRegister = isMember || !isRestrictedPod;
 
   const updateMutation = useMutation({
     mutationFn: (body: { title?: string; description?: string; scheduledAt?: string }) => api.put(`/sessions/${sessionId}`, body),
@@ -75,7 +86,10 @@ export default function SessionDetailPage() {
       qc.invalidateQueries({ queryKey: ['session', sessionId] });
       addToast('Registered for event!', 'success');
     },
-    onError: () => addToast('Failed to register', 'error'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.error?.message || 'Failed to register';
+      addToast(msg, 'error');
+    },
   });
 
   const createSessionInviteMutation = useMutation({
@@ -186,9 +200,20 @@ export default function SessionDetailPage() {
       {/* Actions */}
       <div className="flex flex-wrap gap-3 animate-fade-in-up stagger-1">
         {(session.status === 'scheduled' || session.status === 'lobby_open' || session.status === 'round_active' || session.status === 'round_rating' || session.status === 'round_transition') && !isRegistered && (
-          <Button onClick={() => registerMutation.mutate()} isLoading={registerMutation.isPending} className="btn-glow">
-            <UserPlus className="h-4 w-4 mr-2" /> {session.status === 'scheduled' ? 'Register' : 'Join Late'}
-          </Button>
+          canRegister ? (
+            <Button onClick={() => registerMutation.mutate()} isLoading={registerMutation.isPending} className="btn-glow">
+              <UserPlus className="h-4 w-4 mr-2" /> {session.status === 'scheduled' ? 'Register' : 'Join Late'}
+            </Button>
+          ) : (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm">
+              <ShieldAlert className="h-4 w-4 flex-shrink-0" />
+              <span>You must be a pod member to register.{' '}
+                <button onClick={() => navigate(`/pods/${session.podId}`)} className="underline font-medium hover:text-amber-900 transition-colors">
+                  Join Pod
+                </button>
+              </span>
+            </div>
+          )
         )}
         {isRegistered && session.status !== 'completed' && session.status !== 'cancelled' && (
           <>

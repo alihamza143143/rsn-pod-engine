@@ -3235,3 +3235,17 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
 - Validation Results:
   - ✅ 250 tests passing (14 suites)
   - Note: Code identifiers (imports, variable names, API routes, query keys, socket events) correctly left as "session" — only UI-facing text changed per doc Section 1
+
+---
+
+### C1.2-007 — Registration UX: descriptive errors + pod membership gate
+- Date: 2026-03-13
+- Status: Completed
+- What changed:
+  1. **Register error now shows server message**: Changed `registerMutation.onError` from generic "Failed to register" to extracting `err.response.data.error.message` — users now see the actual reason (e.g. "You must be a pod member to register for sessions in an invite-only pod")
+  2. **Pod membership gate on Register button**: Added a `useQuery` for the pod (using `session.podId`) to check `pod.memberRole` and `pod.visibility`. For invite_only/private pods where the user is NOT a member, the Register button is replaced with a "You must be a pod member to register. Join Pod" prompt with a link to the pod page. Admins/super_admins bypass this gate.
+  3. **New derived state**: `isAdmin`, `isMember`, `isRestrictedPod`, `canRegister` — cleanly separates the authorization logic
+- Files touched:
+  - client/src/features/sessions/SessionDetailPage.tsx
+- Validation Results:
+  - ✅ 250 tests passing (14 suites)
