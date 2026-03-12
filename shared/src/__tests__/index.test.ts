@@ -174,12 +174,16 @@ describe('DEFAULT_SESSION_CONFIG', () => {
     expect(keys).toContain('closingLobbyDurationSeconds');
     expect(keys).toContain('noShowTimeoutSeconds');
     expect(keys).toContain('maxParticipants');
+    expect(keys).toContain('timerVisibility');
   });
 
-  it('should all be positive numbers', () => {
-    for (const [, value] of Object.entries(DEFAULT_SESSION_CONFIG)) {
-      expect(typeof value).toBe('number');
-      expect(value).toBeGreaterThan(0);
+  it('should have positive numbers for numeric fields', () => {
+    for (const [key, value] of Object.entries(DEFAULT_SESSION_CONFIG)) {
+      if (typeof value === 'number') {
+        expect(value).toBeGreaterThan(0);
+      } else if (key === 'timerVisibility') {
+        expect(typeof value).toBe('string');
+      }
     }
   });
 });

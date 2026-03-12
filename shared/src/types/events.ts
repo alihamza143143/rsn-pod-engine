@@ -74,4 +74,7 @@ export interface ClientToServerEvents {
   'host:reassign': (data: { sessionId: string; participantId: string }) => void;
   'host:generate_matches': (data: { sessionId: string }) => void;
   'host:confirm_round': (data: { sessionId: string }) => void;
+  'host:swap_match': (data: { sessionId: string; userA: string; userB: string }) => void;
+  'host:exclude_participant': (data: { sessionId: string; userId: string }) => void;
+  'host:regenerate_matches': (data: { sessionId: string }) => void;
 }

@@ -416,6 +416,21 @@ export class MatchingEngineV1 implements IMatchingEngine {
           break;
         }
 
+        case 'inviter_invitee_block': {
+          // Avoid matching the inviter with the person they invited
+          const inviterInviteePairs = constraint.params.pairs as string[];
+          if (inviterInviteePairs) {
+            // Pairs format: ["inviterId:inviteeId", ...]
+            for (const pair of inviterInviteePairs) {
+              const [inviterId, inviteeId] = pair.split(':');
+              if (inviterId && inviteeId) {
+                exclusions.add(pairKey(inviterId, inviteeId));
+              }
+            }
+          }
+          break;
+        }
+
         default:
           // Custom constraints can be added later
           break;

@@ -72,6 +72,9 @@ export function initOrchestration(
     socket.on('host:reassign', (data) => handleHostReassign(socket, data));
     socket.on('host:generate_matches', (data) => handleHostGenerateMatches(socket, data));
     socket.on('host:confirm_round', (data) => handleHostConfirmRound(socket, data));
+    socket.on('host:swap_match', (data) => handleHostSwapMatch(socket, data));
+    socket.on('host:exclude_participant', (data) => handleHostExcludeFromRound(socket, data));
+    socket.on('host:regenerate_matches', (data) => handleHostRegenerateMatches(socket, data));
 
     socket.on('disconnect', () => handleDisconnect(socket));
   });
@@ -389,7 +392,7 @@ async function handleDisconnect(socket: Socket): Promise<void> {
         sessionId, userId, ParticipantStatus.DISCONNECTED
       ).catch(() => {}); // Swallow errors on disconnect cleanup
 
-      // If mid-round, notify partner that their match partner disconnected
+      // If mid-round, notify partner and attempt reassignment after timeout
       if (activeSession.status === SessionStatus.ROUND_ACTIVE) {
         try {
           const matches = await matchingService.getMatchesByRound(sessionId, activeSession.currentRound);
@@ -399,10 +402,42 @@ async function handleDisconnect(socket: Socket): Promise<void> {
           if (userMatch) {
             const partnerId = userMatch.participantAId === userId
               ? userMatch.participantBId : userMatch.participantAId;
+
+            // Notify partner with waiting message
             io.to(userRoom(partnerId)).emit('match:bye_round', {
               roundNumber: activeSession.currentRound,
-              reason: 'Your partner disconnected. Waiting for them to reconnect...',
+              reason: 'Your partner left the room. Please wait while we reassign you.',
             });
+
+            // After 15 seconds, if still disconnected, mark match as no_show
+            // and convert partner to bye round (return to lobby)
+            const disconnectRound = activeSession.currentRound;
+            const disconnectMatchId = userMatch.id;
+            setTimeout(async () => {
+              try {
+                // Check if user reconnected
+                const currentSession = activeSessions.get(sessionId);
+                if (!currentSession || currentSession.currentRound !== disconnectRound) return;
+                if (currentSession.presenceMap.has(userId)) return; // They reconnected
+
+                // Mark match as no_show
+                await query(
+                  `UPDATE matches SET status = 'no_show', ended_at = NOW() WHERE id = $1 AND status = 'active'`,
+                  [disconnectMatchId]
+                );
+
+                // Notify partner they're being returned to lobby
+                io.to(userRoom(partnerId)).emit('match:bye_round', {
+                  roundNumber: disconnectRound,
+                  reason: 'Your partner could not reconnect. You have a bye this round.',
+                });
+
+                logger.info({ sessionId, userId, partnerId, matchId: disconnectMatchId },
+                  'Partner disconnect timeout — match marked no_show, partner converted to bye');
+              } catch (err) {
+                logger.warn({ err, sessionId, userId }, 'Error in disconnect timeout handler');
+              }
+            }, 15000);
           }
         } catch (err) {
           logger.warn({ err, sessionId, userId }, 'Failed to notify partner of disconnect');
@@ -972,6 +1007,170 @@ async function handleHostConfirmRound(
     logger.error({ err }, 'Error confirming round');
     socket.emit('error', { code: 'CONFIRM_ROUND_FAILED', message: err.message });
   }
+}
+
+// ─── Host Swap Match (swap two participants between matches in preview) ──────
+
+async function handleHostSwapMatch(
+  socket: Socket,
+  data: { sessionId: string; userA: string; userB: string }
+): Promise<void> {
+  try {
+    if (!await verifyHost(socket, data.sessionId)) return;
+
+    const activeSession = activeSessions.get(data.sessionId);
+    if (!activeSession || !activeSession.pendingRoundNumber) {
+      socket.emit('error', { code: 'INVALID_STATE', message: 'No pending match preview to edit' });
+      return;
+    }
+
+    const roundNumber = activeSession.pendingRoundNumber;
+
+    // Swap the two users between their respective matches
+    // Find match containing userA and match containing userB
+    const matches = await matchingService.getMatchesByRound(data.sessionId, roundNumber);
+    const matchA = matches.find(m => m.participantAId === data.userA || m.participantBId === data.userA);
+    const matchB = matches.find(m => m.participantAId === data.userB || m.participantBId === data.userB);
+
+    if (!matchA || !matchB || matchA.id === matchB.id) {
+      socket.emit('error', { code: 'SWAP_FAILED', message: 'Cannot swap — participants must be in different matches' });
+      return;
+    }
+
+    // Perform the swap in DB
+    // In matchA, replace userA with userB; in matchB, replace userB with userA
+    const newMatchAPartnerA = matchA.participantAId === data.userA ? data.userB : matchA.participantAId;
+    const newMatchAPartnerB = matchA.participantBId === data.userA ? data.userB : matchA.participantBId;
+    const newMatchBPartnerA = matchB.participantAId === data.userB ? data.userA : matchB.participantAId;
+    const newMatchBPartnerB = matchB.participantBId === data.userB ? data.userA : matchB.participantBId;
+
+    // Ensure A < B ordering
+    const sortPair = (a: string, b: string) => a < b ? [a, b] : [b, a];
+    const [mAa, mAb] = sortPair(newMatchAPartnerA, newMatchAPartnerB);
+    const [mBa, mBb] = sortPair(newMatchBPartnerA, newMatchBPartnerB);
+
+    await query('UPDATE matches SET participant_a_id = $1, participant_b_id = $2 WHERE id = $3', [mAa, mAb, matchA.id]);
+    await query('UPDATE matches SET participant_a_id = $1, participant_b_id = $2 WHERE id = $3', [mBa, mBb, matchB.id]);
+
+    // Re-send updated preview
+    await sendMatchPreview(socket, data.sessionId, roundNumber);
+
+    logger.info({ sessionId: data.sessionId, userA: data.userA, userB: data.userB }, 'Host swapped match participants');
+  } catch (err: any) {
+    socket.emit('error', { code: 'SWAP_FAILED', message: err.message });
+  }
+}
+
+// ─── Host Exclude Participant from Round ────────────────────────────────────
+
+async function handleHostExcludeFromRound(
+  socket: Socket,
+  data: { sessionId: string; userId: string }
+): Promise<void> {
+  try {
+    if (!await verifyHost(socket, data.sessionId)) return;
+
+    const activeSession = activeSessions.get(data.sessionId);
+    if (!activeSession || !activeSession.pendingRoundNumber) {
+      socket.emit('error', { code: 'INVALID_STATE', message: 'No pending match preview to edit' });
+      return;
+    }
+
+    const roundNumber = activeSession.pendingRoundNumber;
+
+    // Find and delete the match containing this user
+    const matches = await matchingService.getMatchesByRound(data.sessionId, roundNumber);
+    const userMatch = matches.find(m => m.participantAId === data.userId || m.participantBId === data.userId);
+
+    if (userMatch) {
+      // Delete the match — the partner becomes a bye participant
+      await query('DELETE FROM matches WHERE id = $1', [userMatch.id]);
+    }
+
+    // Re-send updated preview
+    await sendMatchPreview(socket, data.sessionId, roundNumber);
+
+    logger.info({ sessionId: data.sessionId, excludedUser: data.userId }, 'Host excluded participant from round');
+  } catch (err: any) {
+    socket.emit('error', { code: 'EXCLUDE_FAILED', message: err.message });
+  }
+}
+
+// ─── Host Regenerate Matches ────────────────────────────────────────────────
+
+async function handleHostRegenerateMatches(
+  socket: Socket,
+  data: { sessionId: string }
+): Promise<void> {
+  try {
+    if (!await verifyHost(socket, data.sessionId)) return;
+
+    const activeSession = activeSessions.get(data.sessionId);
+    if (!activeSession || !activeSession.pendingRoundNumber) {
+      socket.emit('error', { code: 'INVALID_STATE', message: 'No pending match preview to regenerate' });
+      return;
+    }
+
+    const roundNumber = activeSession.pendingRoundNumber;
+
+    // Delete existing scheduled matches for this round
+    await query(
+      `DELETE FROM matches WHERE session_id = $1 AND round_number = $2 AND status = 'scheduled'`,
+      [data.sessionId, roundNumber]
+    );
+
+    // Re-generate
+    await matchingService.generateSingleRound(data.sessionId, roundNumber);
+
+    // Re-send preview
+    await sendMatchPreview(socket, data.sessionId, roundNumber);
+
+    logger.info({ sessionId: data.sessionId, roundNumber }, 'Host regenerated matches');
+  } catch (err: any) {
+    socket.emit('error', { code: 'REGENERATE_FAILED', message: err.message });
+  }
+}
+
+// ─── Helper: Send Match Preview to Host ─────────────────────────────────────
+
+async function sendMatchPreview(
+  socket: Socket,
+  sessionId: string,
+  roundNumber: number
+): Promise<void> {
+  const matches = await matchingService.getMatchesByRound(sessionId, roundNumber);
+
+  const allUserIds = new Set<string>();
+  for (const m of matches) {
+    allUserIds.add(m.participantAId);
+    allUserIds.add(m.participantBId);
+  }
+
+  const namesResult = await query<{ id: string; displayName: string }>(
+    `SELECT id, display_name AS "displayName" FROM users WHERE id = ANY($1)`,
+    [Array.from(allUserIds)]
+  );
+  const nameMap = new Map(namesResult.rows.map(r => [r.id, r.displayName || 'User']));
+
+  const matchPreview = matches.map(m => ({
+    participantA: { userId: m.participantAId, displayName: nameMap.get(m.participantAId) || 'User' },
+    participantB: { userId: m.participantBId, displayName: nameMap.get(m.participantBId) || 'User' },
+  }));
+
+  const allParticipants = await query<{ user_id: string }>(
+    `SELECT user_id FROM session_participants WHERE session_id = $1 AND status IN ('in_lobby', 'checked_in', 'registered')`,
+    [sessionId]
+  );
+  const matchedIds = new Set(matches.flatMap(m => [m.participantAId, m.participantBId]));
+  const byeParticipants = allParticipants.rows
+    .filter(p => !matchedIds.has(p.user_id))
+    .map(p => ({ userId: p.user_id, displayName: nameMap.get(p.user_id) || 'User' }));
+
+  socket.emit('host:match_preview', {
+    roundNumber,
+    matches: matchPreview,
+    byeParticipants,
+  });
 }
 
 // ═════════════════════════════════════════════════════════════════════════════

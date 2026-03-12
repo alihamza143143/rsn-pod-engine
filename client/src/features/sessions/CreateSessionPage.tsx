@@ -149,6 +149,7 @@ export default function CreateSessionPage() {
               <select {...register('timerVisibility')} className={selectClass}>
                 <option value="always_visible">Always visible</option>
                 <option value="hidden">Hidden</option>
+                <option value="last_10s">Show last 10 seconds</option>
                 <option value="last_30s">Show last 30 seconds</option>
                 <option value="last_60s">Show last 60 seconds</option>
                 <option value="last_120s">Show last 2 minutes</option>

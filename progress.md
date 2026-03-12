@@ -43,8 +43,8 @@ Purpose: Persistent execution history and current state, independent of chat mem
 - Active Phase: Implementation
 - Active Milestone: **Change 1.0 Complete — Font, Logo, Landing, Login, Admin, Role Tiers**
 - Current Session: Change 1.0 implementation (T-051 through T-055)
-- Overall Build Status: Shared + Client + Server production builds passing, 279/279 tests passing (250 server + 29 shared)
-- Last Updated: March 12, 2026 (Change 1.1 Phase 1+2)
+- Overall Build Status: Shared + Client + Server production builds passing, 279/279 tests passing (15 suites)
+- Last Updated: March 13, 2026 (Change 1.2 complete — all items from Stefan's March 12 test review)
 
 ---
 
@@ -3154,3 +3154,39 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - ✅ Server tsc --noEmit clean
   - ✅ 250 tests passing (14 suites)
   - ✅ All Changes 1.2 phases (P1–P6) implemented
+
+### 2026-03-13 — Entry C1.2-004
+- Task ID: C1.2-004
+- Task Title: Change 1.2 — Complete remaining items from PDF
+- Status: **Completed**
+- What changed:
+  - **Inviter-invitee matching avoidance:** Added `inviter_invitee_block` hard constraint type to matching engine. Matching service now queries invites table for session inviter-invitee pairs and passes them as exclusions. Prevents matching someone with the person who invited them.
+  - **Host always sees timer:** VideoRoom now accepts `isHost` prop. Timer is always visible to host regardless of `timerVisibility` setting (even when set to `hidden`).
+  - **Timer last_10s mode:** Added `last_10s` to `TimerVisibility` type. Added option in CreateSessionPage dropdown. VideoRoom handles the 10-second threshold.
+  - **Match preview manual controls:** Host can now:
+    - Click participant names to swap them between matches
+    - Click exclude icon to remove a participant from the round
+    - Click "Re-match" to regenerate all matches for the round
+    - Added server handlers: `host:swap_match`, `host:exclude_participant`, `host:regenerate_matches`
+    - Added `sendMatchPreview` helper to avoid code duplication
+  - **Disconnect handling improvement:** When a participant disconnects mid-round, the remaining partner gets a "Please wait while we reassign you" message. After 15 seconds if the disconnected user hasn't reconnected, the match is marked `no_show` and the partner is notified with a bye round message.
+  - **Participant visibility for host:** Added `HostParticipantPanel` component to Lobby — collapsible panel showing all connected participants by name, visible only to the host/admin.
+  - **Test fix:** Updated `DEFAULT_SESSION_CONFIG` test to handle `timerVisibility` string field correctly.
+- Files touched:
+  - shared/src/types/match.ts (inviter_invitee_block constraint type)
+  - shared/src/types/session.ts (last_10s added to TimerVisibility)
+  - shared/src/types/events.ts (host:swap_match, host:exclude_participant, host:regenerate_matches)
+  - shared/src/__tests__/index.test.ts (fix DEFAULT_SESSION_CONFIG test for timerVisibility)
+  - server/src/services/matching/matching.engine.ts (inviter_invitee_block handler)
+  - server/src/services/matching/matching.service.ts (query invites for inviter-invitee pairs)
+  - server/src/services/orchestration/orchestration.service.ts (swap/exclude/regenerate handlers, sendMatchPreview helper, disconnect timeout with auto-bye)
+  - client/src/stores/sessionStore.ts (last_10s in type union)
+  - client/src/features/live/VideoRoom.tsx (isHost prop, host always sees timer, last_10s)
+  - client/src/features/live/LiveSessionPage.tsx (pass isHost to VideoRoom)
+  - client/src/features/live/HostControls.tsx (swap, exclude, re-run UI in match preview)
+  - client/src/features/live/Lobby.tsx (HostParticipantPanel component)
+  - client/src/features/sessions/CreateSessionPage.tsx (last_10s option)
+- Validation Results:
+  - ✅ Server + Client tsc --noEmit clean
+  - ✅ 279 tests passing (15 suites)
+  - ✅ All Change 1.2 items fully implemented

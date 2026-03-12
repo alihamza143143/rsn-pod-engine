@@ -29,7 +29,7 @@ export enum SegmentType {
   TRANSITION = 'transition',
 }
 
-export type TimerVisibility = 'hidden' | 'always_visible' | 'last_30s' | 'last_60s' | 'last_120s';
+export type TimerVisibility = 'hidden' | 'always_visible' | 'last_10s' | 'last_30s' | 'last_60s' | 'last_120s';
 
 export interface SessionConfig {
   numberOfRounds: number;

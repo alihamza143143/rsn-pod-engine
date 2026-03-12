@@ -1,4 +1,5 @@
-import { Users, Loader2, VideoOff, Sparkles } from 'lucide-react';
+import { Users, Loader2, VideoOff, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState } from 'react';
 import Card from '@/components/ui/Card';
 import { useSessionStore } from '@/stores/sessionStore';
 import {
@@ -129,6 +130,44 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
   );
 }
 
+function HostParticipantPanel() {
+  const { participants } = useSessionStore();
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <div className="w-full max-w-4xl mx-auto bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full flex items-center justify-between px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Users className="h-4 w-4 text-indigo-500" />
+          <span>Participants ({participants.length})</span>
+        </div>
+        {expanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+      </button>
+      {expanded && (
+        <div className="border-t border-gray-100 px-4 py-2 max-h-48 overflow-y-auto">
+          {participants.length === 0 ? (
+            <p className="text-xs text-gray-400 text-center py-3">No participants yet</p>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
+              {participants.map(p => (
+                <div key={p.userId} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50">
+                  <div className="h-6 w-6 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-500 text-[10px] font-bold shrink-0">
+                    {(p.displayName || 'U').charAt(0).toUpperCase()}
+                  </div>
+                  <span className="text-xs text-gray-700 truncate">{p.displayName || 'User'}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Lobby({ isHost = false }: { isHost?: boolean }) {
   const { participants, lobbyToken, lobbyUrl, sessionStatus } = useSessionStore();
 
@@ -137,6 +176,7 @@ export default function Lobby({ isHost = false }: { isHost?: boolean }) {
     return (
       <div className="flex-1 flex flex-col items-center p-6 gap-6 overflow-auto bg-gradient-to-b from-white to-gray-50/50">
         <LobbyStatusOverlay isHost={isHost} />
+        {isHost && <HostParticipantPanel />}
         <LiveKitRoom
           token={lobbyToken}
           serverUrl={lobbyUrl}
@@ -157,6 +197,11 @@ export default function Lobby({ isHost = false }: { isHost?: boolean }) {
     <div className="flex-1 flex items-center justify-center p-6 bg-gradient-to-b from-white to-gray-50/50">
       <Card className="max-w-lg w-full text-center">
         <LobbyStatusOverlay isHost={isHost} />
+        {isHost && (
+          <div className="mt-4">
+            <HostParticipantPanel />
+          </div>
+        )}
         <div className="mt-6 flex flex-wrap gap-2 justify-center">
           {participants.map(p => (
             <span key={p.userId} className="inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 text-xs text-indigo-600 font-medium">

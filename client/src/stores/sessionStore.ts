@@ -43,7 +43,7 @@ interface SessionLiveState {
   lobbyToken: string | null;
   lobbyUrl: string | null;
   lobbyRoomId: string | null;
-  timerVisibility: 'hidden' | 'always_visible' | 'last_30s' | 'last_60s' | 'last_120s';
+  timerVisibility: 'hidden' | 'always_visible' | 'last_10s' | 'last_30s' | 'last_60s' | 'last_120s';
   matchPreview: {
     roundNumber: number;
     matches: { participantA: { userId: string; displayName: string }; participantB: { userId: string; displayName: string } }[];
@@ -70,7 +70,7 @@ interface SessionLiveState {
   setLiveKitToken: (token: string | null, url?: string | null) => void;
   setRoomId: (roomId: string | null) => void;
   setLobbyToken: (token: string | null, url?: string | null, roomId?: string | null) => void;
-  setTimerVisibility: (v: 'hidden' | 'always_visible' | 'last_30s' | 'last_60s' | 'last_120s') => void;
+  setTimerVisibility: (v: 'hidden' | 'always_visible' | 'last_10s' | 'last_30s' | 'last_60s' | 'last_120s') => void;
   setMatchPreview: (preview: SessionLiveState['matchPreview']) => void;
   reset: () => void;
 }

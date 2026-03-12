@@ -116,7 +116,7 @@ function MediaControls() {
   );
 }
 
-export default function VideoRoom() {
+export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
   const { timerSeconds, currentRound, totalRounds, isByeRound, liveKitToken, livekitUrl, currentRoomId, transitionStatus, timerVisibility } = useSessionStore();
   const { setLiveKitToken } = useSessionStore();
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -233,12 +233,14 @@ export default function VideoRoom() {
             <MediaControls />
           </div>
           {(() => {
-            const showTimer =
+            // Host always sees the timer regardless of visibility setting
+            const showTimer = isHost ||
               timerVisibility === 'always_visible' ||
+              (timerVisibility === 'last_10s' && timerSeconds <= 10) ||
               (timerVisibility === 'last_30s' && timerSeconds <= 30) ||
               (timerVisibility === 'last_60s' && timerSeconds <= 60) ||
               (timerVisibility === 'last_120s' && timerSeconds <= 120);
-            if (timerVisibility === 'hidden') return null;
+            if (timerVisibility === 'hidden' && !isHost) return null;
             if (!showTimer) return (
               <div className="flex items-center gap-2 text-gray-400">
                 <Clock className="h-4 w-4" />

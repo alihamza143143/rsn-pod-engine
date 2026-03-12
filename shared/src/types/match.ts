@@ -117,7 +117,7 @@ export interface MatchingWeights {
 }
 
 export interface HardConstraint {
-  type: 'exclude_pair' | 'same_company_block' | 'language_required' | 'custom';
+  type: 'exclude_pair' | 'same_company_block' | 'language_required' | 'inviter_invitee_block' | 'custom';
   params: Record<string, string | string[]>;
 }
 

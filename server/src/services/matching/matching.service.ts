@@ -116,9 +116,23 @@ export async function generateSingleRound(
     excludedResult.rows.map((r) => pairKey(r.participant_a_id, r.participant_b_id))
   );
 
+  // Build hard constraints: inviter-invitee avoidance
+  const inviterInviteeResult = await query<{ inviter_id: string; accepted_by_user_id: string }>(
+    `SELECT inviter_id, accepted_by_user_id FROM invites
+     WHERE session_id = $1 AND accepted_by_user_id IS NOT NULL AND status = 'accepted'`,
+    [sessionId]
+  );
+  const inviterInviteePairs = inviterInviteeResult.rows
+    .filter(r => r.inviter_id && r.accepted_by_user_id)
+    .map(r => `${r.inviter_id}:${r.accepted_by_user_id}`);
+
+  const hardConstraints = inviterInviteePairs.length > 0
+    ? [{ type: 'inviter_invitee_block' as const, params: { pairs: inviterInviteePairs } }]
+    : [];
+
   const config: MatchingConfig = {
     weights: DEFAULT_WEIGHTS,
-    hardConstraints: [],
+    hardConstraints,
     numberOfRounds: sessionConfig.numberOfRounds,
     avoidDuplicates: true,
     globalOptimize: false,
