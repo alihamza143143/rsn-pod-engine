@@ -10,12 +10,12 @@ const steps = [
   {
     num: '02',
     title: 'Join a Pod',
-    desc: 'Pods are curated groups built around a shared interest, industry, or purpose. Browse open pods or create your own. Every session runs inside a pod.',
+    desc: 'Pods are curated groups built around a shared interest, industry, or purpose. Browse open pods or create your own. Every event runs inside a pod.',
   },
   {
     num: '03',
-    title: 'Enter a Live Session',
-    desc: 'When a session starts, you enter the lobby. See who else is here. The host kicks off the rounds and the matching engine does the rest.',
+    title: 'Enter a Live Event',
+    desc: 'When an event starts, you enter the lobby. See who else is here. The host kicks off the rounds and the matching engine does the rest.',
   },
   {
     num: '04',

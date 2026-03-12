@@ -77,7 +77,7 @@ export default function SettingsPage() {
           <Toggle
             enabled={sessionReminders}
             onToggle={() => setSessionReminders(!sessionReminders)}
-            label="Session reminders"
+            label="Event reminders"
             description="Get notified before upcoming events"
           />
           <Toggle

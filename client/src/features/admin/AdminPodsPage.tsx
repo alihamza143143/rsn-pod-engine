@@ -73,7 +73,7 @@ export default function AdminPodsPage() {
                 </div>
                 <p className="text-sm text-gray-500">{pod.description || 'No description'}</p>
                 <p className="text-xs text-gray-400 mt-1">
-                  Members: {pod.memberCount || '—'} · Sessions: {pod.sessionCount || '—'} · Type: {pod.type}
+                  Members: {pod.memberCount || '—'} · Events: {pod.sessionCount || '—'} · Type: {pod.type}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -90,7 +90,7 @@ export default function AdminPodsPage() {
                   <Button
                     size="sm"
                     variant="danger"
-                    onClick={() => { if (confirm('PERMANENTLY delete this pod and ALL its sessions, matches, and data? This cannot be undone.')) hardDeleteMutation.mutate(pod.id); }}
+                    onClick={() => { if (confirm('PERMANENTLY delete this pod and ALL its events, matches, and data? This cannot be undone.')) hardDeleteMutation.mutate(pod.id); }}
                   >
                     <Trash2 className="h-3.5 w-3.5 mr-1" /> Delete Forever
                   </Button>

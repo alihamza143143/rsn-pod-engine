@@ -22,7 +22,7 @@ const REASONS = [
   '"The simplicity is the point. No gimmicks, no gamification — just conversations."',
   '"Every round felt like it mattered."',
   '"I appreciate that it\'s not trying to be social media. It\'s trying to be useful."',
-  '"I joined one session and immediately knew I\'d be back."',
+  '"I joined one event and immediately knew I\'d be back."',
   '"The quality of people in the room was remarkable."',
   '"Speed networking always felt gimmicky to me. RSN made it feel intentional."',
   '"It\'s raw. It\'s real. It\'s refreshingly human."',

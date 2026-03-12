@@ -3207,3 +3207,31 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
 - Validation Results:
   - ✅ 250 tests passing (14 suites)
   - ✅ Committed de3c53d, pushed to main
+
+---
+
+### C1.2-006 — Complete Session→Event terminology sweep (missed instances)
+- Date: 2026-03-13
+- Status: Completed
+- Task: Deep audit found 9 more user-facing "Session" strings that were missed in the initial rename. All changed to "Event".
+- What changed:
+  - CreateInviteModal.tsx: "Session Invite" → "Event Invite", "Session" label → "Event", "Select session" → "Select event", validation msg → "Select an event"
+  - InvitesPage.tsx: TYPE_CONFIG "Session Invite" → "Event Invite"
+  - AdminPodsPage.tsx: "Sessions:" → "Events:", "ALL its sessions" → "ALL its events"
+  - SupportPage.tsx: "during a session" → "during an event"
+  - ReasonsPage.tsx: "one session" → "one event"
+  - HowItWorksPage.tsx: "Enter a Live Session" → "Enter a Live Event", "When a session starts" → "When an event starts", "Every session runs" → "Every event runs"
+  - LandingPage.tsx: "sign up for a session" → "sign up for an event"
+  - SettingsPage.tsx: "Session reminders" → "Event reminders"
+- Files touched:
+  - client/src/features/invites/CreateInviteModal.tsx
+  - client/src/features/invites/InvitesPage.tsx
+  - client/src/features/admin/AdminPodsPage.tsx
+  - client/src/features/support/SupportPage.tsx
+  - client/src/features/public/ReasonsPage.tsx
+  - client/src/features/public/HowItWorksPage.tsx
+  - client/src/features/public/LandingPage.tsx
+  - client/src/features/settings/SettingsPage.tsx
+- Validation Results:
+  - ✅ 250 tests passing (14 suites)
+  - Note: Code identifiers (imports, variable names, API routes, query keys, socket events) correctly left as "session" — only UI-facing text changed per doc Section 1

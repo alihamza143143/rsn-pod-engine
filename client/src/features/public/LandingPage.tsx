@@ -24,7 +24,7 @@ const WHO_ITS_FOR = [
 ];
 
 const HOW_STEPS = [
-  { num: '01', title: 'You sign up for a session.', desc: '' },
+  { num: '01', title: 'You sign up for an event.', desc: '' },
   { num: '02', title: 'You join a live call.', desc: '' },
   { num: '03', title: 'You meet five people in focused 8-minute conversations.', desc: '' },
 ];

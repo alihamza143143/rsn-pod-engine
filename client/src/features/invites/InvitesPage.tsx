@@ -12,7 +12,7 @@ import api from '@/lib/api';
 
 const TYPE_CONFIG: Record<string, { label: string; icon: typeof Users; variant: 'info' | 'warning' | 'default' }> = {
   pod: { label: 'Pod Invite', icon: Users, variant: 'info' },
-  session: { label: 'Session Invite', icon: Calendar, variant: 'warning' },
+  session: { label: 'Event Invite', icon: Calendar, variant: 'warning' },
   platform: { label: 'Platform Invite', icon: Globe, variant: 'default' },
 };
 

@@ -9,7 +9,7 @@ const faqs = [
   { q: 'How do I join a pod?', a: 'Go to the Pods page, browse available pods, and click "Join" on one that interests you. Or create your own pod.' },
   { q: 'How does matching work?', a: 'During live events, our matching engine pairs you with other participants for 1:1 video conversations. Each round, you get a new partner.' },
   { q: 'What is the unlock system?', a: 'Invite others to RSN. Each accepted invite unlocks more pod slots. 1 invite = 1 pod, 3 invites = 3 pods.' },
-  { q: 'What if someone is selling during a session?', a: 'RSN has a strict no-selling policy. Report the user and they\'ll receive a strike. Three strikes = permanent ban.' },
+  { q: 'What if someone is selling during an event?', a: 'RSN has a strict no-selling policy. Report the user and they\'ll receive a strike. Three strikes = permanent ban.' },
   { q: 'How do I become a host?', a: 'Hosts are assigned by admins. Contact support if you\'d like to host events for your community.' },
 ];
 

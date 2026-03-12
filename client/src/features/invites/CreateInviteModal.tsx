@@ -95,7 +95,7 @@ export default function CreateInviteModal({ open, onClose }: Props) {
             className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#1a1a2e]"
           >
             <option value="pod">Pod Invite</option>
-            <option value="session">Session Invite</option>
+            <option value="session">Event Invite</option>
             <option value="platform">Platform Invite</option>
           </select>
         </div>
@@ -114,12 +114,12 @@ export default function CreateInviteModal({ open, onClose }: Props) {
         )}
         {inviteType === 'session' && (
           <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1.5">Session</label>
+            <label className="block text-sm font-medium text-gray-600 mb-1.5">Event</label>
             <select
-              {...register('sessionId', { required: inviteType === 'session' ? 'Select a session' : false })}
+              {...register('sessionId', { required: inviteType === 'session' ? 'Select an event' : false })}
               className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#1a1a2e]"
             >
-              <option value="">Select session</option>
+              <option value="">Select event</option>
               {(sessions || []).map((s: any) => <option key={s.id} value={s.id}>{s.title}</option>)}
             </select>
             {errors.sessionId && <p className="text-xs text-red-400 mt-1">{errors.sessionId.message}</p>}
