@@ -3266,3 +3266,24 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - server/src/services/orchestration/orchestration.service.ts
 - Validation Results:
   - ✅ 250 tests passing (14 suites)
+
+---
+
+### C1.2-009 — Host lobby UX, lobby audio, email terminology sweep
+- Date: 2026-03-13
+- Status: Completed
+- What changed:
+  1. **Host lobby message**: Host now sees "Lobby is open — use Match People below when ready" instead of "Preparing your first match..."
+  2. **Participant count excludes host**: Lobby and HostControls show "X participants + host" instead of counting host as a participant
+  3. **Lobby audio enabled**: LiveKitRoom audio turned on. Added `LobbyMediaControls` component — host is unmuted by default, participants auto-muted on join, everyone can toggle their own mic
+  4. **Email "Session Recap" → "Event Recap"**: Fixed in HTML template and plain text fallback
+  5. **Email invite label**: "a session" → "an event" in invite email type label
+  6. **Approval email**: "sign up for a session" → "sign up for an event"
+  7. **Host excluded from recap emails**: Host didn't participate in rounds so their stats would be empty — excluded from the recipient list
+- Files touched:
+  - client/src/features/live/Lobby.tsx
+  - client/src/features/live/HostControls.tsx
+  - server/src/services/email/email.service.ts
+  - server/src/services/orchestration/orchestration.service.ts
+- Validation Results:
+  - ✅ 250 tests passing (14 suites)

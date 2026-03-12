@@ -207,7 +207,7 @@ export default function HostControls({ sessionId }: Props) {
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 text-sm text-gray-500">
               <Users className="h-3.5 w-3.5" />
-              <span>{participants.length}</span>
+              <span>{Math.max(0, participants.length - 1)}</span>
             </div>
             {isInRound && (
               <div className="flex items-center gap-1.5">

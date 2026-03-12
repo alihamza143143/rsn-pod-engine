@@ -1479,18 +1479,21 @@ async function completeSession(sessionId: string): Promise<void> {
 async function sendRecapEmails(sessionId: string): Promise<void> {
   const { config: appConfig } = await import('../../config');
 
-  const sessionResult = await query<{ title: string }>(
-    `SELECT title FROM sessions WHERE id = $1`, [sessionId]
+  const sessionResult = await query<{ title: string; hostUserId: string }>(
+    `SELECT title, host_user_id AS "hostUserId" FROM sessions WHERE id = $1`, [sessionId]
   );
   if (sessionResult.rows.length === 0) return;
   const sessionTitle = sessionResult.rows[0].title;
+  const hostUserId = sessionResult.rows[0].hostUserId;
 
+  // Exclude host — they manage the event from the lobby, so their stats would be empty
   const participantsResult = await query<{ email: string; displayName: string; userId: string }>(
     `SELECT u.email, u.display_name AS "displayName", u.id AS "userId"
      FROM session_participants sp
      JOIN users u ON u.id = sp.user_id
-     WHERE sp.session_id = $1 AND sp.status != 'removed'`,
-    [sessionId]
+     WHERE sp.session_id = $1 AND sp.status != 'removed'
+       AND sp.user_id != $2`,
+    [sessionId, hostUserId]
   );
 
   for (const p of participantsResult.rows) {

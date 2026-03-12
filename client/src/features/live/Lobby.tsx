@@ -1,5 +1,5 @@
-import { Users, Loader2, VideoOff, Sparkles, ChevronDown, ChevronUp } from 'lucide-react';
-import { useState } from 'react';
+import { Users, Loader2, VideoOff, Sparkles, ChevronDown, ChevronUp, Mic, MicOff } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
 import Card from '@/components/ui/Card';
 import { useSessionStore } from '@/stores/sessionStore';
 import {
@@ -7,6 +7,7 @@ import {
   VideoTrack,
   useTracks,
   useParticipants,
+  useLocalParticipant,
   RoomAudioRenderer,
 } from '@livekit/components-react';
 import { isTrackReference } from '@livekit/components-core';
@@ -63,6 +64,40 @@ function LobbyMosaic() {
   );
 }
 
+function LobbyMediaControls({ isHost }: { isHost: boolean }) {
+  const { localParticipant } = useLocalParticipant();
+  const [micEnabled, setMicEnabled] = useState(isHost); // Host unmuted by default, others muted
+
+  // Auto-mute participants (not host) on mount
+  useEffect(() => {
+    if (!isHost) {
+      localParticipant.setMicrophoneEnabled(false);
+      setMicEnabled(false);
+    }
+  }, [isHost, localParticipant]);
+
+  const toggleMic = useCallback(async () => {
+    await localParticipant.setMicrophoneEnabled(!micEnabled);
+    setMicEnabled(!micEnabled);
+  }, [localParticipant, micEnabled]);
+
+  return (
+    <div className="flex items-center gap-2">
+      <button
+        onClick={toggleMic}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+          micEnabled
+            ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            : 'bg-red-50 text-red-500 hover:bg-red-100'
+        }`}
+      >
+        {micEnabled ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5" />}
+        {micEnabled ? 'Mute' : 'Unmute'}
+      </button>
+    </div>
+  );
+}
+
 function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
   const { participants, isByeRound, currentRound, totalRounds, transitionStatus, sessionStatus, hostInLobby } = useSessionStore();
 
@@ -91,7 +126,9 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
         <div className="flex flex-col items-center gap-2">
           <Loader2 className="h-5 w-5 text-indigo-600 animate-spin" />
           <h2 className="text-xl font-bold text-[#1a1a2e]">Event Starting</h2>
-          <p className="text-gray-500 text-sm">Preparing your first match...</p>
+          <p className="text-gray-500 text-sm">
+            {isHost ? 'Lobby is open — use Match People below when ready.' : 'Preparing your first match...'}
+          </p>
         </div>
       ) : isScheduled ? (
         // Session not yet started by host
@@ -124,7 +161,7 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
       )}
       <div className="flex items-center justify-center gap-2 text-gray-500 text-xs">
         <Users className="h-3.5 w-3.5" />
-        <span>{participants.length} participant{participants.length !== 1 ? 's' : ''} connected</span>
+        <span>{Math.max(0, participants.length - 1)} participant{participants.length - 1 !== 1 ? 's' : ''} + host connected</span>
       </div>
     </div>
   );
@@ -142,7 +179,7 @@ function HostParticipantPanel() {
       >
         <div className="flex items-center gap-2">
           <Users className="h-4 w-4 text-indigo-500" />
-          <span>Participants ({participants.length})</span>
+          <span>Participants ({Math.max(0, participants.length - 1)}) + Host</span>
         </div>
         {expanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
       </button>
@@ -182,10 +219,11 @@ export default function Lobby({ isHost = false }: { isHost?: boolean }) {
           serverUrl={lobbyUrl}
           connect={true}
           video={true}
-          audio={false}
+          audio={true}
           className="flex-1 w-full max-w-4xl"
         >
           <RoomAudioRenderer />
+          <LobbyMediaControls isHost={isHost} />
           <LobbyMosaic />
         </LiveKitRoom>
       </div>

@@ -143,13 +143,13 @@ export async function sendSessionRecapEmail(
       <div style="max-width:480px;margin:0 auto;padding:40px 24px;">
         <div style="background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);border-radius:16px;padding:40px 32px;border:1px solid rgba(99,102,241,0.2);">
           <h1 style="color:#818cf8;font-size:28px;font-weight:700;margin:0 0 8px 0;text-align:center;">RSN</h1>
-          <p style="color:#94a3b8;font-size:14px;margin:0 0 32px 0;text-align:center;">Session Recap</p>
+          <p style="color:#94a3b8;font-size:14px;margin:0 0 32px 0;text-align:center;">Event Recap</p>
 
           <p style="color:#e2e8f0;font-size:16px;line-height:1.6;margin:0 0 8px 0;">
             Hey ${displayName},
           </p>
           <p style="color:#e2e8f0;font-size:16px;line-height:1.6;margin:0 0 24px 0;">
-            Thanks for joining <strong>${data.sessionTitle}</strong>! Here's a quick summary:
+            Thanks for joining <strong>${data.sessionTitle}</strong>! Here's your event recap:
           </p>
 
           <div style="display:flex;gap:12px;margin:0 0 24px 0;">
@@ -184,7 +184,7 @@ export async function sendSessionRecapEmail(
   `;
 
   if (config.resendApiKey) {
-    const text = `Hey ${displayName},\n\nThanks for joining ${data.sessionTitle}!\n\nPeople Met: ${data.peopleMet}\nMutual Matches: ${data.mutualConnections}\nAvg Rating: ${data.avgRating.toFixed(1)}\n\nView Full Recap: ${data.recapUrl}\n\nRSN — Raw Speed Networking`;
+    const text = `Hey ${displayName},\n\nThanks for joining ${data.sessionTitle}! Here's your event recap:\n\nPeople Met: ${data.peopleMet}\nMutual Matches: ${data.mutualConnections}\nAvg Rating: ${data.avgRating.toFixed(1)}\n\nView Full Recap: ${data.recapUrl}\n\nRSN — Raw Speed Networking`;
     await sendEmail({ to, subject, html, text });
     return;
   }
@@ -205,7 +205,7 @@ export async function sendInviteEmail(
   to: string,
   data: InviteEmailData
 ): Promise<void> {
-  const typeLabel = data.type === 'pod' ? 'a pod' : data.type === 'session' ? 'a session' : 'the platform';
+  const typeLabel = data.type === 'pod' ? 'a pod' : data.type === 'session' ? 'an event' : 'the platform';
   const targetLine = data.targetName ? ` — <strong>${data.targetName}</strong>` : '';
 
   const subject = `${data.inviterName} invited you to RSN`;
@@ -347,7 +347,7 @@ export async function sendJoinRequestWelcomeEmail(
           </div>
 
           <p style="color:#4b5563;font-size:14px;line-height:1.6;margin:0;">
-            Your first step: sign up for a session and meet five people in focused 8-minute conversations.
+            Your first step: sign up for an event and meet five people in focused 8-minute conversations.
           </p>
         </div>
         <p style="color:#9ca3af;font-size:12px;text-align:center;margin:24px 0 0 0;">
@@ -359,7 +359,7 @@ export async function sendJoinRequestWelcomeEmail(
   `;
 
   if (config.resendApiKey) {
-    const text = `Hi ${fullName},\n\nGreat news — your request to join RSN has been approved!\n\nYou're now part of a community of founders, leaders, and company owners who connect with honesty and purpose. No pitching. No selling. Just real conversations.\n\nSign In to RSN: ${loginUrl}\n\nYour first step: sign up for a session and meet five people in focused 8-minute conversations.\n\nRSN — Fast, focused, and human.`;
+    const text = `Hi ${fullName},\n\nGreat news — your request to join RSN has been approved!\n\nYou're now part of a community of founders, leaders, and company owners who connect with honesty and purpose. No pitching. No selling. Just real conversations.\n\nSign In to RSN: ${loginUrl}\n\nYour first step: sign up for an event and meet five people in focused 8-minute conversations.\n\nRSN — Fast, focused, and human.`;
     await sendEmail({ to, subject, html, text });
     return;
   }
