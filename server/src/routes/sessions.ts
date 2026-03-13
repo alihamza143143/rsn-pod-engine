@@ -18,7 +18,7 @@ const createSessionSchema = z.object({
   podId: z.string().uuid(),
   title: z.string().min(1).max(300),
   description: z.string().max(2000).optional(),
-  scheduledAt: z.string().datetime(),
+  scheduledAt: z.string().datetime().nullable(),
   config: z.object({
     numberOfRounds: z.number().int().min(1).max(20).optional(),
     roundDurationSeconds: z.number().int().min(60).max(3600).optional(),
