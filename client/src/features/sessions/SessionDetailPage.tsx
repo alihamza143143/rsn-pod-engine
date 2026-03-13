@@ -130,7 +130,7 @@ export default function SessionDetailPage() {
   const { data: searchResults } = useQuery({
     queryKey: ['user-search', userSearch],
     queryFn: () => api.get(`/users/search?q=${encodeURIComponent(userSearch)}`).then(r => r.data.data ?? []),
-    enabled: userSearch.length >= 2 && isHost,
+    enabled: userSearch.length >= 1 && isHost,
   });
 
   const bulkInviteMutation = useMutation({

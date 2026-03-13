@@ -80,7 +80,7 @@ router.get(
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const q = (req.query.q as string || '').trim();
-      if (q.length < 2) {
+      if (q.length < 1) {
         res.json({ success: true, data: [] });
         return;
       }
