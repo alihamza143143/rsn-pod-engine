@@ -533,3 +533,13 @@ export async function generateLiveKitToken(sessionId: string, userId: string, ro
     throw new AppError(500, 'LIVEKIT_TOKEN_ERROR', 'Failed to generate video room access token');
   }
 }
+
+// ─── Check if user is a participant in a session ──────────────────────────
+
+export async function isSessionParticipant(sessionId: string, userId: string): Promise<boolean> {
+  const result = await query(
+    `SELECT 1 FROM session_participants WHERE session_id = $1 AND user_id = $2 AND status NOT IN ('removed', 'left')`,
+    [sessionId, userId]
+  );
+  return result.rows.length > 0;
+}

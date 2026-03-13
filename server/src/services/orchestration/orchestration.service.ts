@@ -1626,56 +1626,64 @@ async function sendRecapEmails(sessionId: string): Promise<void> {
     [sessionId, hostUserId]
   );
 
+  if (participantsResult.rows.length === 0) return;
+
+  // Batch query: unique partners met per user (handles pairs + trios correctly)
+  const peopleMetBatch = await query<{ userId: string; count: string }>(
+    `SELECT sub.user_id AS "userId", COUNT(DISTINCT sub.partner)::text AS count
+     FROM (
+       SELECT m.participant_a_id AS user_id,
+              unnest(ARRAY[m.participant_b_id, m.participant_c_id]) AS partner
+       FROM matches m WHERE m.session_id = $1 AND m.status = 'completed'
+       UNION ALL
+       SELECT m.participant_b_id AS user_id,
+              unnest(ARRAY[m.participant_a_id, m.participant_c_id]) AS partner
+       FROM matches m WHERE m.session_id = $1 AND m.status = 'completed'
+       UNION ALL
+       SELECT m.participant_c_id AS user_id,
+              unnest(ARRAY[m.participant_a_id, m.participant_b_id]) AS partner
+       FROM matches m WHERE m.session_id = $1 AND m.status = 'completed'
+         AND m.participant_c_id IS NOT NULL
+     ) sub
+     WHERE sub.partner IS NOT NULL AND sub.user_id IS NOT NULL
+     GROUP BY sub.user_id`,
+    [sessionId]
+  );
+  const peopleMetMap = new Map(peopleMetBatch.rows.map(r => [r.userId, parseInt(r.count, 10)]));
+
+  // Batch query: avg rating per user
+  const avgRatingBatch = await query<{ userId: string; avg: string }>(
+    `SELECT r.from_user_id AS "userId", COALESCE(AVG(r.quality_score), 0)::text AS avg
+     FROM ratings r
+     JOIN matches m ON m.id = r.match_id
+     WHERE m.session_id = $1
+     GROUP BY r.from_user_id`,
+    [sessionId]
+  );
+  const avgRatingMap = new Map(avgRatingBatch.rows.map(r => [r.userId, parseFloat(r.avg)]));
+
+  // Batch query: mutual connections per user
+  const mutualBatch = await query<{ userId: string; count: string }>(
+    `SELECT sub.user_id AS "userId", COUNT(*)::text AS count
+     FROM (
+       SELECT user_a_id AS user_id FROM encounter_history
+       WHERE mutual_meet_again = TRUE AND last_session_id = $1
+       UNION ALL
+       SELECT user_b_id AS user_id FROM encounter_history
+       WHERE mutual_meet_again = TRUE AND last_session_id = $1
+     ) sub
+     GROUP BY sub.user_id`,
+    [sessionId]
+  );
+  const mutualMap = new Map(mutualBatch.rows.map(r => [r.userId, parseInt(r.count, 10)]));
+
   for (const p of participantsResult.rows) {
     try {
-      // Per-user stats: unique partners met from completed matches
-      const peopleMetResult = await query<{ count: string }>(
-        `SELECT COUNT(DISTINCT partner)::text AS count FROM (
-           SELECT CASE
-             WHEN participant_a_id = $1 THEN participant_b_id
-             WHEN participant_b_id = $1 THEN participant_a_id
-           END AS partner
-           FROM matches WHERE session_id = $2 AND status = 'completed'
-             AND (participant_a_id = $1 OR participant_b_id = $1)
-           UNION ALL
-           SELECT CASE
-             WHEN participant_c_id = $1 THEN participant_a_id
-             ELSE participant_c_id
-           END AS partner
-           FROM matches WHERE session_id = $2 AND status = 'completed'
-             AND participant_c_id IS NOT NULL
-             AND (participant_a_id = $1 OR participant_b_id = $1 OR participant_c_id = $1)
-         ) sub WHERE partner IS NOT NULL`,
-        [p.userId, sessionId]
-      );
-      const peopleMet = parseInt(peopleMetResult.rows[0]?.count || '0', 10);
-
-      // Avg quality score from ratings submitted BY this user in this session
-      const avgRatingResult = await query<{ avg: string }>(
-        `SELECT COALESCE(AVG(r.quality_score), 0)::text AS avg
-         FROM ratings r
-         JOIN matches m ON m.id = r.match_id
-         WHERE r.from_user_id = $1 AND m.session_id = $2`,
-        [p.userId, sessionId]
-      );
-      const avgRating = parseFloat(avgRatingResult.rows[0]?.avg || '0');
-
-      // Mutual connections from encounter_history
-      const mutualResult = await query<{ count: string }>(
-        `SELECT COUNT(*)::text AS count
-         FROM encounter_history
-         WHERE mutual_meet_again = TRUE
-           AND last_session_id = $1
-           AND (user_a_id = $2 OR user_b_id = $2)`,
-        [sessionId, p.userId]
-      );
-      const mutualConnections = parseInt(mutualResult.rows[0]?.count || '0', 10);
-
       await emailService.sendSessionRecapEmail(p.email, p.displayName || 'there', {
         sessionTitle,
-        peopleMet,
-        mutualConnections,
-        avgRating,
+        peopleMet: peopleMetMap.get(p.userId) || 0,
+        mutualConnections: mutualMap.get(p.userId) || 0,
+        avgRating: avgRatingMap.get(p.userId) || 0,
         recapUrl: `${appConfig.clientUrl}/sessions/${sessionId}/recap`,
       });
     } catch (err) {

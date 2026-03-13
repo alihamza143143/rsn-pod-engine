@@ -3359,3 +3359,32 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - ✅ 250/250 tests passing (14 suites, 0 failures)
   - ✅ Client build passes (`tsc -b && vite build`)
 - Deployment note: Render deploy works. Vercel deploy fails — likely monorepo workspace resolution issue (no vercel.json present). Needs investigation with Vercel build logs.
+---
+
+### C1.2-012 — Security & Performance Audit Fixes
+- Date: 2026-03-13
+- Status: Completed
+- What changed:
+
+  **Security Fixes:**
+  1. **Rating schema: toUserId validation** — Added `toUserId: z.string().uuid().optional()` to zod schema so the field is properly validated instead of passing through unvalidated via `(input as any).toUserId`
+  2. **Session stats endpoint authorization** — `GET /ratings/sessions/:id/stats` now checks user is session host, participant, or admin before returning stats. Previously any authenticated user could view any session's stats.
+  3. **Pod members endpoint authorization** — `GET /pods/:id/members` now requires pod membership or admin role. Previously any authenticated user could list any pod's members.
+  4. **Export endpoint session-scoped auth** — `GET /ratings/sessions/:id/export` now verifies the requesting user is the specific session's host (not just any user with HOST role globally). Removed `requireRole` middleware in favor of session-specific check.
+
+  **Database Fix:**
+  5. **Migration 011: ON DELETE CASCADE** — New migration fixes the `participant_c_id` foreign key to include `ON DELETE CASCADE`, matching the pattern used by participant_a_id and participant_b_id. Without this, deleting a user who was participant C would fail with a referential integrity error.
+
+  **Performance + Logic Fixes:**
+  6. **Trio partner count bug** — Recap email query was missing partner B when user was participant C in a trio. Rewrote using `unnest(ARRAY[...])` to enumerate all partners correctly for all positions.
+  7. **N+1 query elimination** — Recap emails previously ran 3 queries per participant inside a loop (people met, avg rating, mutual connections). Replaced with 3 batch queries outside the loop using GROUP BY, storing results in Maps for O(1) lookup per participant.
+
+- Files touched:
+  - server/src/routes/ratings.ts (schema + auth fixes)
+  - server/src/routes/pods.ts (members endpoint auth)
+  - server/src/services/session/session.service.ts (added isSessionParticipant)
+  - server/src/services/orchestration/orchestration.service.ts (recap query rewrite)
+  - server/src/db/migrations/011_fix_participant_c_cascade.sql (new)
+- Validation Results:
+  - ✅ 250/250 tests passing (14 suites, 0 failures)
+  - ✅ TypeScript compiles cleanly (shared, server, client — zero errors)

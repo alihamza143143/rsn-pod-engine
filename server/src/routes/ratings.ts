@@ -4,9 +4,9 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { authenticate } from '../middleware/auth';
 import { validate } from '../middleware/validate';
-import { requireRole } from '../middleware/rbac';
 import { UserRole, hasRoleAtLeast } from '@rsn/shared';
 import * as ratingService from '../services/rating/rating.service';
+import * as sessionService from '../services/session/session.service';
 import { ForbiddenError } from '../middleware/errors';
 
 const router = Router();
@@ -18,6 +18,7 @@ const submitRatingSchema = z.object({
   qualityScore: z.number().int().min(1).max(5),
   meetAgain: z.boolean(),
   feedback: z.string().max(1000).optional(),
+  toUserId: z.string().uuid().optional(),
 });
 
 // ─── POST /ratings — Submit a rating for a match ────────────────────────────
@@ -111,9 +112,15 @@ router.get(
 router.get(
   '/sessions/:id/export',
   authenticate,
-  requireRole(UserRole.ADMIN, UserRole.HOST),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Only the session's own host or a system admin can export
+      if (!hasRoleAtLeast(req.user!.role, UserRole.ADMIN)) {
+        const session = await sessionService.getSessionById(req.params.id);
+        if (session.hostUserId !== req.user!.userId) {
+          throw new ForbiddenError('Only the session host or an admin can export session data');
+        }
+      }
       const exportData = await ratingService.exportSessionData(req.params.id);
       res.json({ success: true, data: exportData });
     } catch (err) {
@@ -129,6 +136,16 @@ router.get(
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Only participants, the session host, or admins can view stats
+      if (!hasRoleAtLeast(req.user!.role, UserRole.ADMIN)) {
+        const session = await sessionService.getSessionById(req.params.id);
+        if (session.hostUserId !== req.user!.userId) {
+          const isParticipant = await sessionService.isSessionParticipant(req.params.id, req.user!.userId);
+          if (!isParticipant) {
+            throw new ForbiddenError('You do not have access to this session');
+          }
+        }
+      }
       const stats = await ratingService.getSessionRatingStats(req.params.id);
       res.json({ success: true, data: stats });
     } catch (err) {

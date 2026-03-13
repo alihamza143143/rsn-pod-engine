@@ -167,6 +167,13 @@ router.get(
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Only pod members or admins can see the member list
+      if (!hasRoleAtLeast(req.user!.role, UserRole.ADMIN)) {
+        const requesterRole = await podService.getMemberRole(req.params.id, req.user!.userId);
+        if (!requesterRole) {
+          throw new ForbiddenError('You must be a pod member to view the member list');
+        }
+      }
       const members = await podService.getPodMembers(req.params.id);
       const response: ApiResponse = { success: true, data: members };
       res.json(response);
