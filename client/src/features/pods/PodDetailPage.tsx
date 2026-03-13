@@ -412,27 +412,28 @@ export default function PodDetailPage() {
             {podUserSearch.length >= 1 && podSearchResults && podSearchResults.length === 0 && (
               <p className="text-xs text-gray-400 text-center py-2">No users found matching "{podUserSearch}"</p>
             )}
-            {podUserSearch.length >= 1 && podSearchResults && podSearchResults.length > 0 &&
-              podSearchResults.every((u: any) => activeMembers.some((m: any) => m.userId === u.id)) && (
-              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center">
-                All matching users are already members of this pod.
-              </p>
-            )}
             {podSearchResults && podSearchResults.length > 0 && (
               <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
-                {podSearchResults.filter((u: any) => !activeMembers.some((m: any) => m.userId === u.id)).map((u: any) => {
-                  const isSelected = podSelectedUsers.some(s => s.id === u.id);
+                {podSearchResults.map((u: any) => {
+                  const isMember = activeMembers.some((m: any) => m.userId === u.id);
+                  const isSelected = !isMember && podSelectedUsers.some(s => s.id === u.id);
                   return (
                     <button
                       key={u.id}
                       type="button"
-                      onClick={() => setPodSelectedUsers(prev => isSelected ? prev.filter(s => s.id !== u.id) : [...prev, u])}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors ${isSelected ? 'bg-indigo-50' : ''}`}
+                      disabled={isMember}
+                      onClick={() => !isMember && setPodSelectedUsers(prev => isSelected ? prev.filter(s => s.id !== u.id) : [...prev, u])}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${isMember ? 'opacity-60 cursor-not-allowed bg-gray-50' : isSelected ? 'bg-indigo-50 hover:bg-indigo-100' : 'hover:bg-gray-50'}`}
                     >
-                      <div className={`h-4 w-4 rounded border ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'} flex items-center justify-center shrink-0`}>
-                        {isSelected && <Check className="h-3 w-3 text-white" />}
-                      </div>
-                      <span className="font-medium text-gray-800 truncate">{u.displayName || u.email}</span>
+                      {!isMember && (
+                        <div className={`h-4 w-4 rounded border ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'} flex items-center justify-center shrink-0`}>
+                          {isSelected && <Check className="h-3 w-3 text-white" />}
+                        </div>
+                      )}
+                      <span className={`font-medium truncate ${isMember ? 'text-gray-400' : 'text-gray-800'}`}>{u.displayName || u.email}</span>
+                      {isMember && (
+                        <span className="ml-auto text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 shrink-0">Already a member</span>
+                      )}
                     </button>
                   );
                 })}

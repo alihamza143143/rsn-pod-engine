@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import EmptyState from '@/components/ui/EmptyState';
 import { PageLoader } from '@/components/ui/Spinner';
+import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
+import { isAdmin } from '@/lib/utils';
 import api from '@/lib/api';
 
 const TYPE_CONFIG: Record<string, { label: string; icon: typeof Users; variant: 'info' | 'warning' | 'default' }> = {
@@ -18,7 +20,9 @@ const TYPE_CONFIG: Record<string, { label: string; icon: typeof Users; variant: 
 
 export default function InvitesPage() {
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const { user } = useAuthStore();
   const { addToast } = useToastStore();
+  const userIsAdmin = isAdmin(user?.role);
   const qc = useQueryClient();
 
   // Inline create form state
@@ -143,6 +147,18 @@ export default function InvitesPage() {
     onError: (err: any) => addToast(err?.message || 'Failed to send invites', 'error'),
   });
 
+  // Filter pods to only those where user is director/host (admins see all)
+  const invitablePods = (pods || []).filter((p: any) =>
+    userIsAdmin || p.memberRole === 'director' || p.memberRole === 'host'
+  );
+
+  // Filter sessions to only those user hosts + active/scheduled only (admins see all non-completed)
+  const invitableSessions = (sessions || []).filter((s: any) => {
+    const isActiveSession = s.status === 'scheduled' || s.status === 'active' || s.status === 'lobby';
+    if (!isActiveSession) return false;
+    return userIsAdmin || s.hostUserId === user?.id;
+  });
+
   const needsTarget = (inviteType === 'pod' && !podId) || (inviteType === 'session' && !sessionId);
 
   if (isLoading) return <PageLoader />;
@@ -179,7 +195,7 @@ export default function InvitesPage() {
                   className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#1a1a2e]"
                 >
                   <option value="">Select pod</option>
-                  {(pods || []).map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {invitablePods.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
             )}
@@ -192,7 +208,7 @@ export default function InvitesPage() {
                   className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#1a1a2e]"
                 >
                   <option value="">Select event</option>
-                  {(sessions || []).map((s: any) => <option key={s.id} value={s.id}>{s.title || 'Untitled'}</option>)}
+                  {invitableSessions.map((s: any) => <option key={s.id} value={s.id}>{s.title || 'Untitled'}</option>)}
                 </select>
               </div>
             )}

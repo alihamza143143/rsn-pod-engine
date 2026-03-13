@@ -71,6 +71,11 @@ export async function createInvite(userId: string, input: CreateInviteInput, use
     }
     const session = await sessionService.getSessionById(input.sessionId);
 
+    // Cannot invite to completed or cancelled events
+    if (session.status === 'completed' || session.status === 'cancelled') {
+      throw new AppError(400, 'VALIDATION_ERROR', `Cannot invite to a ${session.status} event`);
+    }
+
     // Only the session host can invite to events (admins bypass)
     if (!isAdmin && session.hostUserId !== userId) {
       throw new AppError(403, 'AUTH_FORBIDDEN', 'Only the event host can send event invites');

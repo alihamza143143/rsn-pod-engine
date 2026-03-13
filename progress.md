@@ -3552,3 +3552,22 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - ✅ 262/262 tests passing (16 suites)
   - ✅ Client Vite build clean
   - ✅ TypeScript compiles cleanly
+
+---
+
+### Entry — March 14, 2026, 4:35 AM PKT
+- Task: Invite dropdown filtering + search UX + completed event protection
+- Status: Completed
+- What changed:
+  1. **Pod search shows individual names with "Already a member" tag**: Instead of generic message, each search result shows user's name. Members greyed out with amber "Already a member" badge — non-members remain selectable.
+  2. **InvitesPage pod dropdown filtered**: Only shows pods where user is director or host. Admins see all pods.
+  3. **InvitesPage event dropdown filtered**: Only shows events where user is the host AND event status is scheduled/active/lobby. Completed and cancelled events excluded. Admins see all active events.
+  4. **Server rejects invites to completed/cancelled events**: `createInvite()` throws 400 if session status is `completed` or `cancelled`.
+- Files touched:
+  - client/src/features/pods/PodDetailPage.tsx (individual user names + "Already a member" tag)
+  - client/src/features/invites/InvitesPage.tsx (filtered pod/session dropdowns, added authStore + isAdmin)
+  - server/src/services/invite/invite.service.ts (reject completed/cancelled session invites)
+- Decisions:
+  - Per Stefan's plan: users only see pods/events they can actually invite to
+  - Double defense: client filters dropdowns + server rejects unauthorized/invalid invites
+  - Admins bypass UI filtering and server checks
