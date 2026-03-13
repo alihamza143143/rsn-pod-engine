@@ -51,8 +51,7 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-100">
         <div className="max-w-6xl mx-auto flex items-center justify-between px-6 py-4">
           <button onClick={() => navigate('/welcome')} className="flex items-center gap-2">
-            <img src="/rsn-logo.png" alt="RSN" className="h-8 w-auto" />
-            <span className="text-2xl font-extrabold tracking-tight text-[#1a1a2e]">RSN<span className="text-red-600">.</span></span>
+            <img src="/rsn-logo.png" alt="RSN" className="h-10 w-auto" />
           </button>
           <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-gray-600">
             <button onClick={() => navigate('/how-it-works')} className="hover:text-[#1a1a2e] transition-colors">The Format</button>
