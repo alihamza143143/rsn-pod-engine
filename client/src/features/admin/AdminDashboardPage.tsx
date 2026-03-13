@@ -48,7 +48,7 @@ export default function AdminDashboardPage() {
 
   const { data: podsData } = useQuery({
     queryKey: ['admin-pods-count'],
-    queryFn: () => api.get('/pods?pageSize=1').then(r => r.data),
+    queryFn: () => api.get('/pods?pageSize=1&admin=true').then(r => r.data),
     enabled: isAdmin(user?.role),
   });
 
