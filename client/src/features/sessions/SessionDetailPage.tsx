@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Calendar, Users, Play, Clock, UserPlus, UserMinus, Settings, CheckCircle, Pencil, Trash2, Mail, Copy, Check, AlertTriangle, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, Calendar, Users, Play, Clock, UserPlus, UserMinus, Settings, CheckCircle, Pencil, Trash2, Mail, Copy, Check, AlertTriangle, ShieldAlert, CopyPlus, Search } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
@@ -27,6 +27,8 @@ export default function SessionDetailPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteLink, setInviteLink] = useState('');
   const [copied, setCopied] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const [selectedUsers, setSelectedUsers] = useState<any[]>([]);
 
   const { data: session, isLoading } = useQuery({
     queryKey: ['session', sessionId],
@@ -106,6 +108,42 @@ export default function SessionDetailPage() {
       }
     },
     onError: () => addToast('Failed to create invite', 'error'),
+  });
+
+  const duplicateMutation = useMutation({
+    mutationFn: () => api.post('/sessions', {
+      podId: session?.podId,
+      title: `${session?.title || 'Event'} (copy)`,
+      description: session?.description || '',
+      scheduledAt: null,
+      config: session?.config,
+    }),
+    onSuccess: (res: any) => {
+      const newId = res.data?.data?.id;
+      addToast('Event duplicated! Edit the new event to set a date.', 'success');
+      if (newId) navigate(`/sessions/${newId}`);
+    },
+    onError: () => addToast('Failed to duplicate event', 'error'),
+  });
+
+  // Search platform users (admin or host)
+  const { data: searchResults } = useQuery({
+    queryKey: ['user-search', userSearch],
+    queryFn: () => api.get(`/users/search?q=${encodeURIComponent(userSearch)}`).then(r => r.data.data ?? []),
+    enabled: userSearch.length >= 2 && isHost,
+  });
+
+  const bulkInviteMutation = useMutation({
+    mutationFn: (emails: string[]) =>
+      Promise.all(emails.map(email =>
+        api.post('/invites', { type: 'session', sessionId, maxUses: 1, inviteeEmail: email })
+      )),
+    onSuccess: () => {
+      addToast(`Invites sent to ${selectedUsers.length} users!`, 'success');
+      setSelectedUsers([]);
+      setUserSearch('');
+    },
+    onError: () => addToast('Some invites failed to send', 'error'),
   });
 
   const handleCopyLink = () => {
@@ -258,6 +296,11 @@ export default function SessionDetailPage() {
             View Recap
           </Button>
         )}
+        {isHost && (
+          <Button variant="secondary" onClick={() => duplicateMutation.mutate()} isLoading={duplicateMutation.isPending}>
+            <CopyPlus className="h-4 w-4 mr-2" /> Copy Event
+          </Button>
+        )}
         {isHost && session.status !== 'completed' && (
           <Button variant="secondary" onClick={() => { setInviteLink(''); setInviteEmail(''); setInviteOpen(true); }}>
             <Mail className="h-4 w-4 mr-2" /> Invite to Event
@@ -314,13 +357,64 @@ export default function SessionDetailPage() {
             </Button>
           </div>
 
+          {/* Option 2: Invite platform users */}
+          {isHost && (
+            <div className="rounded-lg border border-gray-200 p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-[#1a1a2e]">Option 2 — Invite Platform Users</h3>
+              <p className="text-xs text-gray-500">Search for existing users and invite them directly.</p>
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
+                <input
+                  value={userSearch}
+                  onChange={e => setUserSearch(e.target.value)}
+                  placeholder="Search by name or email..."
+                  className="w-full pl-9 pr-4 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a1a2e]"
+                />
+              </div>
+              {searchResults && searchResults.length > 0 && (
+                <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+                  {searchResults.filter((u: any) => !(participants || []).some((p: any) => p.userId === u.id)).map((u: any) => {
+                    const isSelected = selectedUsers.some(s => s.id === u.id);
+                    return (
+                      <button
+                        key={u.id}
+                        type="button"
+                        onClick={() => setSelectedUsers(prev => isSelected ? prev.filter(s => s.id !== u.id) : [...prev, u])}
+                        className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors ${isSelected ? 'bg-indigo-50' : ''}`}
+                      >
+                        <div className={`h-4 w-4 rounded border ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'} flex items-center justify-center`}>
+                          {isSelected && <Check className="h-3 w-3 text-white" />}
+                        </div>
+                        <span className="font-medium text-gray-800">{u.displayName || u.email}</span>
+                        {u.company && <span className="text-xs text-gray-400">{u.company}</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {selectedUsers.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs text-gray-500">{selectedUsers.length} user(s) selected</p>
+                  <Button
+                    size="sm"
+                    onClick={() => bulkInviteMutation.mutate(selectedUsers.map(u => u.email))}
+                    isLoading={bulkInviteMutation.isPending}
+                    className="w-full"
+                  >
+                    <Mail className="h-4 w-4 mr-2" /> Send {selectedUsers.length} Invite(s)
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center gap-3">
             <div className="h-px flex-1 bg-gray-200" />
             <span className="text-xs font-medium text-gray-400 uppercase">or</span>
             <div className="h-px flex-1 bg-gray-200" />
           </div>
 
-          {/* Option 2: Generate Shareable Link */}
+          {/* Option 3: Generate Shareable Link */}
           <div className="rounded-lg border border-gray-200 p-4 space-y-3">
             <h3 className="text-sm font-semibold text-[#1a1a2e]">Option 2 — Generate Shareable Link</h3>
             <p className="text-xs text-gray-500">Create a reusable link to share manually (up to 10 uses, expires in 7 days).</p>

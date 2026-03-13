@@ -15,13 +15,13 @@ const updateUserSchema = z.object({
   displayName: z.string().max(100).optional(),
   firstName: z.string().max(100).optional(),
   lastName: z.string().max(100).optional(),
-  avatarUrl: z.string().url().nullable().optional(),
+  avatarUrl: z.string().max(2_000_000).nullable().optional(),
   bio: z.string().max(2000).nullable().optional(),
   company: z.string().max(200).nullable().optional(),
   jobTitle: z.string().max(200).nullable().optional(),
   industry: z.string().max(100).nullable().optional(),
   location: z.string().max(200).nullable().optional(),
-  linkedinUrl: z.string().url().nullable().optional(),
+  linkedinUrl: z.string().max(500).nullable().optional(),
   interests: z.array(z.string().max(50)).max(20).optional(),
   reasonsToConnect: z.array(z.string().max(100)).max(10).optional(),
   languages: z.array(z.string().max(30)).max(10).optional(),
@@ -66,6 +66,39 @@ router.put(
 
       const response: ApiResponse = { success: true, data: user };
       res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ─── GET /users/search (authenticated, public fields only) ──────────────────
+
+router.get(
+  '/search',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const q = (req.query.q as string || '').trim();
+      if (q.length < 2) {
+        res.json({ success: true, data: [] });
+        return;
+      }
+      const result = await identityService.getUsers({
+        search: q,
+        pageSize: 10,
+        status: 'active',
+      });
+      // Return only public profile fields
+      const data = result.users.map(u => ({
+        id: u.id,
+        displayName: u.displayName,
+        email: u.email,
+        company: u.company,
+        jobTitle: u.jobTitle,
+        avatarUrl: u.avatarUrl,
+      }));
+      res.json({ success: true, data } as ApiResponse);
     } catch (err) {
       next(err);
     }

@@ -249,7 +249,18 @@ export default function ProfilePage() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
             <Input label="Industry" {...register('industry')} placeholder="Technology" />
-            <Input label="LinkedIn URL" {...register('linkedinUrl')} placeholder="https://linkedin.com/in/..." />
+            <Input
+              label="LinkedIn URL"
+              {...register('linkedinUrl')}
+              placeholder="https://linkedin.com/in/your-profile"
+              onFocus={(e) => {
+                if (!e.target.value) {
+                  e.target.value = 'https://linkedin.com/in/';
+                  // trigger react-hook-form update
+                  e.target.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+              }}
+            />
           </div>
         </Card>
 
@@ -265,9 +276,31 @@ export default function ProfilePage() {
               </label>
               <input
                 {...register('location')}
-                placeholder="New York, US"
+                placeholder="Start typing a city..."
+                list="location-options"
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200"
               />
+              <datalist id="location-options">
+                {[
+                  'New York, US', 'Los Angeles, US', 'San Francisco, US', 'Chicago, US', 'Miami, US', 'Austin, US', 'Seattle, US', 'Boston, US', 'Denver, US', 'Washington DC, US',
+                  'London, UK', 'Manchester, UK', 'Edinburgh, UK',
+                  'Berlin, DE', 'Munich, DE', 'Hamburg, DE', 'Frankfurt, DE',
+                  'Paris, FR', 'Lyon, FR',
+                  'Amsterdam, NL', 'Rotterdam, NL',
+                  'Copenhagen, DK', 'Aarhus, DK',
+                  'Stockholm, SE', 'Gothenburg, SE',
+                  'Oslo, NO', 'Helsinki, FI',
+                  'Zurich, CH', 'Geneva, CH',
+                  'Barcelona, ES', 'Madrid, ES',
+                  'Lisbon, PT', 'Dublin, IE',
+                  'Milan, IT', 'Rome, IT',
+                  'Vienna, AT', 'Brussels, BE', 'Prague, CZ', 'Warsaw, PL',
+                  'Tel Aviv, IL', 'Dubai, AE', 'Singapore, SG', 'Hong Kong, HK',
+                  'Tokyo, JP', 'Sydney, AU', 'Melbourne, AU', 'Toronto, CA', 'Vancouver, CA',
+                  'São Paulo, BR', 'Mexico City, MX', 'Buenos Aires, AR',
+                  'Mumbai, IN', 'Bangalore, IN', 'Bangkok, TH', 'Seoul, KR',
+                ].map(city => <option key={city} value={city} />)}
+              </datalist>
             </div>
             <Input label="Timezone" {...register('timezone')} placeholder="America/New_York" />
           </div>

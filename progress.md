@@ -40,13 +40,13 @@ Purpose: Persistent execution history and current state, independent of chat mem
 
 ## Current Phase Snapshot
 
-- Active Phase: Production readiness
-- Active Milestone: **Landing/app separation complete — app.rsn.network ready**
-- Current Session: Deploy config finalized
+- Active Phase: Change 1.4 (Stefan's Changes 1.3 Evening Review feedback)
+- Active Milestone: **All Changes 1.3 evening review items implemented**
+- Current Session: UI fixes, bug fixes, feature additions per Stefan's 9-page PDF review
 - Overall Build Status: Shared + Client + Server production builds passing, 262/262 tests passing (16 suites), client Vite build clean
 - Architecture: Landing page (Stefan/Lovable) at rsn.network | App (our codebase) at app.rsn.network
 - Deployment: Render ✅ working | Vercel ✅ vercel.json added for monorepo build
-- Last Updated: March 13, 2026
+- Last Updated: March 14, 2026
 
 ---
 
@@ -3480,3 +3480,49 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - ✅ 262/262 tests passing (16 suites)
   - ✅ Client Vite build clean
   - ✅ TypeScript compiles cleanly
+
+---
+
+### C1.4-001 — Changes 1.3 Evening Review (Stefan's 9-page PDF feedback)
+- Date: 2026-03-14
+- Status: Completed
+- Source: assets/Changes 1.3 - without testing the event.pdf
+- What changed:
+  1. **Favicon → black sheep**: Converted `assets/black a (2).png` to 32px and 192px PNGs, replaced favicon in `client/index.html` with new black sheep favicon + apple-touch-icon
+  2. **Login page "RSN Access System" → "Raw Speed Networking"**: Removed per Stefan's request
+  3. **Google OAuth double-click fix**: Added `googleLoading` state with disabled button + spinner after first click to prevent duplicate auth requests
+  4. **Sidebar: "Encounters" → "People"**: Renamed label in AppLayout sidebar and EncounterHistoryPage title
+  5. **Sidebar: "Requests" removed**: Moved to Admin Dashboard only (Quick Actions link), no longer cluttering main sidebar
+  6. **Profile: LinkedIn pre-fill**: LinkedIn URL field auto-fills `https://linkedin.com/in/` on focus when empty
+  7. **Profile: Location dropdown**: Changed from plain text input to searchable datalist with 50+ major cities worldwide
+  8. **Profile: Save Changes fix**: Fixed Zod validation — `avatarUrl` rejected base64 data URLs (strict `.url()` check), `linkedinUrl` rejected partial URLs. Both now use `.string().max()` instead
+  9. **Invites page overhaul**: Replaced modal with inline create form at top of page, added revoke button (trash icon) on active invites, shows invite status and invitee email
+  10. **Events page filters**: Added filter tabs (All / Upcoming / Completed / Cancelled), filters hide deleted events by default
+  11. **Events: Copy/Duplicate**: Added "Copy Event" button on SessionDetailPage that creates a new event with same settings (title + " (copy)", same config, no date)
+  12. **Events: Invite platform users**: Added user search in invite modal — hosts can search existing users by name/email, select multiple, and bulk-invite. New `GET /users/search` endpoint (authenticated, returns public fields only)
+  13. **Pods: Copy Pod**: Added "Copy Pod" button on PodDetailPage (directors only) that creates a new pod with same settings (name + " (copy)", same type/visibility/config)
+  14. **Pod selector fix**: Rewrote invite form — pod dropdown now fetches from correct `/pods` endpoint
+- Files touched:
+  - client/index.html (favicon → black sheep PNG)
+  - client/public/favicon.png (NEW — 32x32 black sheep)
+  - client/public/favicon-192.png (NEW — 192x192 black sheep)
+  - client/src/features/auth/LoginPage.tsx (remove "RSN Access System", Google OAuth debounce)
+  - client/src/components/layout/AppLayout.tsx (sidebar: Encounters→People, remove Requests, remove unused import)
+  - client/src/features/sessions/EncounterHistoryPage.tsx (title: Encounters→People)
+  - client/src/features/profile/ProfilePage.tsx (LinkedIn pre-fill, location datalist)
+  - client/src/features/invites/InvitesPage.tsx (full rewrite: inline form, revoke button)
+  - client/src/features/sessions/SessionsPage.tsx (rewrite: filter tabs)
+  - client/src/features/sessions/SessionDetailPage.tsx (Copy Event, platform user search + bulk invite)
+  - client/src/features/pods/PodDetailPage.tsx (Copy Pod button)
+  - server/src/routes/users.ts (avatarUrl/linkedinUrl validation fix, new /users/search endpoint)
+- Deferred per Stefan:
+  - Circles feature ("comes later")
+  - Pods overhaul ("fine for now")
+  - Languages field ("not important now")
+- Validation Results:
+  - ✅ 262/262 tests passing (16 suites)
+  - ✅ Client Vite build clean
+  - ✅ TypeScript compiles cleanly
+- Next:
+  - Change 1.4 scope: Matching engine v2 (per RSN Matching Engine spec)
+  - Admin system (per Changes 1.2 Section 17)

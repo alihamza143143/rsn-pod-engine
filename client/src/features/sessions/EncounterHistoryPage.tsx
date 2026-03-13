@@ -23,7 +23,7 @@ export default function EncounterHistoryPage() {
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between animate-fade-in">
         <div>
-          <h1 className="text-2xl font-bold text-[#1a1a2e]">Encounters</h1>
+          <h1 className="text-2xl font-bold text-[#1a1a2e]">People</h1>
           <p className="text-gray-500 text-sm mt-1">People you've connected with</p>
         </div>
         <Heart className="h-8 w-8 text-indigo-600" />

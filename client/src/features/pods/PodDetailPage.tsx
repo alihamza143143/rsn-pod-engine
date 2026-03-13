@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Users, Calendar, LogOut, Shield, UserMinus, Eye, Radio, Pencil, Trash2, UserPlus, Lock, Mail, Copy, Check, UserCheck, X, Clock } from 'lucide-react';
+import { ArrowLeft, Users, Calendar, LogOut, Shield, UserMinus, Eye, Radio, Pencil, Trash2, UserPlus, Lock, Mail, Copy, Check, UserCheck, X, Clock, CopyPlus } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
@@ -100,6 +100,24 @@ export default function PodDetailPage() {
       addToast('Pod reactivated', 'success');
     },
     onError: () => addToast('Failed to reactivate pod', 'error'),
+  });
+
+  const copyPodMutation = useMutation({
+    mutationFn: () => api.post('/pods', {
+      name: `${pod?.name || 'Pod'} (copy)`,
+      description: pod?.description || '',
+      podType: pod?.podType || 'speed_networking',
+      orchestrationMode: pod?.orchestrationMode || 'timed_rounds',
+      communicationMode: pod?.communicationMode || 'video',
+      visibility: pod?.visibility || 'private',
+      maxMembers: pod?.maxMembers || 50,
+    }),
+    onSuccess: (res: any) => {
+      const newId = res.data?.data?.id;
+      addToast('Pod copied! You can now edit the new pod.', 'success');
+      if (newId) navigate(`/pods/${newId}`);
+    },
+    onError: () => addToast('Failed to copy pod', 'error'),
   });
 
   const joinMutation = useMutation({
@@ -289,6 +307,11 @@ export default function PodDetailPage() {
           {isDirector && (
             <Button variant="secondary" onClick={openEdit}>
               <Pencil className="h-4 w-4 mr-2" /> Edit Pod
+            </Button>
+          )}
+          {isDirector && (
+            <Button variant="secondary" onClick={() => copyPodMutation.mutate()} isLoading={copyPodMutation.isPending}>
+              <CopyPlus className="h-4 w-4 mr-2" /> Copy Pod
             </Button>
           )}
           {isDirector && (
