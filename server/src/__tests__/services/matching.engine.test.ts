@@ -143,7 +143,7 @@ describe('MatchingEngineV1', () => {
       expect(allParticipants.sort()).toEqual(['a', 'b', 'c', 'd']);
     });
 
-    it('should handle odd count with bye participant', async () => {
+    it('should handle odd count with trio instead of bye', async () => {
       const input = makeInput([
         makeParticipant({ userId: 'a' }),
         makeParticipant({ userId: 'b' }),
@@ -152,9 +152,15 @@ describe('MatchingEngineV1', () => {
 
       const output = await engine.generateSchedule(input);
 
+      // With 3 participants, engine forms a trio (no bye)
       expect(output.rounds[0].pairs).toHaveLength(1);
-      expect(output.rounds[0].byeParticipant).toBeDefined();
-      expect(output.rounds[0].byeParticipant).not.toBeNull();
+      expect(output.rounds[0].byeParticipant).toBeNull();
+      const trioPair = output.rounds[0].pairs[0];
+      expect(trioPair.participantCId).toBeDefined();
+      expect(trioPair.participantCId).not.toBeNull();
+      // All 3 participants should be in the trio
+      const allIds = [trioPair.participantAId, trioPair.participantBId, trioPair.participantCId].sort();
+      expect(allIds).toEqual(['a', 'b', 'c']);
     });
   });
 

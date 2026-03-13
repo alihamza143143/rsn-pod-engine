@@ -40,11 +40,12 @@ Purpose: Persistent execution history and current state, independent of chat mem
 
 ## Current Phase Snapshot
 
-- Active Phase: Implementation
-- Active Milestone: **Change 1.0 Complete — Font, Logo, Landing, Login, Admin, Role Tiers**
-- Current Session: Change 1.0 implementation (T-051 through T-055)
-- Overall Build Status: Shared + Client + Server production builds passing, 279/279 tests passing (15 suites)
-- Last Updated: March 13, 2026 (Change 1.2 complete — all items from Stefan's March 12 test review)
+- Active Phase: Production readiness
+- Active Milestone: **Change 1.2 Complete — All Stefan March 12 review items implemented**
+- Current Session: Post-implementation fixes and deploy verification
+- Overall Build Status: Shared + Client + Server production builds passing, 250/250 tests passing (14 suites), client Vite build clean
+- Deployment: Render ✅ working | Vercel ❌ needs monorepo config (client builds locally but Vercel deploy fails)
+- Last Updated: March 13, 2026
 
 ---
 
@@ -3344,3 +3345,17 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
 - Validation Results:
   - ✅ TypeScript compiles cleanly (shared, server, client — zero errors)
   - ✅ Shared package rebuilt successfully
+
+---
+
+### C1.2-011 — Fix matching engine test for trio behavior
+- Date: 2026-03-13
+- Status: Completed
+- What changed:
+  1. **Test updated**: `should handle odd count with bye participant` renamed to `should handle odd count with trio instead of bye` — test now expects a trio (participantCId set, byeParticipant null) instead of a bye when 3 participants exist, matching the new engine behavior from C1.2-010.
+- Files touched:
+  - server/src/__tests__/services/matching.engine.test.ts
+- Validation Results:
+  - ✅ 250/250 tests passing (14 suites, 0 failures)
+  - ✅ Client build passes (`tsc -b && vite build`)
+- Deployment note: Render deploy works. Vercel deploy fails — likely monorepo workspace resolution issue (no vercel.json present). Needs investigation with Vercel build logs.
