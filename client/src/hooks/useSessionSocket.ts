@@ -9,9 +9,10 @@ const SOCKET_EVENTS = [
   'session:state', 'session:status_changed', 'session:round_started',
   'session:round_ended', 'session:completed',
   'match:assigned', 'match:reassigned', 'match:bye_round',
+  'match:partner_disconnected', 'match:partner_reconnected',
   'rating:window_open', 'rating:window_closed',
   'host:broadcast', 'lobby:token', 'host:participant_removed',
-  'host:match_preview',
+  'host:match_preview', 'lobby:mute_command',
   'timer:sync', 'error',
 ] as const;
 
@@ -121,8 +122,10 @@ export default function useSessionSocket(sessionId: string) {
     // ── Matching ──
     socket.on('match:assigned', (data: any) => {
       store.setByeRound(false);
+      store.setPartnerDisconnected(false);
       store.setTransitionStatus('preparing_match');
-      store.setMatch({ userId: data.partnerId, displayName: data.partnerDisplayName || data.partnerId }, data.matchId);
+      const partners = data.partners || [{ userId: data.partnerId, displayName: data.partnerDisplayName || data.partnerId }];
+      store.setMatch({ userId: data.partnerId, displayName: data.partnerDisplayName || data.partnerId }, data.matchId, partners);
       store.setPhase('matched');
       // Store roomId for VideoRoom backup fetch
       if (data.roomId) store.setRoomId(data.roomId);
@@ -135,6 +138,7 @@ export default function useSessionSocket(sessionId: string) {
     });
 
     socket.on('match:reassigned', (data: any) => {
+      store.setPartnerDisconnected(false);
       store.setTransitionStatus('preparing_match');
       store.setMatch({ userId: data.newPartnerId, displayName: data.partnerDisplayName || data.newPartnerId }, data.matchId || null);
       store.setPhase('matched');
@@ -146,8 +150,17 @@ export default function useSessionSocket(sessionId: string) {
       }).catch(() => { store.setTransitionStatus(null); });
     });
 
+    socket.on('match:partner_disconnected', () => {
+      store.setPartnerDisconnected(true);
+    });
+
+    socket.on('match:partner_reconnected', () => {
+      store.setPartnerDisconnected(false);
+    });
+
     socket.on('match:bye_round', () => {
       store.setByeRound(true);
+      store.setPartnerDisconnected(false);
       store.setMatch(null);
       store.setTransitionStatus(null);
       store.setPhase('lobby');
@@ -185,6 +198,10 @@ export default function useSessionSocket(sessionId: string) {
     // ── Lobby video ──
     socket.on('lobby:token', (data: any) => {
       store.setLobbyToken(data.token, data.livekitUrl, data.roomId);
+    });
+
+    socket.on('lobby:mute_command', (data: any) => {
+      store.setHostMuteCommand(data.muted);
     });
 
     socket.on('host:participant_removed', () => {

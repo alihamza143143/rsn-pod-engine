@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useSessionStore } from '@/stores/sessionStore';
 import Card from '@/components/ui/Card';
 import { formatTime } from '@/lib/utils';
-import { Video, Clock, Mic, MicOff, VideoOff, Wifi } from 'lucide-react';
+import { Video, Clock, Mic, MicOff, VideoOff, Wifi, UserX, Loader2 } from 'lucide-react';
 import {
   LiveKitRoom,
   VideoTrack,
@@ -25,6 +25,29 @@ function ConnectionIndicator() {
   );
 }
 
+function VideoTile({ trackRef, label, isWaiting }: { trackRef?: any; label: string; isWaiting?: boolean }) {
+  const hasVideo = trackRef?.publication?.track;
+  return (
+    <div className="relative rounded-xl overflow-hidden bg-gray-50 aspect-video flex items-center justify-center border border-gray-200">
+      {hasVideo ? (
+        <VideoTrack trackRef={trackRef} className="h-full w-full object-cover" />
+      ) : (
+        <div className="flex flex-col items-center gap-2">
+          <div className={`h-20 w-20 rounded-full bg-gray-100 flex items-center justify-center ${isWaiting ? 'animate-pulse' : ''}`}>
+            <Video className={`h-8 w-8 ${isWaiting ? 'text-gray-300' : 'text-gray-400'}`} />
+          </div>
+          <p className="text-gray-400 text-sm">
+            {isWaiting ? 'Waiting for partner...' : `${label} — camera off`}
+          </p>
+        </div>
+      )}
+      <div className="absolute bottom-2 left-2 bg-black/60 rounded px-2 py-1 text-xs text-white">
+        {label}
+      </div>
+    </div>
+  );
+}
+
 function VideoStage() {
   const tracks = useTracks(
     [
@@ -33,52 +56,34 @@ function VideoStage() {
     ],
     { onlySubscribed: false },
   );
-  const participants = useParticipants();
+  useParticipants(); // Keep subscribed for LiveKit track updates
   const { localParticipant } = useLocalParticipant();
+  const { currentPartners } = useSessionStore();
 
   const cameraTracks = tracks.filter(t => t.source === Track.Source.Camera);
   const localTrack = cameraTracks.find(t => t.participant.sid === localParticipant.sid);
-  const remoteTrack = cameraTracks.find(t => t.participant.sid !== localParticipant.sid);
+  const remoteTracks = cameraTracks.filter(t => t.participant.sid !== localParticipant.sid);
+
+  const isTrio = currentPartners.length > 1;
+  // Dynamic grid: 2 people → 2-col, 3 people → 3-col on desktop
+  const gridClass = isTrio
+    ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+    : 'grid-cols-1 md:grid-cols-2';
 
   return (
-    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[calc(100vh-200px)]">
-      {/* Local video */}
-      <div className="relative rounded-xl overflow-hidden bg-gray-50 aspect-video flex items-center justify-center border border-gray-200">
-        {localTrack?.publication?.track ? (
-          <VideoTrack trackRef={localTrack} className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex flex-col items-center gap-2">
-            <div className="h-20 w-20 rounded-full bg-gray-100 flex items-center justify-center">
-              <Video className="h-8 w-8 text-gray-400" />
-            </div>
-            <p className="text-gray-500 text-sm">Camera off</p>
-          </div>
-        )}
-        <div className="absolute bottom-2 left-2 bg-black/60 rounded px-2 py-1 text-xs text-white">
-          You
-        </div>
-      </div>
-
-      {/* Remote video */}
-      <div className="relative rounded-xl overflow-hidden bg-gray-50 aspect-video flex items-center justify-center border border-gray-200">
-        {remoteTrack?.publication?.track ? (
-          <VideoTrack trackRef={remoteTrack} className="h-full w-full object-cover" />
-        ) : (
-          <div className="flex flex-col items-center gap-2">
-            <div className="h-20 w-20 rounded-full bg-gray-100 flex items-center justify-center animate-pulse">
-              <Video className="h-8 w-8 text-gray-300" />
-            </div>
-            <p className="text-gray-400 text-sm">
-              {participants.length < 2 ? 'Waiting for partner...' : 'Partner camera off'}
-            </p>
-          </div>
-        )}
-        {participants.length >= 2 && (
-          <div className="absolute bottom-2 left-2 bg-black/60 rounded px-2 py-1 text-xs text-white">
-            Partner
-          </div>
-        )}
-      </div>
+    <div className={`flex-1 grid ${gridClass} gap-4 max-h-[calc(100vh-200px)]`}>
+      <VideoTile trackRef={localTrack} label="You" />
+      {remoteTracks.length > 0 ? (
+        remoteTracks.map((rt, i) => {
+          const name = rt.participant.name || currentPartners[i]?.displayName || 'Partner';
+          return <VideoTile key={rt.participant.sid} trackRef={rt} label={name} />;
+        })
+      ) : (
+        // Show placeholder tiles for expected partners who haven't connected yet
+        currentPartners.map((p, i) => (
+          <VideoTile key={p.userId || i} label={p.displayName || 'Partner'} isWaiting />
+        ))
+      )}
     </div>
   );
 }
@@ -117,7 +122,7 @@ function MediaControls() {
 }
 
 export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
-  const { timerSeconds, currentRound, totalRounds, isByeRound, liveKitToken, livekitUrl, currentRoomId, transitionStatus, timerVisibility } = useSessionStore();
+  const { timerSeconds, currentRound, totalRounds, isByeRound, liveKitToken, livekitUrl, currentRoomId, transitionStatus, timerVisibility, partnerDisconnected } = useSessionStore();
   const { setLiveKitToken } = useSessionStore();
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const retryCountRef = useRef(0);
@@ -221,6 +226,15 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
         <div className="bg-[#1a1a2e]/10 border-b border-brand-500/20 px-4 py-2 flex items-center justify-center gap-2">
           <div className="h-4 w-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
           <p className="text-sm text-brand-300">Connecting to your partner...</p>
+        </div>
+      )}
+
+      {/* Partner disconnected overlay */}
+      {partnerDisconnected && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-center justify-center gap-2">
+          <UserX className="h-4 w-4 text-amber-500" />
+          <p className="text-sm text-amber-700 font-medium">Your partner left the room. Waiting for reassignment...</p>
+          <Loader2 className="h-4 w-4 text-amber-500 animate-spin" />
         </div>
       )}
 

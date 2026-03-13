@@ -3287,3 +3287,60 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - server/src/services/orchestration/orchestration.service.ts
 - Validation Results:
   - ✅ 250 tests passing (14 suites)
+
+---
+
+### C1.2-010 — Change 1.2 Remaining Items (Production Push)
+- Date: 2026-03-13
+- Status: Completed
+- What changed:
+
+  **1. Permissions Audit (Section 12)**
+  - Hide "New Event" button from non-director/non-host members on SessionsPage
+  - Hide "Schedule Event" button on PodDetailPage unless user is director/host
+  - Filter pod dropdown on CreateSessionPage to only pods where user is director/host
+
+  **2. Invite Deep Linking (Section 3)**
+  - Auto-accept invite for logged-in users on mount (no button click needed)
+  - Better error handling for expired, already used, email mismatch
+
+  **3. Match Preview Enrichment (Section 5)**
+  - Query encounter_history for "met before" data in sendMatchPreview
+  - Show "Met Nx" amber badge on host match preview for pairs that have met
+
+  **4. Host Mute/Unmute Others in Lobby (Section 4)**
+  - Socket relay approach: host emits host:mute_participant → server relays lobby:mute_command → client auto-mutes
+  - Host sees mute/unmute button overlay on each remote participant tile (hover)
+  - Mic status indicator (red MicOff icon) on muted tiles
+
+  **5. Dropout Fallback (Section 6)**
+  - Replaced immediate bye_round with 3-step flow: partner_disconnected → auto-reassignment → bye fallback
+  - Server: 15s timeout, check reconnect, find isolated participant for re-pairing
+  - Client: "Your partner left the room. Waiting for reassignment..." overlay in VideoRoom
+
+  **6. 3-Person Rooms for Odd Participant Count (Section 6/10)**
+  - Database: Migration 010 adds participant_c_id to matches table
+  - Matching engine: Instead of bye, adds leftover participant to best-fit pair as trio
+  - Orchestration: transitionToRound notifies all 3 participants with partners array
+  - VideoRoom: Dynamic grid (2-col for pairs, 3-col for trios)
+  - RatingPrompt: Sequential rating — rate each partner one by one
+  - Rating service: Accepts toUserId for trio rating, duplicate check per from+to pair
+  - Host controls: Match preview shows "Trio" badge, third participant name
+  - Swap/exclude handlers: Updated for participant C
+  - Recap queries: Updated for participant_c_id
+
+- Files touched:
+  - server/src/db/migrations/010_three_person_rooms.sql (new)
+  - shared/src/types/match.ts, shared/src/types/events.ts
+  - server/src/services/matching/matching.engine.ts, matching.service.ts
+  - server/src/services/orchestration/orchestration.service.ts
+  - server/src/services/rating/rating.service.ts
+  - client/src/stores/sessionStore.ts
+  - client/src/hooks/useSessionSocket.ts
+  - client/src/features/live/VideoRoom.tsx, RatingPrompt.tsx, HostControls.tsx, Lobby.tsx, LiveSessionPage.tsx
+  - client/src/features/sessions/SessionsPage.tsx, CreateSessionPage.tsx
+  - client/src/features/pods/PodDetailPage.tsx
+  - client/src/features/invites/InviteAcceptPage.tsx
+- Validation Results:
+  - ✅ TypeScript compiles cleanly (shared, server, client — zero errors)
+  - ✅ Shared package rebuilt successfully

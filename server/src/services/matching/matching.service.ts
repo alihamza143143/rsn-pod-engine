@@ -170,6 +170,7 @@ export async function getMatchesBySession(sessionId: string): Promise<Match[]> {
   const result = await query<Match>(
     `SELECT id, session_id AS "sessionId", round_number AS "roundNumber",
             participant_a_id AS "participantAId", participant_b_id AS "participantBId",
+            participant_c_id AS "participantCId",
             room_id AS "roomId", status, score, reason_tags AS "reasonTags",
             started_at AS "startedAt", ended_at AS "endedAt", created_at AS "createdAt"
      FROM matches WHERE session_id = $1
@@ -183,6 +184,7 @@ export async function getMatchesByRound(sessionId: string, roundNumber: number):
   const result = await query<Match>(
     `SELECT id, session_id AS "sessionId", round_number AS "roundNumber",
             participant_a_id AS "participantAId", participant_b_id AS "participantBId",
+            participant_c_id AS "participantCId",
             room_id AS "roomId", status, score, reason_tags AS "reasonTags",
             started_at AS "startedAt", ended_at AS "endedAt", created_at AS "createdAt"
      FROM matches WHERE session_id = $1 AND round_number = $2
@@ -196,6 +198,7 @@ export async function getMatchById(matchId: string): Promise<Match> {
   const result = await query<Match>(
     `SELECT id, session_id AS "sessionId", round_number AS "roundNumber",
             participant_a_id AS "participantAId", participant_b_id AS "participantBId",
+            participant_c_id AS "participantCId",
             room_id AS "roomId", status, score, reason_tags AS "reasonTags",
             started_at AS "startedAt", ended_at AS "endedAt", created_at AS "createdAt"
      FROM matches WHERE id = $1`,
@@ -265,12 +268,14 @@ async function getExistingRounds(sessionId: string): Promise<RoundAssignment[]> 
       });
     }
 
-    roundMap.get(match.roundNumber)!.pairs.push({
+    const pair: any = {
       participantAId: match.participantAId,
       participantBId: match.participantBId,
       score: match.score || 0,
       reasonTags: match.reasonTags || [],
-    });
+    };
+    if (match.participantCId) pair.participantCId = match.participantCId;
+    roundMap.get(match.roundNumber)!.pairs.push(pair);
   }
 
   return Array.from(roundMap.values()).sort((a, b) => a.roundNumber - b.roundNumber);
@@ -281,15 +286,16 @@ async function persistMatches(sessionId: string, rounds: RoundAssignment[]): Pro
     for (const round of rounds) {
       for (const pair of round.pairs) {
         await client.query(
-          `INSERT INTO matches (session_id, round_number, participant_a_id, participant_b_id, score, reason_tags, status)
-           VALUES ($1, $2, $3, $4, $5, $6, 'scheduled')
+          `INSERT INTO matches (session_id, round_number, participant_a_id, participant_b_id, participant_c_id, score, reason_tags, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'scheduled')
            ON CONFLICT (session_id, round_number, participant_a_id) DO UPDATE
-           SET participant_b_id = $4, score = $5, reason_tags = $6`,
+           SET participant_b_id = $4, participant_c_id = $5, score = $6, reason_tags = $7`,
           [
             sessionId,
             round.roundNumber,
             pair.participantAId < pair.participantBId ? pair.participantAId : pair.participantBId,
             pair.participantAId < pair.participantBId ? pair.participantBId : pair.participantAId,
+            pair.participantCId || null,
             pair.score,
             pair.reasonTags,
           ]

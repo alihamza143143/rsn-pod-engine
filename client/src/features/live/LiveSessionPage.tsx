@@ -131,7 +131,7 @@ export default function LiveSessionPage() {
         </div>
       )}
 
-      {phase === 'lobby' && <Lobby isHost={isHost} />}
+      {phase === 'lobby' && <Lobby isHost={isHost} sessionId={sessionId} />}
       {phase === 'matched' && <VideoRoom isHost={isHost} />}
       {phase === 'rating' && <RatingPrompt sessionId={sessionId} />}
       {phase === 'complete' && <SessionComplete sessionId={sessionId} />}

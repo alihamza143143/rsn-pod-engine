@@ -15,6 +15,7 @@ export interface Match {
   roundNumber: number;
   participantAId: string;
   participantBId: string;
+  participantCId: string | null;  // 3-person room (trio)
   roomId: string | null;
   status: MatchStatus;
   score: number | null;
@@ -137,6 +138,7 @@ export interface RoundAssignment {
 export interface MatchPair {
   participantAId: string;
   participantBId: string;
+  participantCId?: string;  // 3-person room (trio)
   score: number;
   reasonTags: string[];
 }

@@ -10,9 +10,11 @@ export interface ServerToClientEvents {
   'session:completed': (data: { sessionId: string }) => void;
 
   // Matching & routing
-  'match:assigned': (data: { matchId: string; partnerId: string; partnerDisplayName?: string; roomId: string; roundNumber: number }) => void;
+  'match:assigned': (data: { matchId: string; partnerId: string; partnerDisplayName?: string; partners?: { userId: string; displayName: string }[]; roomId: string; roundNumber: number }) => void;
   'match:bye_round': (data: { roundNumber: number; reason: string }) => void;
-  'match:reassigned': (data: { matchId: string; newPartnerId: string; partnerDisplayName?: string; roomId: string }) => void;
+  'match:reassigned': (data: { matchId: string; newPartnerId: string; partnerDisplayName?: string; roomId: string; roundNumber?: number }) => void;
+  'match:partner_disconnected': (data: { matchId?: string }) => void;
+  'match:partner_reconnected': (data: { matchId?: string }) => void;
 
   // Participant events
   'participant:joined': (data: { userId: string; displayName: string; isHost?: boolean }) => void;
@@ -36,12 +38,13 @@ export interface ServerToClientEvents {
   'host:participant_removed': (data: { userId: string; reason: string }) => void;
   'host:match_preview': (data: {
     roundNumber: number;
-    matches: { participantA: { userId: string; displayName: string }; participantB: { userId: string; displayName: string } }[];
+    matches: { participantA: { userId: string; displayName: string }; participantB: { userId: string; displayName: string }; participantC?: { userId: string; displayName: string }; isTrio?: boolean; metBefore?: boolean; timesMet?: number }[];
     byeParticipants: { userId: string; displayName: string }[];
   }) => void;
 
   // Lobby video
   'lobby:token': (data: { token: string; livekitUrl: string; roomId: string }) => void;
+  'lobby:mute_command': (data: { muted: boolean; byHost: boolean }) => void;
 
   // Timer sync
   'timer:sync': (data: { segmentType: string; secondsRemaining: number; totalSeconds: number }) => void;
@@ -77,4 +80,5 @@ export interface ClientToServerEvents {
   'host:swap_match': (data: { sessionId: string; userA: string; userB: string }) => void;
   'host:exclude_participant': (data: { sessionId: string; userId: string }) => void;
   'host:regenerate_matches': (data: { sessionId: string }) => void;
+  'host:mute_participant': (data: { sessionId: string; targetUserId: string; muted: boolean }) => void;
 }

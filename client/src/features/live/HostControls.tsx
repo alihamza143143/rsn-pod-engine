@@ -149,6 +149,32 @@ export default function HostControls({ sessionId }: Props) {
                   >
                     {m.participantB.displayName}
                   </button>
+                  {m.participantC && (
+                    <>
+                      <span className="text-gray-400 shrink-0">×</span>
+                      <button
+                        onClick={() => handleParticipantClick(m.participantC!.userId)}
+                        className={`font-medium truncate px-1.5 py-0.5 rounded transition-colors ${
+                          swapMode === m.participantC!.userId
+                            ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300'
+                            : 'text-gray-700 hover:bg-indigo-50 hover:text-indigo-600'
+                        }`}
+                        title="Click to swap this person"
+                      >
+                        {m.participantC!.displayName}
+                      </button>
+                    </>
+                  )}
+                  {m.isTrio && (
+                    <span className="text-[10px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded-full shrink-0">
+                      Trio
+                    </span>
+                  )}
+                  {m.metBefore && (
+                    <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full shrink-0" title={`Met ${m.timesMet} time${m.timesMet !== 1 ? 's' : ''} before`}>
+                      Met {m.timesMet}x
+                    </span>
+                  )}
                   <div className="flex gap-0.5 ml-auto shrink-0">
                     <button
                       onClick={() => excludeParticipant(m.participantA.userId)}
@@ -164,6 +190,15 @@ export default function HostControls({ sessionId }: Props) {
                     >
                       <UserMinus className="h-3 w-3" />
                     </button>
+                    {m.participantC && (
+                      <button
+                        onClick={() => excludeParticipant(m.participantC!.userId)}
+                        className="p-0.5 text-gray-300 hover:text-red-400 transition-colors"
+                        title={`Exclude ${m.participantC!.displayName}`}
+                      >
+                        <UserMinus className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}

@@ -17,6 +17,14 @@ export default function SessionsPage() {
     queryFn: () => api.get('/sessions').then(r => r.data.data ?? []),
   });
 
+  // Check if user can create events (director/host in any pod, or admin)
+  const { data: myPods } = useQuery({
+    queryKey: ['my-pods'],
+    queryFn: () => api.get('/pods?status=active').then(r => r.data.data ?? []),
+  });
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const canCreateEvent = isAdmin || (myPods || []).some((p: any) => p.memberRole === 'director' || p.memberRole === 'host');
+
   if (isLoading) return <PageLoader />;
 
   const statusVariant = (s: string) => {
@@ -30,15 +38,17 @@ export default function SessionsPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       <div className="flex items-center justify-between animate-fade-in">
         <h1 className="text-2xl font-bold text-[#1a1a2e]">Events</h1>
-        <Button onClick={() => navigate('/sessions/new')} className="btn-glow"><Plus className="h-4 w-4 mr-2" /> New Event</Button>
+        {canCreateEvent && (
+          <Button onClick={() => navigate('/sessions/new')} className="btn-glow"><Plus className="h-4 w-4 mr-2" /> New Event</Button>
+        )}
       </div>
 
       {(!data || data.length === 0) ? (
         <EmptyState
           icon={<Calendar className="h-8 w-8" />}
           title="No events yet"
-          description="Schedule an event to start connecting."
-          action={<Button onClick={() => navigate('/sessions/new')}>Schedule Event</Button>}
+          description={canCreateEvent ? 'Schedule an event to start connecting.' : 'No events available yet. Check back soon!'}
+          action={canCreateEvent ? <Button onClick={() => navigate('/sessions/new')}>Schedule Event</Button> : undefined}
         />
       ) : (
         <div className="grid gap-4 animate-fade-in-up">

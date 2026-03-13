@@ -28,10 +28,13 @@ export default function CreateSessionPage() {
   const [params] = useSearchParams();
   const { addToast } = useToastStore();
 
-  const { data: pods } = useQuery({
+  const { data: allPods } = useQuery({
     queryKey: ['my-pods'],
     queryFn: () => api.get('/pods?status=active').then(r => r.data.data ?? []),
   });
+
+  // Only show pods where the user is director or host (can create events)
+  const pods = (allPods || []).filter((p: any) => p.memberRole === 'director' || p.memberRole === 'host');
 
   const { register, handleSubmit, formState: { errors } } = useForm<SessionForm>({
     defaultValues: {
@@ -67,7 +70,10 @@ export default function CreateSessionPage() {
       addToast('Event scheduled!', 'success');
       navigate(`/sessions/${res.data.data?.id}`);
     },
-    onError: () => addToast('Failed to create event', 'error'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.error?.message || 'Failed to create event';
+      addToast(msg, 'error');
+    },
   });
 
   return (

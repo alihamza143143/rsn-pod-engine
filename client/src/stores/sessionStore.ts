@@ -30,6 +30,7 @@ interface SessionLiveState {
   totalRounds: number;
   participants: Participant[];
   currentMatch: MatchPartner | null;
+  currentPartners: MatchPartner[];  // All partners (1 for pair, 2 for trio)
   currentMatchId: string | null;
   timerSeconds: number;
   currentRound: number;
@@ -46,9 +47,11 @@ interface SessionLiveState {
   timerVisibility: 'hidden' | 'always_visible' | 'last_10s' | 'last_30s' | 'last_60s' | 'last_120s';
   matchPreview: {
     roundNumber: number;
-    matches: { participantA: { userId: string; displayName: string }; participantB: { userId: string; displayName: string } }[];
+    matches: { participantA: { userId: string; displayName: string }; participantB: { userId: string; displayName: string }; participantC?: { userId: string; displayName: string }; isTrio?: boolean; metBefore?: boolean; timesMet?: number }[];
     byeParticipants: { userId: string; displayName: string }[];
   } | null;
+  hostMuteCommand: boolean | null; // null=no command, true=muted by host, false=unmuted by host
+  partnerDisconnected: boolean;
 
   setPhase: (phase: SessionPhase) => void;
   setConnectionStatus: (status: ConnectionStatus) => void;
@@ -59,7 +62,7 @@ interface SessionLiveState {
   setParticipants: (p: Participant[]) => void;
   addParticipant: (p: Participant) => void;
   removeParticipant: (userId: string) => void;
-  setMatch: (m: MatchPartner | null, matchId?: string | null) => void;
+  setMatch: (m: MatchPartner | null, matchId?: string | null, partners?: MatchPartner[]) => void;
   setTimer: (s: number) => void;
   tickTimer: () => void;
   setRound: (r: number) => void;
@@ -72,6 +75,8 @@ interface SessionLiveState {
   setLobbyToken: (token: string | null, url?: string | null, roomId?: string | null) => void;
   setTimerVisibility: (v: 'hidden' | 'always_visible' | 'last_10s' | 'last_30s' | 'last_60s' | 'last_120s') => void;
   setMatchPreview: (preview: SessionLiveState['matchPreview']) => void;
+  setHostMuteCommand: (muted: boolean | null) => void;
+  setPartnerDisconnected: (v: boolean) => void;
   reset: () => void;
 }
 
@@ -84,6 +89,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   totalRounds: 5,
   participants: [],
   currentMatch: null,
+  currentPartners: [],
   currentMatchId: null,
   timerSeconds: 0,
   currentRound: 0,
@@ -99,6 +105,8 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   lobbyRoomId: null,
   timerVisibility: 'always_visible',
   matchPreview: null,
+  hostMuteCommand: null,
+  partnerDisconnected: false,
 
   setPhase: (phase) => set({ phase }),
   setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
@@ -113,7 +121,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   removeParticipant: (userId) => set((s) => ({
     participants: s.participants.filter(x => x.userId !== userId),
   })),
-  setMatch: (currentMatch, matchId = null) => set({ currentMatch, currentMatchId: matchId }),
+  setMatch: (currentMatch, matchId = null, partners = []) => set({ currentMatch, currentMatchId: matchId, currentPartners: partners }),
   setTimer: (timerSeconds) => set({ timerSeconds }),
   tickTimer: () => set((s) => ({ timerSeconds: Math.max(0, s.timerSeconds - 1) })),
   setRound: (currentRound) => set({ currentRound }),
@@ -126,13 +134,16 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   setLobbyToken: (lobbyToken, lobbyUrl = null, lobbyRoomId = null) => set({ lobbyToken, lobbyUrl, lobbyRoomId }),
   setTimerVisibility: (timerVisibility) => set({ timerVisibility }),
   setMatchPreview: (matchPreview) => set({ matchPreview }),
+  setHostMuteCommand: (muted) => set({ hostMuteCommand: muted }),
+  setPartnerDisconnected: (partnerDisconnected) => set({ partnerDisconnected }),
   reset: () => set({
     phase: 'lobby', connectionStatus: 'connecting', transitionStatus: null,
     sessionStatus: 'scheduled', hostInLobby: false, totalRounds: 5,
-    participants: [], currentMatch: null, currentMatchId: null,
+    participants: [], currentMatch: null, currentPartners: [], currentMatchId: null,
     timerSeconds: 0, currentRound: 0, broadcasts: [], error: null,
     isReconnecting: false, isByeRound: false, liveKitToken: null, livekitUrl: null, currentRoomId: null,
     lobbyToken: null, lobbyUrl: null, lobbyRoomId: null,
     timerVisibility: 'always_visible', matchPreview: null,
+    hostMuteCommand: null, partnerDisconnected: false,
   }),
 }));

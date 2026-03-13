@@ -1,7 +1,8 @@
-import { Users, Loader2, VideoOff, Sparkles, ChevronDown, ChevronUp, Mic, MicOff } from 'lucide-react';
+import { Users, Loader2, VideoOff, Sparkles, ChevronDown, ChevronUp, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import { useState, useEffect, useCallback } from 'react';
 import Card from '@/components/ui/Card';
 import { useSessionStore } from '@/stores/sessionStore';
+import { getSocket } from '@/lib/socket';
 import {
   LiveKitRoom,
   VideoTrack,
@@ -14,12 +15,13 @@ import { isTrackReference } from '@livekit/components-core';
 import '@livekit/components-styles';
 import { Track } from 'livekit-client';
 
-function LobbyMosaic() {
+function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: string }) {
   const tracks = useTracks(
     [{ source: Track.Source.Camera, withPlaceholder: true }],
     { onlySubscribed: false },
   );
   const participants = useParticipants();
+  const { localParticipant } = useLocalParticipant();
   const cameraTracks = tracks.filter(t => t.source === Track.Source.Camera);
 
   // Responsive grid: up to 2 cols on mobile, 3 on tablet, 4-5 on desktop
@@ -29,13 +31,22 @@ function LobbyMosaic() {
     : participants.length <= 9 ? 'grid-cols-2 sm:grid-cols-3'
     : 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5';
 
+  const handleHostMute = useCallback((targetIdentity: string, mute: boolean) => {
+    if (!sessionId) return;
+    const socket = getSocket();
+    // Identity in LiveKit maps to userId
+    socket?.emit('host:mute_participant', { sessionId, targetUserId: targetIdentity, muted: mute });
+  }, [sessionId]);
+
   return (
     <div className={`grid ${gridCols} gap-3 w-full max-w-4xl mx-auto`}>
       {cameraTracks.map(trackRef => {
         const name = trackRef.participant.name || trackRef.participant.identity || 'User';
         const hasVideo = !!trackRef.publication?.track;
+        const isLocal = trackRef.participant.sid === localParticipant.sid;
+        const isMicOn = trackRef.participant.isMicrophoneEnabled;
         return (
-          <div key={trackRef.participant.sid} className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 aspect-video flex items-center justify-center border border-gray-200 shadow-sm">
+          <div key={trackRef.participant.sid} className="relative rounded-2xl overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100 aspect-video flex items-center justify-center border border-gray-200 shadow-sm group">
             {hasVideo && isTrackReference(trackRef) ? (
               <VideoTrack trackRef={trackRef} className="h-full w-full object-cover" />
             ) : (
@@ -49,6 +60,22 @@ function LobbyMosaic() {
             <div className="absolute bottom-1.5 left-1.5 bg-black/50 backdrop-blur-sm rounded-lg px-2 py-0.5 text-[11px] text-white truncate max-w-[90%]">
               {name}
             </div>
+            {/* Host mute/unmute button on remote participant tiles */}
+            {isHost && !isLocal && (
+              <button
+                onClick={() => handleHostMute(trackRef.participant.identity, !!isMicOn)}
+                className="absolute top-1.5 right-1.5 bg-black/50 backdrop-blur-sm rounded-full p-1.5 text-white opacity-0 group-hover:opacity-100 transition-opacity hover:bg-black/70"
+                title={isMicOn ? `Mute ${name}` : `Unmute ${name}`}
+              >
+                {isMicOn ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5 text-red-400" />}
+              </button>
+            )}
+            {/* Mic status indicator */}
+            {!isMicOn && (
+              <div className="absolute top-1.5 left-1.5 bg-red-500/80 rounded-full p-1">
+                <MicOff className="h-2.5 w-2.5 text-white" />
+              </div>
+            )}
           </div>
         );
       })}
@@ -66,6 +93,7 @@ function LobbyMosaic() {
 
 function LobbyMediaControls({ isHost }: { isHost: boolean }) {
   const { localParticipant } = useLocalParticipant();
+  const { hostMuteCommand, setHostMuteCommand } = useSessionStore();
   const [micEnabled, setMicEnabled] = useState(isHost); // Host unmuted by default, others muted
 
   // Auto-mute participants (not host) on mount
@@ -75,6 +103,15 @@ function LobbyMediaControls({ isHost }: { isHost: boolean }) {
       setMicEnabled(false);
     }
   }, [isHost, localParticipant]);
+
+  // Respond to host mute/unmute commands
+  useEffect(() => {
+    if (hostMuteCommand !== null && !isHost) {
+      localParticipant.setMicrophoneEnabled(!hostMuteCommand);
+      setMicEnabled(!hostMuteCommand);
+      setHostMuteCommand(null); // Clear the command after processing
+    }
+  }, [hostMuteCommand, isHost, localParticipant, setHostMuteCommand]);
 
   const toggleMic = useCallback(async () => {
     await localParticipant.setMicrophoneEnabled(!micEnabled);
@@ -205,7 +242,7 @@ function HostParticipantPanel() {
   );
 }
 
-export default function Lobby({ isHost = false }: { isHost?: boolean }) {
+export default function Lobby({ isHost = false, sessionId }: { isHost?: boolean; sessionId?: string }) {
   const { participants, lobbyToken, lobbyUrl, sessionStatus } = useSessionStore();
 
   // If we have a lobby token, render the video mosaic
@@ -224,7 +261,7 @@ export default function Lobby({ isHost = false }: { isHost?: boolean }) {
         >
           <RoomAudioRenderer />
           <LobbyMediaControls isHost={isHost} />
-          <LobbyMosaic />
+          <LobbyMosaic isHost={isHost} sessionId={sessionId} />
         </LiveKitRoom>
       </div>
     );

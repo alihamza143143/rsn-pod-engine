@@ -9,30 +9,32 @@ import api from '@/lib/api';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface Props { sessionId: string; }
 
-export default function RatingPrompt(_props: Props) {
-  const { currentMatch, currentMatchId, setPhase } = useSessionStore();
+function PartnerRatingForm({ partnerName, toUserId, matchId, onSubmitted, onSkip, partnerIndex, totalPartners }: {
+  partnerName: string;
+  toUserId: string;
+  matchId: string;
+  onSubmitted: () => void;
+  onSkip: () => void;
+  partnerIndex: number;
+  totalPartners: number;
+}) {
   const { addToast } = useToastStore();
   const [rating, setRating] = useState(0);
   const [meetAgain, setMeetAgain] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
 
   const submit = async () => {
-    if (!currentMatchId || !currentMatch) {
-      addToast('No match data available to rate', 'error');
-      setPhase('lobby');
-      return;
-    }
     if (rating === 0) return;
     setSubmitting(true);
     try {
       await api.post('/ratings', {
-        matchId: currentMatchId,
+        matchId,
         qualityScore: rating,
         meetAgain,
+        toUserId,
       });
-      addToast('Rating submitted!', 'success');
-      setSubmitted(true);
+      addToast(`Rating for ${partnerName} submitted!`, 'success');
+      onSubmitted();
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message || 'Failed to submit rating';
       addToast(msg, 'error');
@@ -41,14 +43,78 @@ export default function RatingPrompt(_props: Props) {
     }
   };
 
-  if (submitted) {
+  return (
+    <Card className="max-w-md w-full text-center">
+      {totalPartners > 1 && (
+        <p className="text-xs text-gray-400 mb-2">Partner {partnerIndex + 1} of {totalPartners}</p>
+      )}
+      <h2 className="text-xl font-bold text-[#1a1a2e] mb-2">Rate your conversation</h2>
+      <p className="text-gray-500 mb-6">
+        How was your chat with {partnerName}?
+      </p>
+
+      <div className="flex justify-center gap-2 mb-6">
+        {[1, 2, 3, 4, 5].map(n => (
+          <button
+            key={n}
+            onClick={() => setRating(n)}
+            className="transition-transform hover:scale-110"
+          >
+            <Star
+              className={`h-10 w-10 ${n <= rating ? 'text-amber-400 fill-amber-400' : 'text-gray-300'}`}
+            />
+          </button>
+        ))}
+      </div>
+
+      <button
+        onClick={() => setMeetAgain(!meetAgain)}
+        className={`flex items-center justify-center gap-2 w-full py-2 rounded-lg border transition-colors mb-4 ${
+          meetAgain ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+        }`}
+      >
+        <UserCheck className="h-4 w-4" />
+        {meetAgain ? 'Would meet again!' : 'Would you meet again?'}
+      </button>
+
+      <Button onClick={submit} isLoading={submitting} disabled={rating === 0} className="w-full">
+        Submit Rating
+      </Button>
+
+      <button onClick={onSkip} className="text-sm text-gray-400 hover:text-gray-600 mt-4 transition-colors">
+        Skip
+      </button>
+    </Card>
+  );
+}
+
+export default function RatingPrompt(_props: Props) {
+  const { currentMatch, currentMatchId, currentPartners, setPhase } = useSessionStore();
+  const { addToast } = useToastStore();
+  const [currentPartnerIdx, setCurrentPartnerIdx] = useState(0);
+
+  const partners = currentPartners.length > 0
+    ? currentPartners
+    : currentMatch ? [currentMatch] : [];
+
+  const allDone = currentPartnerIdx >= partners.length;
+
+  if (!currentMatchId || partners.length === 0) {
+    addToast('No match data available to rate', 'error');
+    setPhase('lobby');
+    return null;
+  }
+
+  if (allDone) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
         <Card className="max-w-md w-full text-center">
           <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-500/20 text-emerald-400 mb-4">
             <CheckCircle className="h-8 w-8" />
           </div>
-          <h2 className="text-xl font-bold text-[#1a1a2e] mb-2">Rating Submitted!</h2>
+          <h2 className="text-xl font-bold text-[#1a1a2e] mb-2">
+            {partners.length > 1 ? 'All Ratings Submitted!' : 'Rating Submitted!'}
+          </h2>
           <div className="flex items-center justify-center gap-2">
             <Loader2 className="h-4 w-4 text-gray-500 animate-spin" />
             <p className="text-gray-500">Waiting for the next round to begin...</p>
@@ -58,46 +124,21 @@ export default function RatingPrompt(_props: Props) {
     );
   }
 
+  const partner = partners[currentPartnerIdx];
+  const advance = () => setCurrentPartnerIdx(prev => prev + 1);
+
   return (
     <div className="flex-1 flex items-center justify-center p-4">
-      <Card className="max-w-md w-full text-center">
-        <h2 className="text-xl font-bold text-[#1a1a2e] mb-2">Rate your conversation</h2>
-        <p className="text-gray-500 mb-6">
-          How was your chat with {currentMatch?.displayName || 'your partner'}?
-        </p>
-
-        <div className="flex justify-center gap-2 mb-6">
-          {[1, 2, 3, 4, 5].map(n => (
-            <button
-              key={n}
-              onClick={() => setRating(n)}
-              className="transition-transform hover:scale-110"
-            >
-              <Star
-                className={`h-10 w-10 ${n <= rating ? 'text-amber-400 fill-amber-400' : 'text-gray-300'}`}
-              />
-            </button>
-          ))}
-        </div>
-
-        <button
-          onClick={() => setMeetAgain(!meetAgain)}
-          className={`flex items-center justify-center gap-2 w-full py-2 rounded-lg border transition-colors mb-4 ${
-            meetAgain ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-gray-200 text-gray-500 hover:border-gray-300'
-          }`}
-        >
-          <UserCheck className="h-4 w-4" />
-          {meetAgain ? 'Would meet again!' : 'Would you meet again?'}
-        </button>
-
-        <Button onClick={submit} isLoading={submitting} disabled={rating === 0} className="w-full">
-          Submit Rating
-        </Button>
-
-        <button onClick={() => setPhase('lobby')} className="text-sm text-gray-400 hover:text-gray-600 mt-4 transition-colors">
-          Skip
-        </button>
-      </Card>
+      <PartnerRatingForm
+        key={partner.userId}
+        partnerName={partner.displayName || 'your partner'}
+        toUserId={partner.userId}
+        matchId={currentMatchId}
+        onSubmitted={advance}
+        onSkip={advance}
+        partnerIndex={currentPartnerIdx}
+        totalPartners={partners.length}
+      />
     </div>
   );
 }

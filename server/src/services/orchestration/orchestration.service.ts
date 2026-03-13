@@ -75,6 +75,7 @@ export function initOrchestration(
     socket.on('host:swap_match', (data) => handleHostSwapMatch(socket, data));
     socket.on('host:exclude_participant', (data) => handleHostExcludeFromRound(socket, data));
     socket.on('host:regenerate_matches', (data) => handleHostRegenerateMatches(socket, data));
+    socket.on('host:mute_participant', (data) => handleHostMuteParticipant(socket, data));
 
     socket.on('disconnect', () => handleDisconnect(socket));
   });
@@ -392,7 +393,7 @@ async function handleDisconnect(socket: Socket): Promise<void> {
         sessionId, userId, ParticipantStatus.DISCONNECTED
       ).catch(() => {}); // Swallow errors on disconnect cleanup
 
-      // If mid-round, notify partner and attempt reassignment after timeout
+      // If mid-round, notify partner and attempt auto-reassignment
       if (activeSession.status === SessionStatus.ROUND_ACTIVE) {
         try {
           const matches = await matchingService.getMatchesByRound(sessionId, activeSession.currentRound);
@@ -403,37 +404,97 @@ async function handleDisconnect(socket: Socket): Promise<void> {
             const partnerId = userMatch.participantAId === userId
               ? userMatch.participantBId : userMatch.participantAId;
 
-            // Notify partner with waiting message
-            io.to(userRoom(partnerId)).emit('match:bye_round', {
-              roundNumber: activeSession.currentRound,
-              reason: 'Your partner left the room. Please wait while we reassign you.',
+            // Step 1: Notify partner with "waiting for reassignment" (NOT bye_round)
+            io.to(userRoom(partnerId)).emit('match:partner_disconnected', {
+              matchId: userMatch.id,
             });
 
-            // After 15 seconds, if still disconnected, mark match as no_show
-            // and convert partner to bye round (return to lobby)
             const disconnectRound = activeSession.currentRound;
             const disconnectMatchId = userMatch.id;
+
+            // Step 2: After 15 seconds, try auto-reassignment or fall back to bye
             setTimeout(async () => {
               try {
-                // Check if user reconnected
                 const currentSession = activeSessions.get(sessionId);
                 if (!currentSession || currentSession.currentRound !== disconnectRound) return;
-                if (currentSession.presenceMap.has(userId)) return; // They reconnected
+                if (currentSession.presenceMap.has(userId)) {
+                  // User reconnected — notify partner
+                  io.to(userRoom(partnerId)).emit('match:partner_reconnected', {
+                    matchId: disconnectMatchId,
+                  });
+                  return;
+                }
 
-                // Mark match as no_show
+                // Mark original match as no_show
                 await query(
                   `UPDATE matches SET status = 'no_show', ended_at = NOW() WHERE id = $1 AND status = 'active'`,
                   [disconnectMatchId]
                 );
 
-                // Notify partner they're being returned to lobby
-                io.to(userRoom(partnerId)).emit('match:bye_round', {
-                  roundNumber: disconnectRound,
-                  reason: 'Your partner could not reconnect. You have a bye this round.',
-                });
+                // Step 3: Try auto-reassignment — find another isolated participant
+                const noShowMatches = await query<{ id: string; participant_a_id: string; participant_b_id: string }>(
+                  `SELECT id, participant_a_id, participant_b_id FROM matches
+                   WHERE session_id = $1 AND round_number = $2 AND status = 'no_show' AND id != $3`,
+                  [sessionId, disconnectRound, disconnectMatchId]
+                );
 
-                logger.info({ sessionId, userId, partnerId, matchId: disconnectMatchId },
-                  'Partner disconnect timeout — match marked no_show, partner converted to bye');
+                let reassigned = false;
+                for (const nsMatch of noShowMatches.rows) {
+                  // Find which participant in this no_show match is still present
+                  const candidateA = nsMatch.participant_a_id;
+                  const candidateB = nsMatch.participant_b_id;
+                  const candidatePresent = currentSession.presenceMap.has(candidateA) ? candidateA
+                    : currentSession.presenceMap.has(candidateB) ? candidateB : null;
+
+                  if (candidatePresent && candidatePresent !== partnerId) {
+                    // Found another isolated participant — pair them!
+                    const reassignSlug = `auto-reassign-${Date.now()}`;
+                    const roomId = `session-${sessionId}-round-${disconnectRound}-${reassignSlug}`;
+                    try {
+                      await videoService.createMatchRoom(sessionId, disconnectRound, reassignSlug);
+                    } catch { /* room may already exist */ }
+
+                    const matchId = require('uuid').v4();
+                    await query(
+                      `INSERT INTO matches (id, session_id, round_number, participant_a_id, participant_b_id, status, started_at)
+                       VALUES ($1, $2, $3, $4, $5, 'active', NOW())`,
+                      [matchId, sessionId, disconnectRound, partnerId, candidatePresent]
+                    );
+
+                    // Fetch display names
+                    const nameRes = await query<{ id: string; display_name: string }>(
+                      `SELECT id, display_name FROM users WHERE id = ANY($1)`,
+                      [[partnerId, candidatePresent]]
+                    );
+                    const names = new Map(nameRes.rows.map(r => [r.id, r.display_name || 'User']));
+
+                    io.to(userRoom(partnerId)).emit('match:reassigned', {
+                      matchId, newPartnerId: candidatePresent,
+                      partnerDisplayName: names.get(candidatePresent),
+                      roomId, roundNumber: disconnectRound,
+                    });
+                    io.to(userRoom(candidatePresent)).emit('match:reassigned', {
+                      matchId, newPartnerId: partnerId,
+                      partnerDisplayName: names.get(partnerId),
+                      roomId, roundNumber: disconnectRound,
+                    });
+
+                    logger.info({ sessionId, partnerId, candidatePresent, matchId },
+                      'Auto-reassigned isolated participants after disconnect');
+                    reassigned = true;
+                    break;
+                  }
+                }
+
+                if (!reassigned) {
+                  // No available partner — fall back to bye round
+                  io.to(userRoom(partnerId)).emit('match:bye_round', {
+                    roundNumber: disconnectRound,
+                    reason: 'Your partner could not reconnect and no reassignment was available. You have a bye this round.',
+                  });
+                  logger.info({ sessionId, userId, partnerId, matchId: disconnectMatchId },
+                    'Partner disconnect timeout — no reassignment available, converted to bye');
+                }
               } catch (err) {
                 logger.warn({ err, sessionId, userId }, 'Error in disconnect timeout handler');
               }
@@ -953,7 +1014,7 @@ async function handleHostGenerateMatches(
          AND user_id != $2`,
       [data.sessionId, activeSession.hostUserId]
     );
-    const matchedIds = new Set(matches.flatMap(m => [m.participantAId, m.participantBId]));
+    const matchedIds = new Set(matches.flatMap(m => [m.participantAId, m.participantBId, ...(m.participantCId ? [m.participantCId] : [])]));
     const byeParticipants = allParticipants.rows
       .filter(p => !matchedIds.has(p.user_id))
       .map(p => ({ userId: p.user_id, displayName: nameMap.get(p.user_id) || 'User' }));
@@ -1033,28 +1094,31 @@ async function handleHostSwapMatch(
     // Swap the two users between their respective matches
     // Find match containing userA and match containing userB
     const matches = await matchingService.getMatchesByRound(data.sessionId, roundNumber);
-    const matchA = matches.find(m => m.participantAId === data.userA || m.participantBId === data.userA);
-    const matchB = matches.find(m => m.participantAId === data.userB || m.participantBId === data.userB);
+    const matchA = matches.find(m => m.participantAId === data.userA || m.participantBId === data.userA || m.participantCId === data.userA);
+    const matchB = matches.find(m => m.participantAId === data.userB || m.participantBId === data.userB || m.participantCId === data.userB);
 
     if (!matchA || !matchB || matchA.id === matchB.id) {
       socket.emit('error', { code: 'SWAP_FAILED', message: 'Cannot swap — participants must be in different matches' });
       return;
     }
 
-    // Perform the swap in DB
-    // In matchA, replace userA with userB; in matchB, replace userB with userA
-    const newMatchAPartnerA = matchA.participantAId === data.userA ? data.userB : matchA.participantAId;
-    const newMatchAPartnerB = matchA.participantBId === data.userA ? data.userB : matchA.participantBId;
-    const newMatchBPartnerA = matchB.participantAId === data.userB ? data.userA : matchB.participantAId;
-    const newMatchBPartnerB = matchB.participantBId === data.userB ? data.userA : matchB.participantBId;
+    // Perform the swap in DB — replace userA with userB in matchA, and vice versa
+    const replaceInMatch = (match: typeof matchA, oldUser: string, newUser: string) => {
+      const ids = [match!.participantAId, match!.participantBId, match!.participantCId].map(
+        id => id === oldUser ? newUser : id
+      );
+      // Sort A < B for consistency (C stays as-is if present)
+      const main = [ids[0]!, ids[1]!].sort();
+      return { a: main[0], b: main[1], c: ids[2] || null };
+    };
 
-    // Ensure A < B ordering
-    const sortPair = (a: string, b: string) => a < b ? [a, b] : [b, a];
-    const [mAa, mAb] = sortPair(newMatchAPartnerA, newMatchAPartnerB);
-    const [mBa, mBb] = sortPair(newMatchBPartnerA, newMatchBPartnerB);
+    const newA = replaceInMatch(matchA, data.userA, data.userB);
+    const newB = replaceInMatch(matchB, data.userB, data.userA);
 
-    await query('UPDATE matches SET participant_a_id = $1, participant_b_id = $2 WHERE id = $3', [mAa, mAb, matchA.id]);
-    await query('UPDATE matches SET participant_a_id = $1, participant_b_id = $2 WHERE id = $3', [mBa, mBb, matchB.id]);
+    await query('UPDATE matches SET participant_a_id = $1, participant_b_id = $2, participant_c_id = $3 WHERE id = $4',
+      [newA.a, newA.b, newA.c, matchA.id]);
+    await query('UPDATE matches SET participant_a_id = $1, participant_b_id = $2, participant_c_id = $3 WHERE id = $4',
+      [newB.a, newB.b, newB.c, matchB.id]);
 
     // Re-send updated preview
     await sendMatchPreview(socket, data.sessionId, roundNumber);
@@ -1082,13 +1146,27 @@ async function handleHostExcludeFromRound(
 
     const roundNumber = activeSession.pendingRoundNumber;
 
-    // Find and delete the match containing this user
+    // Find the match containing this user
     const matches = await matchingService.getMatchesByRound(data.sessionId, roundNumber);
-    const userMatch = matches.find(m => m.participantAId === data.userId || m.participantBId === data.userId);
+    const userMatch = matches.find(m =>
+      m.participantAId === data.userId || m.participantBId === data.userId || m.participantCId === data.userId
+    );
 
     if (userMatch) {
-      // Delete the match — the partner becomes a bye participant
-      await query('DELETE FROM matches WHERE id = $1', [userMatch.id]);
+      if (userMatch.participantCId === data.userId) {
+        // Trio: just remove participant C — pair remains intact
+        await query('UPDATE matches SET participant_c_id = NULL WHERE id = $1', [userMatch.id]);
+      } else if (userMatch.participantCId) {
+        // Trio: excluded user is A or B — promote C to fill the gap
+        const remaining = [userMatch.participantAId, userMatch.participantBId, userMatch.participantCId]
+          .filter(id => id !== data.userId);
+        const sorted = remaining.sort();
+        await query('UPDATE matches SET participant_a_id = $1, participant_b_id = $2, participant_c_id = NULL WHERE id = $3',
+          [sorted[0], sorted[1], userMatch.id]);
+      } else {
+        // Pair: delete the match — the partner becomes a bye participant
+        await query('DELETE FROM matches WHERE id = $1', [userMatch.id]);
+      }
     }
 
     // Re-send updated preview
@@ -1135,6 +1213,33 @@ async function handleHostRegenerateMatches(
   }
 }
 
+// ─── Host: Mute/Unmute Participant ──────────────────────────────────────────
+
+async function handleHostMuteParticipant(socket: Socket, data: any): Promise<void> {
+  const userId = getUserIdFromSocket(socket);
+  if (!userId) return;
+
+  const activeSession = activeSessions.get(data.sessionId);
+  if (!activeSession) {
+    socket.emit('error', { code: 'SESSION_NOT_FOUND', message: 'Session not found' });
+    return;
+  }
+
+  if (activeSession.hostUserId !== userId) {
+    socket.emit('error', { code: 'NOT_HOST', message: 'Only the host can mute/unmute participants' });
+    return;
+  }
+
+  // Relay mute command to the target participant's client
+  io.to(userRoom(data.targetUserId)).emit('lobby:mute_command', {
+    muted: data.muted,
+    byHost: true,
+  });
+
+  logger.info({ sessionId: data.sessionId, targetUserId: data.targetUserId, muted: data.muted },
+    'Host mute/unmute command sent');
+}
+
 // ─── Helper: Send Match Preview to Host ─────────────────────────────────────
 
 async function sendMatchPreview(
@@ -1149,6 +1254,7 @@ async function sendMatchPreview(
   for (const m of matches) {
     allUserIds.add(m.participantAId);
     allUserIds.add(m.participantBId);
+    if (m.participantCId) allUserIds.add(m.participantCId);
   }
 
   const namesResult = await query<{ id: string; displayName: string }>(
@@ -1157,10 +1263,36 @@ async function sendMatchPreview(
   );
   const nameMap = new Map(namesResult.rows.map(r => [r.id, r.displayName || 'User']));
 
-  const matchPreview = matches.map(m => ({
-    participantA: { userId: m.participantAId, displayName: nameMap.get(m.participantAId) || 'User' },
-    participantB: { userId: m.participantBId, displayName: nameMap.get(m.participantBId) || 'User' },
-  }));
+  // Fetch encounter history for all matched pairs to show "met before" info
+  const userIdsArray = Array.from(allUserIds);
+  const encounterResult = userIdsArray.length > 0
+    ? await query<{ user_a_id: string; user_b_id: string; times_met: number }>(
+        `SELECT user_a_id, user_b_id, times_met FROM encounter_history
+         WHERE user_a_id = ANY($1) AND user_b_id = ANY($1) AND times_met > 0`,
+        [userIdsArray]
+      )
+    : { rows: [] };
+  const encounterMap = new Map<string, number>();
+  for (const e of encounterResult.rows) {
+    const key = [e.user_a_id, e.user_b_id].sort().join(':');
+    encounterMap.set(key, e.times_met);
+  }
+
+  const matchPreview = matches.map(m => {
+    const pairKey = [m.participantAId, m.participantBId].sort().join(':');
+    const timesMet = encounterMap.get(pairKey) || 0;
+    const preview: any = {
+      participantA: { userId: m.participantAId, displayName: nameMap.get(m.participantAId) || 'User' },
+      participantB: { userId: m.participantBId, displayName: nameMap.get(m.participantBId) || 'User' },
+      metBefore: timesMet > 0,
+      timesMet,
+    };
+    if (m.participantCId) {
+      preview.participantC = { userId: m.participantCId, displayName: nameMap.get(m.participantCId) || 'User' };
+      preview.isTrio = true;
+    }
+    return preview;
+  });
 
   // Exclude host from bye list — host stays in lobby, not a "bye"
   const allParticipants = hostUserId
@@ -1173,7 +1305,7 @@ async function sendMatchPreview(
         `SELECT user_id FROM session_participants WHERE session_id = $1 AND status IN ('in_lobby', 'checked_in', 'registered')`,
         [sessionId]
       );
-  const matchedIds = new Set(matches.flatMap(m => [m.participantAId, m.participantBId]));
+  const matchedIds = new Set(matches.flatMap(m => [m.participantAId, m.participantBId, ...(m.participantCId ? [m.participantCId] : [])]));
   const byeParticipants = allParticipants.rows
     .filter(p => !matchedIds.has(p.user_id))
     .map(p => ({ userId: p.user_id, displayName: nameMap.get(p.user_id) || 'User' }));
@@ -1235,37 +1367,35 @@ async function transitionToRound(
         [roomId, match.id]
       );
 
-      matchedUserIds.add(match.participantAId);
-      matchedUserIds.add(match.participantBId);
+      // Collect all participant IDs for this match (2 or 3)
+      const matchParticipantIds = [match.participantAId, match.participantBId];
+      if (match.participantCId) matchParticipantIds.push(match.participantCId);
+      for (const pid of matchParticipantIds) matchedUserIds.add(pid);
 
-      // Look up display names for both participants
+      // Look up display names for all participants in this match
       const namesResult = await query<{ id: string; displayName: string }>(
         `SELECT id, display_name AS "displayName" FROM users WHERE id = ANY($1)`,
-        [[match.participantAId, match.participantBId]]
+        [matchParticipantIds]
       );
       const nameMap = new Map(namesResult.rows.map(r => [r.id, r.displayName]));
 
-      // Notify participant A
-      io.to(userRoom(match.participantAId)).emit('match:assigned', {
-        matchId: match.id,
-        partnerId: match.participantBId,
-        partnerDisplayName: nameMap.get(match.participantBId) || 'Partner',
-        roomId,
-        roundNumber,
-      });
+      // Build partners list for each participant and notify them
+      for (const pid of matchParticipantIds) {
+        const partners = matchParticipantIds
+          .filter(id => id !== pid)
+          .map(id => ({ userId: id, displayName: nameMap.get(id) || 'Partner' }));
 
-      // Notify participant B
-      io.to(userRoom(match.participantBId)).emit('match:assigned', {
-        matchId: match.id,
-        partnerId: match.participantAId,
-        partnerDisplayName: nameMap.get(match.participantAId) || 'Partner',
-        roomId,
-        roundNumber,
-      });
+        io.to(userRoom(pid)).emit('match:assigned', {
+          matchId: match.id,
+          partnerId: partners[0].userId,
+          partnerDisplayName: partners[0].displayName,
+          partners,  // Array of all partners (1 for pair, 2 for trio)
+          roomId,
+          roundNumber,
+        });
 
-      // Update participant statuses
-      await sessionService.updateParticipantStatus(sessionId, match.participantAId, ParticipantStatus.IN_ROUND);
-      await sessionService.updateParticipantStatus(sessionId, match.participantBId, ParticipantStatus.IN_ROUND);
+        await sessionService.updateParticipantStatus(sessionId, pid, ParticipantStatus.IN_ROUND);
+      }
     }
 
     // Notify bye participants (unmatched due to odd count — exclude host, they stay in lobby)
@@ -1500,13 +1630,22 @@ async function sendRecapEmails(sessionId: string): Promise<void> {
     try {
       // Per-user stats: unique partners met from completed matches
       const peopleMetResult = await query<{ count: string }>(
-        `SELECT COUNT(DISTINCT CASE
-            WHEN participant_a_id = $1 THEN participant_b_id
-            WHEN participant_b_id = $1 THEN participant_a_id
-         END)::text AS count
-         FROM matches
-         WHERE session_id = $2 AND status = 'completed'
-           AND (participant_a_id = $1 OR participant_b_id = $1)`,
+        `SELECT COUNT(DISTINCT partner)::text AS count FROM (
+           SELECT CASE
+             WHEN participant_a_id = $1 THEN participant_b_id
+             WHEN participant_b_id = $1 THEN participant_a_id
+           END AS partner
+           FROM matches WHERE session_id = $2 AND status = 'completed'
+             AND (participant_a_id = $1 OR participant_b_id = $1)
+           UNION ALL
+           SELECT CASE
+             WHEN participant_c_id = $1 THEN participant_a_id
+             ELSE participant_c_id
+           END AS partner
+           FROM matches WHERE session_id = $2 AND status = 'completed'
+             AND participant_c_id IS NOT NULL
+             AND (participant_a_id = $1 OR participant_b_id = $1 OR participant_c_id = $1)
+         ) sub WHERE partner IS NOT NULL`,
         [p.userId, sessionId]
       );
       const peopleMet = parseInt(peopleMetResult.rows[0]?.count || '0', 10);

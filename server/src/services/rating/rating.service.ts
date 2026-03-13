@@ -36,9 +36,10 @@ export async function submitRating(
   input: CreateRatingInput
 ): Promise<Rating> {
   // Validate the match exists and the user is a participant
-  const matchResult = await query<Match>(
+  const matchResult = await query<Match & { participantCId: string | null }>(
     `SELECT id, session_id AS "sessionId", round_number AS "roundNumber",
             participant_a_id AS "participantAId", participant_b_id AS "participantBId",
+            participant_c_id AS "participantCId",
             status, created_at AS "createdAt"
      FROM matches WHERE id = $1`,
     [input.matchId]
@@ -50,15 +51,14 @@ export async function submitRating(
 
   const match = matchResult.rows[0];
 
-  // Check user was in this match
-  const isParticipantA = match.participantAId === fromUserId;
-  const isParticipantB = match.participantBId === fromUserId;
-  if (!isParticipantA && !isParticipantB) {
+  // Check user was in this match (A, B, or C)
+  const matchParticipants = [match.participantAId, match.participantBId];
+  if (match.participantCId) matchParticipants.push(match.participantCId);
+  if (!matchParticipants.includes(fromUserId)) {
     throw new ForbiddenError('You are not a participant in this match');
   }
 
-  // Check match status allows rating (completed, active, or no_show — no_show can happen
-  // when heartbeat detection fires prematurely but users were still in the call)
+  // Check match status allows rating
   if (!['completed', 'active', 'no_show'].includes(match.status)) {
     throw new ValidationError('Match is not in a ratable state');
   }
@@ -69,16 +69,24 @@ export async function submitRating(
   }
 
   // Determine rating target
-  const toUserId = isParticipantA ? match.participantBId : match.participantAId;
+  // For trios: client sends toUserId to specify which partner they're rating
+  // For pairs: infer automatically (backward compat)
+  let toUserId: string;
+  if ((input as any).toUserId && matchParticipants.includes((input as any).toUserId)) {
+    toUserId = (input as any).toUserId;
+  } else {
+    // Backward compat: 2-person match — rate the other person
+    toUserId = match.participantAId === fromUserId ? match.participantBId : match.participantAId;
+  }
 
-  // Check for duplicate rating
+  // Check for duplicate rating (per from+to pair within this match)
   const existingRating = await query(
-    'SELECT id FROM ratings WHERE match_id = $1 AND from_user_id = $2',
-    [input.matchId, fromUserId]
+    'SELECT id FROM ratings WHERE match_id = $1 AND from_user_id = $2 AND to_user_id = $3',
+    [input.matchId, fromUserId, toUserId]
   );
 
   if (existingRating.rows.length > 0) {
-    throw new ConflictError(ErrorCodes.MATCH_ALREADY_RATED, 'You have already rated this match');
+    throw new ConflictError(ErrorCodes.MATCH_ALREADY_RATED, 'You have already rated this partner');
   }
 
   const ratingId = uuid();
@@ -172,7 +180,7 @@ async function upsertEncounterHistory(
 
 export async function isMatchParticipant(matchId: string, userId: string): Promise<boolean> {
   const result = await query(
-    `SELECT id FROM matches WHERE id = $1 AND (participant_a_id = $2 OR participant_b_id = $2)`,
+    `SELECT id FROM matches WHERE id = $1 AND (participant_a_id = $2 OR participant_b_id = $2 OR participant_c_id = $2)`,
     [matchId, userId]
   );
   return result.rows.length > 0;
@@ -263,6 +271,7 @@ export async function getPeopleMet(
   const session = sessionResult.rows[0];
 
   // Get all matches the user participated in for this session
+  // Uses LATERAL to handle 2-person and 3-person rooms uniformly
   const connectionsResult = await query<ConnectionResult>(
     `SELECT
        u.id AS "userId",
@@ -274,18 +283,23 @@ export async function getPeopleMet(
        COALESCE(r_given.meet_again, FALSE) AS "meetAgain",
        COALESCE(eh.mutual_meet_again, FALSE) AS "mutualMeetAgain",
        m.round_number AS "roundNumber"
-     FROM matches m
-     JOIN users u ON u.id = CASE
-       WHEN m.participant_a_id = $1 THEN m.participant_b_id
-       ELSE m.participant_a_id
-     END
-     LEFT JOIN ratings r_given ON r_given.match_id = m.id AND r_given.from_user_id = $1
+     FROM matches m,
+     LATERAL (
+       SELECT unnest(ARRAY[
+         CASE WHEN m.participant_a_id != $1 THEN m.participant_a_id END,
+         CASE WHEN m.participant_b_id != $1 THEN m.participant_b_id END,
+         CASE WHEN m.participant_c_id IS NOT NULL AND m.participant_c_id != $1 THEN m.participant_c_id END
+       ]) AS partner_id
+     ) partners
+     JOIN users u ON u.id = partners.partner_id
+     LEFT JOIN ratings r_given ON r_given.match_id = m.id AND r_given.from_user_id = $1 AND r_given.to_user_id = u.id
      LEFT JOIN encounter_history eh ON (
        (eh.user_a_id = LEAST($1, u.id) AND eh.user_b_id = GREATEST($1, u.id))
      )
      WHERE m.session_id = $2
-       AND (m.participant_a_id = $1 OR m.participant_b_id = $1)
+       AND (m.participant_a_id = $1 OR m.participant_b_id = $1 OR m.participant_c_id = $1)
        AND m.status IN ('completed', 'active')
+       AND partners.partner_id IS NOT NULL
      ORDER BY m.round_number ASC`,
     [userId, sessionId]
   );

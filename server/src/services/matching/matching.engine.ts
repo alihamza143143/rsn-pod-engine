@@ -230,18 +230,42 @@ export class MatchingEngineV1 implements IMatchingEngine {
       }
     }
 
-    // Determine bye participant (odd count or unable to match)
-    let byeParticipant: string | null = null;
+    // Handle unmatched — form trio instead of bye when exactly 1 leftover
     const stillUnmatched = participants
       .map((p, idx) => ({ userId: p.userId, idx }))
       .filter((p) => !matched.has(p.idx));
 
-    if (stillUnmatched.length > 0) {
-      // Rotate bye assignment: pick the participant who has had the fewest byes
-      // by checking encounter history (fewer total matches = more likely to have been bye'd)
-      // As a simple heuristic, use the round number to rotate through unmatched participants
-      const rotationIdx = (roundNumber - 1) % stillUnmatched.length;
-      byeParticipant = stillUnmatched[rotationIdx].userId;
+    let byeParticipant: string | null = null;
+
+    if (stillUnmatched.length === 1 && pairs.length > 0) {
+      // Exactly one leftover — add to the best-fit existing pair to form a trio
+      const leftover = stillUnmatched[0];
+      let bestPairIdx = pairs.length - 1;
+      let bestTrioScore = -1;
+
+      for (let pi = 0; pi < pairs.length; pi++) {
+        const aIdx = participants.findIndex(p => p.userId === pairs[pi].participantAId);
+        const bIdx = participants.findIndex(p => p.userId === pairs[pi].participantBId);
+        if (aIdx < 0 || bIdx < 0) continue;
+
+        const scoreA = this.computePairScore(participants[leftover.idx], participants[aIdx], config.weights, encounterMap).score;
+        const scoreB = this.computePairScore(participants[leftover.idx], participants[bIdx], config.weights, encounterMap).score;
+        const avgScore = (scoreA + scoreB) / 2;
+
+        if (avgScore > bestTrioScore) {
+          bestTrioScore = avgScore;
+          bestPairIdx = pi;
+        }
+      }
+
+      pairs[bestPairIdx] = {
+        ...pairs[bestPairIdx],
+        participantCId: leftover.userId,
+        reasonTags: [...pairs[bestPairIdx].reasonTags, 'trio'],
+      };
+    } else if (stillUnmatched.length > 1) {
+      // Multiple unmatched (rare edge) — fall back to bye for first
+      byeParticipant = stillUnmatched[0].userId;
     }
 
     return {

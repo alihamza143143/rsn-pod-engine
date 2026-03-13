@@ -276,7 +276,7 @@ export default function PodDetailPage() {
         </div>
       ) : pod.status !== 'archived' && (
         <div className="flex flex-wrap gap-3 animate-fade-in-up stagger-1">
-          {isMember && (
+          {isDirectorOrHost && (
             <Button onClick={() => navigate(`/sessions/new?podId=${podId}`)} className="btn-glow">
               <Calendar className="h-4 w-4 mr-2" /> Schedule Event
             </Button>
