@@ -34,12 +34,45 @@ export async function createInvite(userId: string, input: CreateInviteInput): Pr
     expiresAt = new Date(Date.now() + input.expiresInHours * 60 * 60 * 1000);
   }
 
-  // Validate pod/session references
-  if (input.type === InviteType.POD && input.podId) {
+  // Validate pod/session references — require target for pod/session invites
+  if (input.type === InviteType.POD) {
+    if (!input.podId) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Pod invite requires a pod to be selected');
+    }
     await podService.getPodById(input.podId);
+
+    // Check if invitee is already a member of this pod
+    if (input.inviteeEmail) {
+      const existingMember = await query<{ id: string }>(
+        `SELECT u.id FROM users u
+         JOIN pod_members pm ON pm.user_id = u.id
+         WHERE u.email = $1 AND pm.pod_id = $2 AND pm.status = 'active'`,
+        [input.inviteeEmail.toLowerCase(), input.podId]
+      );
+      if (existingMember.rows.length > 0) {
+        throw new AppError(409, 'POD_MEMBER_EXISTS', 'This user is already a member of this pod');
+      }
+    }
   }
-  if (input.type === InviteType.SESSION && input.sessionId) {
+
+  if (input.type === InviteType.SESSION) {
+    if (!input.sessionId) {
+      throw new AppError(400, 'VALIDATION_ERROR', 'Event invite requires an event to be selected');
+    }
     await sessionService.getSessionById(input.sessionId);
+
+    // Check if invitee is already a participant of this session
+    if (input.inviteeEmail) {
+      const existingParticipant = await query<{ id: string }>(
+        `SELECT u.id FROM users u
+         JOIN session_participants sp ON sp.user_id = u.id
+         WHERE u.email = $1 AND sp.session_id = $2`,
+        [input.inviteeEmail.toLowerCase(), input.sessionId]
+      );
+      if (existingParticipant.rows.length > 0) {
+        throw new AppError(409, 'SESSION_ALREADY_REGISTERED', 'This user is already a participant of this event');
+      }
+    }
   }
 
   const result = await query<Invite>(

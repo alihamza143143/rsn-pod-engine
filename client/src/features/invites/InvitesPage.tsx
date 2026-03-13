@@ -76,9 +76,10 @@ export default function InvitesPage() {
 
   const sendEmailMutation = useMutation({
     mutationFn: () => {
+      if (needsTarget) { throw new Error('Please select a pod or event first'); }
       const payload: any = { type: inviteType, maxUses: 1, inviteeEmail };
-      if (inviteType === 'pod' && podId) payload.podId = podId;
-      if (inviteType === 'session' && sessionId) payload.sessionId = sessionId;
+      if (inviteType === 'pod') payload.podId = podId;
+      if (inviteType === 'session') payload.sessionId = sessionId;
       return api.post('/invites', payload);
     },
     onSuccess: () => {
@@ -86,14 +87,15 @@ export default function InvitesPage() {
       addToast(`Invite sent to ${inviteeEmail}!`, 'success');
       setInviteeEmail('');
     },
-    onError: () => addToast('Failed to send invite', 'error'),
+    onError: (err: any) => addToast(err?.response?.data?.error?.message || 'Failed to send invite', 'error'),
   });
 
   const createLinkMutation = useMutation({
     mutationFn: () => {
+      if (needsTarget) { throw new Error('Please select a pod or event first'); }
       const payload: any = { type: inviteType, maxUses: maxUses || 10 };
-      if (inviteType === 'pod' && podId) payload.podId = podId;
-      if (inviteType === 'session' && sessionId) payload.sessionId = sessionId;
+      if (inviteType === 'pod') payload.podId = podId;
+      if (inviteType === 'session') payload.sessionId = sessionId;
       return api.post('/invites', payload);
     },
     onSuccess: async (res) => {
@@ -108,25 +110,37 @@ export default function InvitesPage() {
         addToast('Invite link created — copy it below', 'success');
       }
     },
-    onError: () => addToast('Failed to create invite link', 'error'),
+    onError: (err: any) => addToast(err?.response?.data?.error?.message || err?.message || 'Failed to create invite link', 'error'),
   });
 
   const bulkInviteMutation = useMutation({
-    mutationFn: (emails: string[]) => {
-      return Promise.all(emails.map(email => {
+    mutationFn: async (emails: string[]) => {
+      if (needsTarget) { throw new Error('Please select a pod or event first'); }
+      const results = [];
+      for (const email of emails) {
         const payload: any = { type: inviteType, maxUses: 1, inviteeEmail: email };
-        if (inviteType === 'pod' && podId) payload.podId = podId;
-        if (inviteType === 'session' && sessionId) payload.sessionId = sessionId;
-        return api.post('/invites', payload);
-      }));
+        if (inviteType === 'pod') payload.podId = podId;
+        if (inviteType === 'session') payload.sessionId = sessionId;
+        try {
+          await api.post('/invites', payload);
+          results.push({ email, ok: true });
+        } catch (err: any) {
+          const msg = err?.response?.data?.error?.message || 'Failed';
+          results.push({ email, ok: false, msg });
+        }
+      }
+      return results;
     },
-    onSuccess: () => {
+    onSuccess: (results) => {
       qc.invalidateQueries({ queryKey: ['my-invites'] });
-      addToast(`${selectedUsers.length} invite(s) sent!`, 'success');
+      const failed = results.filter(r => !r.ok);
+      const succeeded = results.filter(r => r.ok);
+      if (succeeded.length > 0) addToast(`${succeeded.length} invite(s) sent!`, 'success');
+      failed.forEach(r => addToast(`${r.email}: ${r.msg}`, 'error'));
       setSelectedUsers([]);
       setUserSearch('');
     },
-    onError: () => addToast('Failed to send some invites', 'error'),
+    onError: (err: any) => addToast(err?.message || 'Failed to send invites', 'error'),
   });
 
   const needsTarget = (inviteType === 'pod' && !podId) || (inviteType === 'session' && !sessionId);
@@ -183,6 +197,12 @@ export default function InvitesPage() {
               </div>
             )}
           </div>
+
+          {needsTarget && (
+            <p className="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Please select a {inviteType === 'pod' ? 'pod' : 'event'} above before sending invites.
+            </p>
+          )}
 
           {/* Invite options */}
           <div className={`grid grid-cols-1 ${inviteType === 'platform' ? 'sm:grid-cols-2' : 'sm:grid-cols-3'} gap-4`}>
