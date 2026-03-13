@@ -5,6 +5,7 @@ import Card from '@/components/ui/Card';
 import Input from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useToastStore } from '@/stores/toastStore';
+import { useAuthStore } from '@/stores/authStore';
 import { ArrowLeft, Clock, Users, Settings } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -33,8 +34,10 @@ export default function CreateSessionPage() {
     queryFn: () => api.get('/pods?status=active').then(r => r.data.data ?? []),
   });
 
-  // Only show pods where the user is director or host (can create events)
-  const pods = (allPods || []).filter((p: any) => p.memberRole === 'director' || p.memberRole === 'host');
+  const { user } = useAuthStore();
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  // Admins can create events in any pod; others need director/host role
+  const pods = isAdmin ? (allPods || []) : (allPods || []).filter((p: any) => p.memberRole === 'director' || p.memberRole === 'host');
 
   const { register, handleSubmit, formState: { errors } } = useForm<SessionForm>({
     defaultValues: {

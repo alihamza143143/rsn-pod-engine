@@ -114,6 +114,7 @@ export async function updatePod(podId: string, userId: string, input: UpdatePodI
 
 export async function listPods(params: {
   userId?: string;
+  requestingUserId?: string;
   podType?: PodType;
   status?: PodStatus;
   page?: number;
@@ -127,6 +128,16 @@ export async function listPods(params: {
   let whereClause = 'WHERE 1=1';
   const values: unknown[] = [];
   let paramIdx = 1;
+
+  // requestingUserId is used to look up the caller's role in each pod
+  let memberRoleJoin = '';
+  let memberRoleSelect = 'NULL AS "memberRole"';
+  if (params.requestingUserId) {
+    memberRoleJoin = ` LEFT JOIN pod_members pm_role ON pm_role.pod_id = p.id AND pm_role.user_id = $${paramIdx} AND pm_role.status = 'active'`;
+    memberRoleSelect = 'pm_role.role AS "memberRole"';
+    values.push(params.requestingUserId);
+    paramIdx++;
+  }
 
   if (params.userId) {
     whereClause += ` AND p.id IN (SELECT pod_id FROM pod_members WHERE user_id = $${paramIdx} AND status = 'active')`;
@@ -158,15 +169,17 @@ export async function listPods(params: {
   const total = parseInt(countResult.rows[0].count, 10);
 
   values.push(pageSize, offset);
-  const result = await query<Pod & { memberCount: number; sessionCount: number }>(
+  const result = await query<Pod & { memberCount: number; sessionCount: number; memberRole: string | null }>(
     `SELECT p.id, p.name, p.description, p.pod_type AS "podType", p.orchestration_mode AS "orchestrationMode",
             p.communication_mode AS "communicationMode", p.visibility, p.status, p.max_members AS "maxMembers",
             p.rules, p.config, p.created_by AS "createdBy", p.created_at AS "createdAt", p.updated_at AS "updatedAt",
             COALESCE(mc.cnt, 0)::int AS "memberCount",
-            COALESCE(sc.cnt, 0)::int AS "sessionCount"
+            COALESCE(sc.cnt, 0)::int AS "sessionCount",
+            ${memberRoleSelect}
      FROM pods p
      LEFT JOIN (SELECT pod_id, COUNT(*) AS cnt FROM pod_members WHERE status = 'active' GROUP BY pod_id) mc ON mc.pod_id = p.id
      LEFT JOIN (SELECT pod_id, COUNT(*) AS cnt FROM sessions GROUP BY pod_id) sc ON sc.pod_id = p.id
+     ${memberRoleJoin}
      ${whereClause}
      ORDER BY p.created_at DESC
      LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,

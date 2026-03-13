@@ -67,11 +67,12 @@ router.get(
 
       // browse=true shows all active non-private pods; otherwise scope to user's own pods (admins always see all)
       const isBrowse = browse === 'true';
-      const userId = isBrowse || hasRoleAtLeast(req.user!.role, UserRole.ADMIN) ? undefined : req.user!.userId;
+      const scopeUserId = isBrowse || hasRoleAtLeast(req.user!.role, UserRole.ADMIN) ? undefined : req.user!.userId;
       const effectiveStatus = isBrowse ? 'active' : status;
 
       const result = await podService.listPods({
-        userId,
+        userId: scopeUserId,
+        requestingUserId: req.user!.userId,
         podType: podType as PodType | undefined,
         status: effectiveStatus as any,
         page: page ? parseInt(page) : undefined,
