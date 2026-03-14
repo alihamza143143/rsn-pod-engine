@@ -214,6 +214,18 @@ router.get(
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Access control: only participants, the host, pod members, or admins can view the list
+      if (!hasRoleAtLeast(req.user!.role, UserRole.ADMIN)) {
+        const session = await sessionService.getSessionById(req.params.id);
+        const isHost = session.hostUserId === req.user!.userId;
+        const isParticipant = await sessionService.isSessionParticipant(req.params.id, req.user!.userId);
+        const isPodMember = session.podId
+          ? !!(await podService.getMemberRole(session.podId, req.user!.userId))
+          : false;
+        if (!isHost && !isParticipant && !isPodMember) {
+          throw new ForbiddenError('You must be a participant or pod member to view this list');
+        }
+      }
       const participants = await sessionService.getSessionParticipants(req.params.id);
       const response: ApiResponse = { success: true, data: participants };
       res.json(response);

@@ -54,7 +54,10 @@ export async function getUserById(id: string): Promise<User> {
             linkedin_url AS "linkedinUrl", interests, reasons_to_connect AS "reasonsToConnect",
             languages, timezone, phone, invited_by_user_id AS "invitedByUserId",
             role, status, profile_complete AS "profileComplete",
-            email_verified AS "emailVerified", last_active_at AS "lastActiveAt",
+            email_verified AS "emailVerified",
+            notify_email AS "notifyEmail", notify_event_reminders AS "notifyEventReminders",
+            notify_matches AS "notifyMatches", profile_visible AS "profileVisible",
+            last_active_at AS "lastActiveAt",
             created_at AS "createdAt", updated_at AS "updatedAt"
      FROM users WHERE id = $1`,
     [id]
@@ -73,7 +76,10 @@ export async function getUserByEmail(email: string): Promise<User | null> {
             linkedin_url AS "linkedinUrl", interests, reasons_to_connect AS "reasonsToConnect",
             languages, timezone, phone, invited_by_user_id AS "invitedByUserId",
             role, status, profile_complete AS "profileComplete",
-            email_verified AS "emailVerified", last_active_at AS "lastActiveAt",
+            email_verified AS "emailVerified",
+            notify_email AS "notifyEmail", notify_event_reminders AS "notifyEventReminders",
+            notify_matches AS "notifyMatches", profile_visible AS "profileVisible",
+            last_active_at AS "lastActiveAt",
             created_at AS "createdAt", updated_at AS "updatedAt"
      FROM users WHERE email = $1`,
     [email.toLowerCase()]
@@ -136,6 +142,10 @@ export async function updateUser(id: string, input: UpdateUserInput): Promise<Us
     languages: 'languages',
     timezone: 'timezone',
     phone: 'phone',
+    notifyEmail: 'notify_email',
+    notifyEventReminders: 'notify_event_reminders',
+    notifyMatches: 'notify_matches',
+    profileVisible: 'profile_visible',
   };
 
   for (const [key, dbCol] of Object.entries(fieldMap)) {
@@ -542,7 +552,10 @@ export async function getUsers(params: {
             linkedin_url AS "linkedinUrl", interests, reasons_to_connect AS "reasonsToConnect",
             languages, timezone, phone, invited_by_user_id AS "invitedByUserId",
             role, status, profile_complete AS "profileComplete",
-            email_verified AS "emailVerified", last_active_at AS "lastActiveAt",
+            email_verified AS "emailVerified",
+            notify_email AS "notifyEmail", notify_event_reminders AS "notifyEventReminders",
+            notify_matches AS "notifyMatches", profile_visible AS "profileVisible",
+            last_active_at AS "lastActiveAt",
             created_at AS "createdAt", updated_at AS "updatedAt"
      FROM users ${whereClause}
      ORDER BY created_at DESC

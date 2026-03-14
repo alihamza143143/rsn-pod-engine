@@ -56,6 +56,10 @@ export interface User {
   status: UserStatus;
   profileComplete: boolean;
   emailVerified: boolean;
+  notifyEmail: boolean;
+  notifyEventReminders: boolean;
+  notifyMatches: boolean;
+  profileVisible: boolean;
   lastActiveAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -98,4 +102,8 @@ export interface UpdateUserInput {
   languages?: string[];
   timezone?: string | null;
   phone?: string | null;
+  notifyEmail?: boolean;
+  notifyEventReminders?: boolean;
+  notifyMatches?: boolean;
+  profileVisible?: boolean;
 }

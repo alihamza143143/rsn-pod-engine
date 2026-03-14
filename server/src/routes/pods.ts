@@ -118,6 +118,11 @@ router.get(
       let memberRole = null;
       if (!hasRoleAtLeast(req.user!.role, UserRole.ADMIN)) {
         memberRole = await podService.getMemberRole(req.params.id, req.user!.userId);
+
+        // Private pods are only visible to their members
+        if (pod.visibility === 'private' && !memberRole) {
+          throw new ForbiddenError('This pod is private. You must be a member to view it.');
+        }
       }
 
       const response: ApiResponse = { success: true, data: { ...pod, memberRole } };

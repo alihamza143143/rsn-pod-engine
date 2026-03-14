@@ -3600,3 +3600,30 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - ✅ 265/265 tests passing (16 suites)
   - ✅ Client Vite build clean
   - ✅ Shared + server TypeScript compiles cleanly
+
+---
+
+### Entry — March 14, 2026, 6:15 AM PKT
+- Task: Audit items P2 — access control, private pod visibility, notification persistence
+- Status: Completed
+- What changed:
+  1. **P2-#4 — Event participants access control**: GET /sessions/:id/participants now requires the requester to be a participant, the host, a pod member, or an admin. Previously any authenticated user could view any event's participant list.
+  2. **P2-#5 — Private pod visibility enforced**: GET /pods/:id now returns 403 for non-members requesting a pod with `visibility: 'private'`. Admins bypass this check.
+  3. **P2-#11 — Notification toggle persistence**: Full stack implementation:
+     - Migration 013: Added `notify_email`, `notify_event_reminders`, `notify_matches`, `profile_visible` boolean columns to users table
+     - Shared User type extended with 4 new preference fields
+     - Server identity service + user route validation updated to handle preference fields
+     - SettingsPage now loads preferences from user object on mount and saves via PUT /users/me API
+  4. **Audit resolution**: P3 items (#15 dropout fallback, #16 trio rooms, #17 met-before badges, #18 host mute) and P4 items (#19 profile fields, #21 encounter history) confirmed as already implemented in the codebase. No work needed.
+- Files touched:
+  - server/src/routes/sessions.ts (participants access control)
+  - server/src/routes/pods.ts (private pod visibility)
+  - server/src/routes/users.ts (preference validation schema)
+  - server/src/services/identity/identity.service.ts (preference fields in updateUser + SELECT queries)
+  - server/src/db/migrations/013_user_preferences.sql (new migration)
+  - shared/src/types/user.ts (4 new preference fields on User + UpdateUserInput)
+  - client/src/features/settings/SettingsPage.tsx (load + save preferences via API)
+- Validation Results:
+  - ✅ 265/265 tests passing (16 suites)
+  - ✅ Client Vite build clean
+  - ✅ Shared + server TypeScript compiles cleanly

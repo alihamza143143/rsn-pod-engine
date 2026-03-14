@@ -1,10 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useMutation } from '@tanstack/react-query';
 import Card from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import Badge from '@/components/ui/Badge';
 import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
 import { Bell, Shield, Eye, CreditCard, Check, Lock, Zap } from 'lucide-react';
+import api from '@/lib/api';
 
 function Toggle({ enabled, onToggle, label, description }: {
   enabled: boolean; onToggle: () => void; label: string; description: string;
@@ -43,16 +45,36 @@ const plans = [
 ];
 
 export default function SettingsPage() {
-  const { user } = useAuthStore();
+  const { user, checkSession } = useAuthStore();
   const { addToast } = useToastStore();
   const [emailNotifs, setEmailNotifs] = useState(true);
-  const [sessionReminders, setSessionReminders] = useState(true);
+  const [eventReminders, setEventReminders] = useState(true);
   const [matchNotifs, setMatchNotifs] = useState(true);
   const [profileVisible, setProfileVisible] = useState(true);
 
-  const handleSave = () => {
-    addToast('Settings saved', 'success');
-  };
+  // Load preferences from user object
+  useEffect(() => {
+    if (user) {
+      setEmailNotifs(user.notifyEmail ?? true);
+      setEventReminders(user.notifyEventReminders ?? true);
+      setMatchNotifs(user.notifyMatches ?? true);
+      setProfileVisible(user.profileVisible ?? true);
+    }
+  }, [user]);
+
+  const saveMutation = useMutation({
+    mutationFn: () => api.put('/users/me', {
+      notifyEmail: emailNotifs,
+      notifyEventReminders: eventReminders,
+      notifyMatches: matchNotifs,
+      profileVisible,
+    }),
+    onSuccess: () => {
+      addToast('Settings saved', 'success');
+      checkSession();
+    },
+    onError: () => addToast('Failed to save settings', 'error'),
+  });
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -75,8 +97,8 @@ export default function SettingsPage() {
             description="Receive important updates via email"
           />
           <Toggle
-            enabled={sessionReminders}
-            onToggle={() => setSessionReminders(!sessionReminders)}
+            enabled={eventReminders}
+            onToggle={() => setEventReminders(!eventReminders)}
             label="Event reminders"
             description="Get notified before upcoming events"
           />
@@ -178,7 +200,7 @@ export default function SettingsPage() {
       </Card>
 
       <div className="flex justify-end">
-        <Button onClick={handleSave}>Save Settings</Button>
+        <Button onClick={() => saveMutation.mutate()} isLoading={saveMutation.isPending}>Save Settings</Button>
       </div>
     </div>
   );
