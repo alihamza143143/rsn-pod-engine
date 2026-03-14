@@ -21,7 +21,7 @@ const POD_COLUMNS = `
 `;
 
 const MEMBER_COLUMNS = `
-  id, pod_id AS "podId", user_id AS "userId", role, status,
+  pod_members.id, pod_id AS "podId", user_id AS "userId", pod_members.role, pod_members.status,
   joined_at AS "joinedAt", left_at AS "leftAt"
 `;
 
