@@ -211,8 +211,10 @@ async function handleJoinSession(
       logger.warn({ err: stateErr }, 'Failed to send initial session state');
     }
 
-    // If in lobby phase and session has a lobby room, send lobby token for video mosaic
-    if (session.lobbyRoomId && (session.status === SessionStatus.LOBBY_OPEN || (activeSession && activeSession.status === SessionStatus.LOBBY_OPEN))) {
+    // If in lobby/transition phase and session has a lobby room, send lobby token for video mosaic
+    const lobbyPhases = [SessionStatus.LOBBY_OPEN, SessionStatus.ROUND_TRANSITION, SessionStatus.ROUND_RATING];
+    const currentStatus = activeSession?.status || session.status;
+    if (session.lobbyRoomId && lobbyPhases.includes(currentStatus as SessionStatus)) {
       try {
         const displayName = (socket.data as any)?.displayName || 'User';
         const lobbyToken = await videoService.issueJoinToken(userId, session.lobbyRoomId, displayName);
@@ -1586,6 +1588,26 @@ async function endRatingWindow(
         status: SessionStatus.ROUND_TRANSITION,
         currentRound: roundNumber,
       });
+
+      // Re-issue lobby tokens to all connected participants for video mosaic
+      const session = await sessionService.getSessionById(sessionId);
+      if (session.lobbyRoomId) {
+        const socketsInRoom = await io.in(sessionRoom(sessionId)).fetchSockets();
+        const { config: appConfig } = await import('../../config');
+        for (const s of socketsInRoom) {
+          try {
+            const uid = (s.data as any)?.userId;
+            const dName = (s.data as any)?.displayName || 'User';
+            if (!uid) continue;
+            const lobbyToken = await videoService.issueJoinToken(uid, session.lobbyRoomId, dName);
+            s.emit('lobby:token', {
+              token: lobbyToken.token,
+              livekitUrl: appConfig.livekit.host,
+              roomId: session.lobbyRoomId,
+            });
+          } catch { /* skip */ }
+        }
+      }
 
       // Host-controlled: no auto-timer. Host must click "Start Round" for next round.
       logger.info({ sessionId, roundNumber }, 'Rating window closed → ROUND_TRANSITION (waiting for host)');

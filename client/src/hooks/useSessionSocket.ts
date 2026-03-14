@@ -90,6 +90,26 @@ export default function useSessionSocket(sessionId: string) {
       if (data.status === 'completed') { clearTimer(); store.setTransitionStatus('session_ending'); setTimeout(() => { store.setTransitionStatus(null); store.setPhase('complete'); }, 1500); }
       if (data.status === 'lobby_open') store.setTransitionStatus('starting_session');
       if (data.status === 'closing_lobby') store.setTransitionStatus('session_ending');
+      // Handle round_rating — ensure clients in bye-round or without match also transition
+      if (data.status === 'round_rating') {
+        clearTimer();
+        const currentPhase = useSessionStore.getState().phase;
+        // Only transition to rating if not already there (matched users get rating:window_open)
+        if (currentPhase !== 'rating') {
+          store.setTransitionStatus('round_ending');
+          store.setPhase('rating');
+        }
+      }
+      // Handle round_transition — ensure all clients return to lobby
+      if (data.status === 'round_transition') {
+        clearTimer();
+        store.setLiveKitToken(null, null);
+        setTimeout(() => { store.setMatch(null); store.setRoomId(null); }, 500);
+        store.setByeRound(false);
+        store.setTransitionStatus('between_rounds');
+        store.setPhase('lobby');
+        setTimeout(() => store.setTransitionStatus(null), 3000);
+      }
       if (data.currentRound) store.setRound(data.currentRound);
     });
 
