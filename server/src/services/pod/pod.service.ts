@@ -285,6 +285,37 @@ export async function removeMember(podId: string, userId: string, removedBy: str
   logger.info({ podId, userId, removedBy }, 'Member removed from pod');
 }
 
+export async function updateMemberRole(podId: string, targetUserId: string, newRole: PodMemberRole, updatedBy: string, updatedByRole?: UserRole): Promise<PodMember> {
+  // Only directors and admins can change roles
+  const isAdmin = updatedByRole && hasRoleAtLeast(updatedByRole, UserRole.ADMIN);
+  if (!isAdmin) {
+    await requirePodRole(podId, updatedBy, [PodMemberRole.DIRECTOR]);
+  }
+
+  // Cannot change the director's own role (there must always be one director)
+  if (targetUserId === updatedBy && newRole !== PodMemberRole.DIRECTOR) {
+    throw new ForbiddenError('You cannot change your own role as director');
+  }
+
+  // Cannot promote someone to director (transfer ownership is a separate operation)
+  if (newRole === PodMemberRole.DIRECTOR) {
+    throw new ForbiddenError('Director role cannot be assigned. Use transfer ownership instead.');
+  }
+
+  const result = await query<PodMember>(
+    `UPDATE pod_members SET role = $1 WHERE pod_id = $2 AND user_id = $3 AND status = 'active'
+     RETURNING ${MEMBER_COLUMNS}`,
+    [newRole, podId, targetUserId]
+  );
+
+  if (result.rows.length === 0) {
+    throw new NotFoundError('PodMember');
+  }
+
+  logger.info({ podId, targetUserId, newRole, updatedBy }, 'Pod member role updated');
+  return result.rows[0];
+}
+
 export async function leavePod(podId: string, userId: string): Promise<void> {
   const result = await query(
     `UPDATE pod_members SET status = 'left', left_at = NOW() WHERE pod_id = $1 AND user_id = $2 AND status = 'active'`,

@@ -22,10 +22,10 @@ const SESSION_COLUMNS = `
 `;
 
 const PARTICIPANT_COLUMNS = `
-  id, session_id AS "sessionId", user_id AS "userId", status,
+  session_participants.id, session_id AS "sessionId", user_id AS "userId", session_participants.status,
   joined_at AS "joinedAt", left_at AS "leftAt", current_room_id AS "currentRoomId",
   is_no_show AS "isNoShow", rounds_completed AS "roundsCompleted",
-  created_at AS "createdAt"
+  session_participants.created_at AS "createdAt"
 `;
 
 // ─── Session CRUD ───────────────────────────────────────────────────────────
@@ -60,6 +60,13 @@ export async function createSession(userId: string, input: CreateSessionInput): 
       JSON.stringify(sessionConfig),
       userId,
     ]
+  );
+
+  // Auto-register the host as a participant
+  await query(
+    `INSERT INTO session_participants (session_id, user_id, status) VALUES ($1, $2, 'registered')
+     ON CONFLICT (session_id, user_id) DO NOTHING`,
+    [sessionId, userId]
   );
 
   logger.info({ sessionId, podId: input.podId, userId }, 'Session created');
@@ -272,7 +279,7 @@ export async function registerParticipant(sessionId: string, userId: string, use
     if (existing.rows.length > 0) {
       const existingStatus = existing.rows[0].status as string;
       if (['registered', 'checked_in', 'in_lobby', 'in_round'].includes(existingStatus)) {
-        throw new ConflictError('SESSION_ALREADY_REGISTERED', 'You are already registered for this session');
+        throw new ConflictError('SESSION_ALREADY_REGISTERED', 'You are already registered for this event');
       }
       // Re-register
       const result = await client.query<SessionParticipant>(
