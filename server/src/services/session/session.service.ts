@@ -317,8 +317,11 @@ export async function unregisterParticipant(sessionId: string, userId: string): 
 export async function getSessionParticipants(
   sessionId: string,
   status?: ParticipantStatus
-): Promise<SessionParticipant[]> {
-  let sql = `SELECT ${PARTICIPANT_COLUMNS} FROM session_participants WHERE session_id = $1`;
+): Promise<(SessionParticipant & { displayName?: string; email?: string })[]> {
+  let sql = `SELECT ${PARTICIPANT_COLUMNS}, u.display_name AS "displayName", u.email
+             FROM session_participants
+             JOIN users u ON u.id = session_participants.user_id
+             WHERE session_id = $1`;
   const values: unknown[] = [sessionId];
 
   if (status) {
@@ -327,7 +330,7 @@ export async function getSessionParticipants(
   }
 
   sql += ' ORDER BY created_at ASC';
-  const result = await query<SessionParticipant>(sql, values);
+  const result = await query<SessionParticipant & { displayName?: string; email?: string }>(sql, values);
   return result.rows;
 }
 

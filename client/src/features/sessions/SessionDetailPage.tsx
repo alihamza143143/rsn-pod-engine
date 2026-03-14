@@ -134,16 +134,28 @@ export default function SessionDetailPage() {
   });
 
   const bulkInviteMutation = useMutation({
-    mutationFn: (emails: string[]) =>
-      Promise.all(emails.map(email =>
-        api.post('/invites', { type: 'session', sessionId, maxUses: 1, inviteeEmail: email })
-      )),
-    onSuccess: () => {
-      addToast(`Invites sent to ${selectedUsers.length} users!`, 'success');
+    mutationFn: async (emails: string[]) => {
+      const results: { email: string; ok: boolean; msg?: string }[] = [];
+      for (const email of emails) {
+        try {
+          await api.post('/invites', { type: 'session', sessionId, maxUses: 1, inviteeEmail: email });
+          results.push({ email, ok: true });
+        } catch (err: any) {
+          const msg = err?.response?.data?.error?.message || 'Failed to send invite';
+          results.push({ email, ok: false, msg });
+        }
+      }
+      return results;
+    },
+    onSuccess: (results) => {
+      qc.invalidateQueries({ queryKey: ['session-participants', sessionId] });
+      const succeeded = results.filter(r => r.ok);
+      const failed = results.filter(r => !r.ok);
+      if (succeeded.length > 0) addToast(`${succeeded.length} invite(s) sent!`, 'success');
+      failed.forEach(r => addToast(`${r.email}: ${r.msg}`, 'error'));
       setSelectedUsers([]);
       setUserSearch('');
     },
-    onError: () => addToast('Some invites failed to send', 'error'),
   });
 
   const handleCopyLink = () => {
@@ -373,20 +385,26 @@ export default function SessionDetailPage() {
               </div>
               {searchResults && searchResults.length > 0 && (
                 <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
-                  {searchResults.filter((u: any) => !(participants || []).some((p: any) => p.userId === u.id)).map((u: any) => {
-                    const isSelected = selectedUsers.some(s => s.id === u.id);
+                  {searchResults.map((u: any) => {
+                    const isParticipant = (participants || []).some((p: any) => p.userId === u.id);
+                    const isSelected = !isParticipant && selectedUsers.some(s => s.id === u.id);
                     return (
                       <button
                         key={u.id}
                         type="button"
-                        onClick={() => setSelectedUsers(prev => isSelected ? prev.filter(s => s.id !== u.id) : [...prev, u])}
-                        className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors ${isSelected ? 'bg-indigo-50' : ''}`}
+                        disabled={isParticipant}
+                        onClick={() => !isParticipant && setSelectedUsers(prev => isSelected ? prev.filter(s => s.id !== u.id) : [...prev, u])}
+                        className={`w-full flex items-center gap-3 px-3 py-2 text-left text-sm transition-colors ${isParticipant ? 'opacity-60 cursor-not-allowed bg-gray-50' : isSelected ? 'bg-indigo-50 hover:bg-indigo-100' : 'hover:bg-gray-50'}`}
                       >
-                        <div className={`h-4 w-4 rounded border ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'} flex items-center justify-center`}>
-                          {isSelected && <Check className="h-3 w-3 text-white" />}
-                        </div>
-                        <span className="font-medium text-gray-800">{u.displayName || u.email}</span>
-                        {u.company && <span className="text-xs text-gray-400">{u.company}</span>}
+                        {!isParticipant && (
+                          <div className={`h-4 w-4 rounded border ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'} flex items-center justify-center`}>
+                            {isSelected && <Check className="h-3 w-3 text-white" />}
+                          </div>
+                        )}
+                        <span className={`font-medium truncate ${isParticipant ? 'text-gray-400' : 'text-gray-800'}`}>{u.displayName || u.email}</span>
+                        {isParticipant && (
+                          <span className="ml-auto text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 shrink-0">Already registered</span>
+                        )}
                       </button>
                     );
                   })}
@@ -416,7 +434,7 @@ export default function SessionDetailPage() {
 
           {/* Option 3: Generate Shareable Link */}
           <div className="rounded-lg border border-gray-200 p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-[#1a1a2e]">Option 2 — Generate Shareable Link</h3>
+            <h3 className="text-sm font-semibold text-[#1a1a2e]">Option 3 — Generate Shareable Link</h3>
             <p className="text-xs text-gray-500">Create a reusable link to share manually (up to 10 uses, expires in 7 days).</p>
             {!inviteLink ? (
               <Button

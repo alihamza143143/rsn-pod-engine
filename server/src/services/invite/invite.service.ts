@@ -36,12 +36,40 @@ export async function createInvite(userId: string, input: CreateInviteInput, use
 
   const isAdmin = userRole === 'admin' || userRole === 'super_admin';
 
+  // Block self-invites
+  if (input.inviteeEmail) {
+    const callerResult = await query<{ email: string }>(
+      `SELECT email FROM users WHERE id = $1`,
+      [userId]
+    );
+    if (callerResult.rows[0]?.email === input.inviteeEmail.toLowerCase()) {
+      throw new AppError(400, 'SELF_INVITE', 'You cannot invite yourself');
+    }
+
+    // Block duplicate pending invites to same email + target
+    const dupCheck = await query<{ id: string }>(
+      `SELECT id FROM invites
+       WHERE invitee_email = $1 AND type = $2 AND status = 'pending'
+         AND ($3::uuid IS NULL OR pod_id = $3)
+         AND ($4::uuid IS NULL OR session_id = $4)`,
+      [input.inviteeEmail.toLowerCase(), input.type, input.podId || null, input.sessionId || null]
+    );
+    if (dupCheck.rows.length > 0) {
+      throw new AppError(409, 'DUPLICATE_INVITE', 'A pending invite already exists for this user');
+    }
+  }
+
   // Validate pod/session references — require target for pod/session invites
   if (input.type === InviteType.POD) {
     if (!input.podId) {
       throw new AppError(400, 'VALIDATION_ERROR', 'Pod invite requires a pod to be selected');
     }
-    await podService.getPodById(input.podId);
+    const pod = await podService.getPodById(input.podId);
+
+    // Cannot invite to archived pods
+    if (pod.status === 'archived') {
+      throw new AppError(400, 'POD_ARCHIVED', 'Cannot invite to an archived pod');
+    }
 
     // Only directors and hosts can invite to pods (admins bypass)
     if (!isAdmin) {
@@ -244,37 +272,51 @@ export async function listInvitesByUser(userId: string, params: {
   status?: InviteStatus;
   page?: number;
   pageSize?: number;
-}): Promise<{ invites: Invite[]; total: number }> {
+}): Promise<{ invites: (Invite & { podName?: string; sessionTitle?: string })[]; total: number }> {
   const page = params.page || 1;
   const pageSize = Math.min(params.pageSize || 20, 100);
   const offset = (page - 1) * pageSize;
 
-  let whereClause = 'WHERE inviter_id = $1';
+  let whereClause = 'WHERE i.inviter_id = $1';
   const values: unknown[] = [userId];
   let paramIdx = 2;
 
   if (params.type) {
-    whereClause += ` AND type = $${paramIdx}`;
+    whereClause += ` AND i.type = $${paramIdx}`;
     values.push(params.type);
     paramIdx++;
   }
 
   if (params.status) {
-    whereClause += ` AND status = $${paramIdx}`;
+    whereClause += ` AND i.status = $${paramIdx}`;
     values.push(params.status);
     paramIdx++;
   }
 
   const countResult = await query<{ count: string }>(
-    `SELECT COUNT(*) as count FROM invites ${whereClause}`,
+    `SELECT COUNT(*) as count FROM invites i ${whereClause}`,
     values
   );
   const total = parseInt(countResult.rows[0].count, 10);
 
+  // Enrich with pod name and session title via LEFT JOIN
+  const ENRICHED_COLUMNS = `
+    i.id, i.code, i.type, i.inviter_id AS "inviterId", i.invitee_email AS "inviteeEmail",
+    i.pod_id AS "podId", i.session_id AS "sessionId", i.status, i.max_uses AS "maxUses",
+    i.use_count AS "useCount", i.expires_at AS "expiresAt",
+    i.accepted_by_user_id AS "acceptedByUserId", i.accepted_at AS "acceptedAt",
+    i.created_at AS "createdAt", i.updated_at AS "updatedAt",
+    p.name AS "podName", s.title AS "sessionTitle"
+  `;
+
   values.push(pageSize, offset);
-  const result = await query<Invite>(
-    `SELECT ${INVITE_COLUMNS} FROM invites ${whereClause}
-     ORDER BY created_at DESC
+  const result = await query<Invite & { podName?: string; sessionTitle?: string }>(
+    `SELECT ${ENRICHED_COLUMNS}
+     FROM invites i
+     LEFT JOIN pods p ON p.id = i.pod_id
+     LEFT JOIN sessions s ON s.id = i.session_id
+     ${whereClause}
+     ORDER BY i.created_at DESC
      LIMIT $${paramIdx} OFFSET $${paramIdx + 1}`,
     values
   );

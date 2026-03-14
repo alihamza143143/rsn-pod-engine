@@ -284,8 +284,11 @@ export async function leavePod(podId: string, userId: string): Promise<void> {
   logger.info({ podId, userId }, 'Member left pod');
 }
 
-export async function getPodMembers(podId: string, status?: PodMemberStatus): Promise<PodMember[]> {
-  let sql = `SELECT ${MEMBER_COLUMNS} FROM pod_members WHERE pod_id = $1`;
+export async function getPodMembers(podId: string, status?: PodMemberStatus): Promise<(PodMember & { displayName?: string; email?: string })[]> {
+  let sql = `SELECT ${MEMBER_COLUMNS}, u.display_name AS "displayName", u.email
+             FROM pod_members
+             JOIN users u ON u.id = pod_members.user_id
+             WHERE pod_id = $1`;
   const values: unknown[] = [podId];
 
   if (status) {
@@ -294,7 +297,7 @@ export async function getPodMembers(podId: string, status?: PodMemberStatus): Pr
   }
 
   sql += ' ORDER BY joined_at ASC';
-  const result = await query<PodMember>(sql, values);
+  const result = await query<PodMember & { displayName?: string; email?: string }>(sql, values);
   return result.rows;
 }
 

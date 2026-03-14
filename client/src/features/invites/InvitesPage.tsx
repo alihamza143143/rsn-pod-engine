@@ -56,6 +56,19 @@ export default function InvitesPage() {
     enabled: userSearch.length >= 1,
   });
 
+  // Fetch members/participants for selected pod/session to tag search results
+  const { data: podMembers } = useQuery({
+    queryKey: ['pod-members', podId],
+    queryFn: () => api.get(`/pods/${podId}/members`).then(r => r.data.data ?? []),
+    enabled: inviteType === 'pod' && !!podId,
+  });
+
+  const { data: sessionParticipants } = useQuery({
+    queryKey: ['session-participants', sessionId],
+    queryFn: () => api.get(`/sessions/${sessionId}/participants`).then(r => r.data.data ?? []),
+    enabled: inviteType === 'session' && !!sessionId,
+  });
+
   const getInviteUrl = (code: string) => `${window.location.origin}/invite/${code}`;
 
   const copyLink = async (inv: any) => {
@@ -189,27 +202,39 @@ export default function InvitesPage() {
             {inviteType === 'pod' && (
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1.5">Pod</label>
-                <select
-                  value={podId}
-                  onChange={e => setPodId(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#1a1a2e]"
-                >
-                  <option value="">Select pod</option>
-                  {invitablePods.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
+                {invitablePods.length === 0 ? (
+                  <p className="text-sm text-gray-400 bg-gray-50 rounded-xl px-4 py-2.5 border border-gray-200">
+                    No pods available. You must be a director or host of a pod to send invites.
+                  </p>
+                ) : (
+                  <select
+                    value={podId}
+                    onChange={e => setPodId(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#1a1a2e]"
+                  >
+                    <option value="">Select pod</option>
+                    {invitablePods.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                )}
               </div>
             )}
             {inviteType === 'session' && (
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1.5">Event</label>
-                <select
-                  value={sessionId}
-                  onChange={e => setSessionId(e.target.value)}
-                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#1a1a2e]"
-                >
-                  <option value="">Select event</option>
-                  {invitableSessions.map((s: any) => <option key={s.id} value={s.id}>{s.title || 'Untitled'}</option>)}
-                </select>
+                {invitableSessions.length === 0 ? (
+                  <p className="text-sm text-gray-400 bg-gray-50 rounded-xl px-4 py-2.5 border border-gray-200">
+                    No events available. You can only invite to active events you host.
+                  </p>
+                ) : (
+                  <select
+                    value={sessionId}
+                    onChange={e => setSessionId(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#1a1a2e]"
+                  >
+                    <option value="">Select event</option>
+                    {invitableSessions.map((s: any) => <option key={s.id} value={s.id}>{s.title || 'Untitled'}</option>)}
+                  </select>
+                )}
               </div>
             )}
           </div>
@@ -258,18 +283,31 @@ export default function InvitesPage() {
                 {searchResults && searchResults.length > 0 && (
                   <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
                     {searchResults.map((u: any) => {
-                      const isSelected = selectedUsers.some(s => s.id === u.id);
+                      const isExisting = inviteType === 'pod'
+                        ? (podMembers || []).some((m: any) => m.userId === u.id && m.status === 'active')
+                        : inviteType === 'session'
+                        ? (sessionParticipants || []).some((p: any) => p.userId === u.id)
+                        : false;
+                      const isSelected = !isExisting && selectedUsers.some(s => s.id === u.id);
                       return (
                         <button
                           key={u.id}
                           type="button"
-                          onClick={() => setSelectedUsers(prev => isSelected ? prev.filter(s => s.id !== u.id) : [...prev, u])}
-                          className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50 transition-colors ${isSelected ? 'bg-indigo-50' : ''}`}
+                          disabled={isExisting}
+                          onClick={() => !isExisting && setSelectedUsers(prev => isSelected ? prev.filter(s => s.id !== u.id) : [...prev, u])}
+                          className={`w-full flex items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${isExisting ? 'opacity-60 cursor-not-allowed bg-gray-50' : isSelected ? 'bg-indigo-50 hover:bg-indigo-100' : 'hover:bg-gray-50'}`}
                         >
-                          <div className={`h-4 w-4 rounded border ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'} flex items-center justify-center shrink-0`}>
-                            {isSelected && <Check className="h-3 w-3 text-white" />}
-                          </div>
-                          <span className="font-medium text-gray-800 truncate">{u.displayName || u.email}</span>
+                          {!isExisting && (
+                            <div className={`h-4 w-4 rounded border ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'} flex items-center justify-center shrink-0`}>
+                              {isSelected && <Check className="h-3 w-3 text-white" />}
+                            </div>
+                          )}
+                          <span className={`font-medium truncate ${isExisting ? 'text-gray-400' : 'text-gray-800'}`}>{u.displayName || u.email}</span>
+                          {isExisting && (
+                            <span className="ml-auto text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2 py-0.5 shrink-0">
+                              {inviteType === 'pod' ? 'Already a member' : 'Already registered'}
+                            </span>
+                          )}
                         </button>
                       );
                     })}
@@ -341,13 +379,18 @@ export default function InvitesPage() {
                     <Badge variant={typeConf.variant} className="text-xs flex items-center gap-1">
                       <TypeIcon className="h-3 w-3" /> {typeConf.label}
                     </Badge>
+                    {inv.podName && <span className="text-sm font-medium text-gray-700">{inv.podName}</span>}
+                    {inv.sessionTitle && <span className="text-sm font-medium text-gray-700">{inv.sessionTitle}</span>}
                   </div>
-                  <p className="font-medium text-gray-800 font-mono text-sm">{inv.code}</p>
                   <p className="text-sm text-gray-500 mt-0.5">
                     Uses: {inv.useCount || 0}{inv.maxUses ? ` / ${inv.maxUses}` : ''}
                     {inv.inviteeEmail ? ` · To: ${inv.inviteeEmail}` : ''}
                   </p>
-                  <p className="text-xs text-gray-400 mt-1 truncate max-w-md">{getInviteUrl(inv.code)}</p>
+                  <p className="text-xs text-gray-400 mt-1">
+                    Created {new Date(inv.createdAt).toLocaleDateString()}
+                    {inv.acceptedAt && ` · Accepted ${new Date(inv.acceptedAt).toLocaleDateString()}`}
+                    {inv.expiresAt && inv.status === 'pending' && ` · Expires ${new Date(inv.expiresAt).toLocaleDateString()}`}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={isActive ? 'success' : 'default'}>{inv.status}</Badge>

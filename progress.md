@@ -3571,3 +3571,32 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - Per Stefan's plan: users only see pods/events they can actually invite to
   - Double defense: client filters dropdowns + server rejects unauthorized/invalid invites
   - Admins bypass UI filtering and server checks
+
+---
+
+### Entry — March 14, 2026, 5:30 AM PKT
+- Task: Audit items P0/P1/P2 — invite enrichment, member names, search tags, server protections
+- Status: Completed
+- What changed:
+  1. **P0-#12 — Member display names fixed**: `getPodMembers` and `getSessionParticipants` now JOIN users table, returning `displayName` and `email`. No more "Member" fallback on PodDetailPage and SessionDetailPage.
+  2. **P0-#1 — Invite cards enriched**: `listInvitesByUser` now LEFT JOINs pods and sessions, returning `podName` and `sessionTitle`. InvitesPage cards show pod/event name, creation date, acceptance date, and expiry date.
+  3. **P0-#10 — "Already member/participant" tags on InvitesPage**: Search results fetch pod members or session participants for the selected target, greying out existing members/participants with amber tags.
+  4. **P1-#6 — Self-invite blocked**: Server rejects invites where inviteeEmail matches the caller's email (400 SELF_INVITE).
+  5. **P1-#7 — Duplicate pending invites blocked**: Server rejects when a pending invite already exists for the same email+type+target (409 DUPLICATE_INVITE).
+  6. **P1-#9 — Archived pod invites blocked**: Server rejects invites to pods with status='archived' (400 POD_ARCHIVED).
+  7. **P1-#23 — Empty dropdown explanations**: Pod and event dropdowns show explanatory text when no options are available.
+  8. **P2-#13 — SessionDetailPage invite search**: Shows "Already registered" tags instead of silently filtering out existing participants. Bulk invite changed from `Promise.all` to sequential with per-user error messages.
+  9. **Shared error codes added**: `POD_ARCHIVED`, `SELF_INVITE`, `DUPLICATE_INVITE` added to ErrorCodes.
+  10. **New tests**: Self-invite rejection, duplicate invite rejection, archived pod rejection tests added (265 total tests now).
+- Files touched:
+  - shared/src/types/api.ts (3 new error codes)
+  - server/src/services/pod/pod.service.ts (getPodMembers JOIN users)
+  - server/src/services/session/session.service.ts (getSessionParticipants JOIN users)
+  - server/src/services/invite/invite.service.ts (self-invite, duplicate, archived checks + enriched list query)
+  - server/src/__tests__/services/invite.service.test.ts (3 new tests, updated mock chains)
+  - client/src/features/invites/InvitesPage.tsx (enriched cards, member tags, empty dropdown messages)
+  - client/src/features/sessions/SessionDetailPage.tsx (participant tags, sequential bulk invite)
+- Validation Results:
+  - ✅ 265/265 tests passing (16 suites)
+  - ✅ Client Vite build clean
+  - ✅ Shared + server TypeScript compiles cleanly

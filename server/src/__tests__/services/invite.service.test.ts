@@ -72,7 +72,11 @@ describe('Invite Service', () => {
 
   describe('createInvite', () => {
     it('should create a pod invite', async () => {
-      // podService.getPodById — SELECT pods (validates pod exists)
+      // Self-invite check — SELECT email FROM users
+      mockQuery.mockResolvedValueOnce({ rows: [{ email: 'host@example.com' }], rowCount: 1 });
+      // Duplicate pending invite check — SELECT id FROM invites
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+      // podService.getPodById — SELECT pods (validates pod exists + archived check)
       mockQuery.mockResolvedValueOnce({ rows: [{ id: 'pod-123', name: 'Test', status: 'active' }], rowCount: 1 });
       // podService.getMemberRole — SELECT role FROM pod_members (role check)
       mockQuery.mockResolvedValueOnce({ rows: [{ role: 'director' }], rowCount: 1 });
@@ -92,6 +96,45 @@ describe('Invite Service', () => {
       });
 
       expect(invite).toEqual(mockInvite);
+    });
+
+    it('should reject self-invites', async () => {
+      // Self-invite check — email matches caller
+      mockQuery.mockResolvedValueOnce({ rows: [{ email: 'guest@example.com' }], rowCount: 1 });
+
+      await expect(inviteService.createInvite('user-host', {
+        type: InviteType.POD,
+        podId: 'pod-123',
+        inviteeEmail: 'guest@example.com',
+      })).rejects.toThrow('cannot invite yourself');
+    });
+
+    it('should reject duplicate pending invites', async () => {
+      // Self-invite check — different email
+      mockQuery.mockResolvedValueOnce({ rows: [{ email: 'host@example.com' }], rowCount: 1 });
+      // Duplicate check — found existing pending invite
+      mockQuery.mockResolvedValueOnce({ rows: [{ id: 'existing-invite' }], rowCount: 1 });
+
+      await expect(inviteService.createInvite('user-host', {
+        type: InviteType.POD,
+        podId: 'pod-123',
+        inviteeEmail: 'guest@example.com',
+      })).rejects.toThrow('pending invite already exists');
+    });
+
+    it('should reject invites to archived pods', async () => {
+      // Self-invite check
+      mockQuery.mockResolvedValueOnce({ rows: [{ email: 'host@example.com' }], rowCount: 1 });
+      // Duplicate check
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+      // getPodById returns archived pod
+      mockQuery.mockResolvedValueOnce({ rows: [{ id: 'pod-123', name: 'Test', status: 'archived' }], rowCount: 1 });
+
+      await expect(inviteService.createInvite('user-host', {
+        type: InviteType.POD,
+        podId: 'pod-123',
+        inviteeEmail: 'guest@example.com',
+      })).rejects.toThrow('archived');
     });
   });
 
