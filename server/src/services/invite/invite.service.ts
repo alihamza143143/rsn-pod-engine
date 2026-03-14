@@ -59,6 +59,17 @@ export async function createInvite(userId: string, input: CreateInviteInput, use
     }
   }
 
+  // Platform invites: reject if user is already registered
+  if ((!input.type || input.type === InviteType.PLATFORM) && input.inviteeEmail) {
+    const existingUser = await query<{ id: string }>(
+      `SELECT id FROM users WHERE email = $1`,
+      [input.inviteeEmail.toLowerCase()]
+    );
+    if (existingUser.rows.length > 0) {
+      throw new AppError(409, 'ALREADY_REGISTERED', 'This user is already registered on the platform');
+    }
+  }
+
   // Validate pod/session references — require target for pod/session invites
   if (input.type === InviteType.POD) {
     if (!input.podId) {
