@@ -229,6 +229,23 @@ export async function acceptInvite(code: string, userId: string): Promise<Invite
     }
 
     if (invite.useCount >= invite.maxUses) {
+      // If the invite was already consumed by THIS user during registration (Google OAuth),
+      // still apply the pod/session membership effect instead of rejecting.
+      if (invite.acceptedByUserId === userId) {
+        // Apply effects without re-incrementing use_count
+        if (invite.type === InviteType.POD && invite.podId) {
+          try { await podService.addMember(invite.podId, userId); } catch (err) {
+            if (!(err instanceof ConflictError)) throw err;
+          }
+        }
+        if (invite.type === InviteType.SESSION && invite.sessionId) {
+          try { await sessionService.registerParticipant(invite.sessionId, userId); } catch (err) {
+            if (!(err instanceof ConflictError)) throw err;
+          }
+        }
+        logger.info({ code, userId, type: invite.type }, 'Invite effects applied (already consumed during registration)');
+        return invite;
+      }
       throw new AppError(400, 'INVITE_ALREADY_USED', 'This invite has reached its maximum uses');
     }
 
