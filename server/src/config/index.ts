@@ -37,7 +37,7 @@ export const config = {
   smtpPort: parseInt(process.env.SMTP_PORT || '587', 10),
   smtpUser: process.env.SMTP_USER || '',
   smtpPass: process.env.SMTP_PASS || '',
-  emailFrom: process.env.EMAIL_FROM || 'onboarding@resend.dev',
+  emailFrom: process.env.EMAIL_FROM || 'noreply@rsn.network',
 
   // LiveKit
   livekitApiKey: process.env.LIVEKIT_API_KEY || '',

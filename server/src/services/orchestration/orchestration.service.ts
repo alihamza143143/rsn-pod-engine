@@ -307,13 +307,20 @@ async function handleLeaveSession(
     activeSession.presenceMap.delete(userId);
   }
 
-  await sessionService.updateParticipantStatus(
-    data.sessionId, userId, ParticipantStatus.LEFT
-  );
-
   // Check if leaving user is host
   const session = await sessionService.getSessionById(data.sessionId).catch(() => null);
   const isHost = session?.hostUserId === userId;
+
+  // If event hasn't started yet, keep status as 'registered' — they're just leaving the lobby
+  if (session?.status === SessionStatus.SCHEDULED || session?.status === SessionStatus.LOBBY_OPEN) {
+    await sessionService.updateParticipantStatus(
+      data.sessionId, userId, ParticipantStatus.REGISTERED
+    );
+  } else {
+    await sessionService.updateParticipantStatus(
+      data.sessionId, userId, ParticipantStatus.LEFT
+    );
+  }
 
   io.to(sessionRoom(data.sessionId)).emit('participant:left', { userId, isHost });
 

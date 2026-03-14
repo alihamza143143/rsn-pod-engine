@@ -49,7 +49,7 @@ export default function SessionDetailPage() {
   });
 
   const isHost = session?.hostUserId === user?.id || user?.role === 'admin' || user?.role === 'super_admin';
-  const isRegistered = (participants || []).some((p: any) => p.userId === user?.id);
+  const isRegistered = (participants || []).some((p: any) => p.userId === user?.id && p.status !== 'removed');
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const isMember = !!pod?.memberRole || isAdmin;
   const isRestrictedPod = pod?.visibility === 'invite_only' || pod?.visibility === 'private';
@@ -249,7 +249,7 @@ export default function SessionDetailPage() {
 
       {/* Actions */}
       <div className="flex flex-wrap gap-3 animate-fade-in-up stagger-1">
-        {(session.status === 'scheduled' || session.status === 'lobby_open' || session.status === 'round_active' || session.status === 'round_rating' || session.status === 'round_transition') && !isRegistered && (
+        {!isHost && (session.status === 'scheduled' || session.status === 'lobby_open' || session.status === 'round_active' || session.status === 'round_rating' || session.status === 'round_transition') && !isRegistered && (
           canRegister ? (
             <Button onClick={() => registerMutation.mutate()} isLoading={registerMutation.isPending} className="btn-glow">
               <UserPlus className="h-4 w-4 mr-2" /> {session.status === 'scheduled' ? 'Register' : 'Join Late'}
@@ -265,7 +265,7 @@ export default function SessionDetailPage() {
             </div>
           )
         )}
-        {isRegistered && session.status !== 'completed' && session.status !== 'cancelled' && (
+        {!isHost && isRegistered && session.status !== 'completed' && session.status !== 'cancelled' && (
           <>
             <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-sm">
               <CheckCircle className="h-4 w-4" /> Registered
@@ -331,22 +331,31 @@ export default function SessionDetailPage() {
           </Card>
         ) : (
           <div className="grid gap-2">
-            {(participants || []).map((p: any) => (
-              <Card key={p.userId || p.id} className="!p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar name={p.displayName || p.email || 'User'} size="sm" />
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">{p.displayName || p.email || 'Participant'}</p>
-                      <p className="text-xs text-gray-400">{p.status || 'registered'}</p>
+            {(participants || []).filter((p: any) => p.status !== 'removed').map((p: any) => {
+              const pIsHost = p.userId === session.hostUserId;
+              const statusLabel = pIsHost ? 'Host'
+                : (p.status === 'registered' || p.status === 'left' || p.status === 'checked_in') ? 'Member'
+                : p.status === 'in_lobby' ? 'In Lobby'
+                : p.status === 'in_round' ? 'In Round'
+                : p.status === 'disconnected' ? 'Reconnecting...'
+                : p.status || 'Member';
+              return (
+                <Card key={p.userId || p.id} className="!p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={p.displayName || p.email || 'User'} size="sm" />
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{p.displayName || p.email || 'Participant'}</p>
+                        <p className="text-xs text-gray-400">{statusLabel}</p>
+                      </div>
                     </div>
+                    {pIsHost && (
+                      <Badge variant="brand" className="text-xs">Host</Badge>
+                    )}
                   </div>
-                  {p.userId === session.hostUserId && (
-                    <Badge variant="brand" className="text-xs">Host</Badge>
-                  )}
-                </div>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
           </div>
         )}
       </div>

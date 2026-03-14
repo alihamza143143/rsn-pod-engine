@@ -74,7 +74,7 @@ export default function PodsPage() {
                     <div>
                       <p className="font-medium text-gray-800">{pod.name}</p>
                       <p className="text-sm text-gray-500">
-                        {pod.memberCount || 0} members · {pod.sessionCount || 0} sessions · {pod.description || 'General'}
+                        {pod.memberCount || 0} members · {pod.sessionCount || 0} events · {pod.description || 'General'}
                       </p>
                     </div>
                   </div>
