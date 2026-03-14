@@ -119,7 +119,7 @@ router.delete(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await sessionService.deleteSession(req.params.id, req.user!.userId, req.user!.role);
-      const response: ApiResponse = { success: true, data: { message: 'Session deleted' } };
+      const response: ApiResponse = { success: true, data: { message: 'Event deleted' } };
       res.json(response);
     } catch (err) {
       next(err);
@@ -144,9 +144,11 @@ router.get(
         }
       }
 
+      const isAdmin = hasRoleAtLeast(req.user!.role, UserRole.ADMIN);
       const result = await sessionService.listSessions({
         podId,
-        userId: podId || hasRoleAtLeast(req.user!.role, UserRole.ADMIN) ? undefined : req.user!.userId,
+        userId: podId ? undefined : req.user!.userId,
+        isAdmin: isAdmin && !podId,
         status: status as SessionStatus | undefined,
         page: page ? parseInt(page) : undefined,
         pageSize: pageSize ? parseInt(pageSize) : undefined,
@@ -261,7 +263,7 @@ router.delete(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await sessionService.hardDeleteSession(req.params.id);
-      const response: ApiResponse = { success: true, data: { message: 'Session permanently deleted' } };
+      const response: ApiResponse = { success: true, data: { message: 'Event permanently deleted' } };
       return res.json(response);
     } catch (err) {
       return next(err);

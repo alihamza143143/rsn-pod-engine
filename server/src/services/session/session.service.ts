@@ -96,7 +96,7 @@ export async function updateSession(sessionId: string, userId: string, input: Up
 
   // Cannot update once started
   if (session.status !== SessionStatus.SCHEDULED) {
-    throw new AppError(400, 'SESSION_ALREADY_STARTED', 'Cannot update a session that has already started');
+    throw new AppError(400, 'SESSION_ALREADY_STARTED', 'Cannot update an event that has already started');
   }
 
   const setClauses: string[] = [];
@@ -147,6 +147,7 @@ export async function updateSession(sessionId: string, userId: string, input: Up
 export async function listSessions(params: {
   podId?: string;
   userId?: string;
+  isAdmin?: boolean;
   status?: SessionStatus;
   page?: number;
   pageSize?: number;
@@ -163,6 +164,8 @@ export async function listSessions(params: {
     whereClause += ` AND s.pod_id = $${paramIdx}`;
     values.push(params.podId);
     paramIdx++;
+  } else if (params.isAdmin) {
+    // Admins see all sessions across all pods
   } else if (params.userId) {
     // Show sessions from public/invite_only pods AND private pods user is a member of
     whereClause += ` AND (s.pod_id IN (SELECT id FROM pods WHERE visibility IN ('public', 'invite_only')) OR s.pod_id IN (SELECT pod_id FROM pod_members WHERE user_id = $${paramIdx} AND status = 'active'))`;
@@ -222,7 +225,7 @@ export async function registerParticipant(sessionId: string, userId: string, use
     // Check session is open for registration
     const closedStatuses: SessionStatus[] = [SessionStatus.COMPLETED, SessionStatus.CANCELLED];
     if (closedStatuses.includes(session.status)) {
-      throw new AppError(400, 'SESSION_NOT_SCHEDULED', 'Session is no longer accepting participants');
+      throw new AppError(400, 'SESSION_NOT_SCHEDULED', 'This event is no longer accepting participants');
     }
 
     // Enforce pod visibility rules for session access (admin/super_admin bypass)
@@ -267,7 +270,7 @@ export async function registerParticipant(sessionId: string, userId: string, use
     const currentCount = parseInt(countResult.rows[0].count, 10);
 
     if (config.maxParticipants && currentCount >= config.maxParticipants) {
-      throw new ConflictError('SESSION_FULL', 'This session has reached its maximum participant count');
+      throw new ConflictError('SESSION_FULL', 'This event has reached its maximum participant count');
     }
 
     // Check for existing registration
@@ -307,7 +310,7 @@ export async function unregisterParticipant(sessionId: string, userId: string): 
   const session = await getSessionById(sessionId);
 
   if (session.status !== SessionStatus.SCHEDULED) {
-    throw new AppError(400, 'SESSION_IN_PROGRESS', 'Cannot unregister from an active session');
+    throw new AppError(400, 'SESSION_IN_PROGRESS', 'Cannot unregister from an active event');
   }
 
   const result = await query(
@@ -332,11 +335,11 @@ export async function getSessionParticipants(
   const values: unknown[] = [sessionId];
 
   if (status) {
-    sql += ' AND status = $2';
+    sql += ' AND session_participants.status = $2';
     values.push(status);
   }
 
-  sql += ' ORDER BY created_at ASC';
+  sql += ' ORDER BY session_participants.created_at ASC';
   const result = await query<SessionParticipant & { displayName?: string; email?: string }>(sql, values);
   return result.rows;
 }
@@ -482,7 +485,7 @@ export async function deleteSession(sessionId: string, userId: string, userRole?
 
   // Admins can delete in any state; non-admins only scheduled or completed
   if (!isAdmin && session.status !== SessionStatus.SCHEDULED && session.status !== SessionStatus.COMPLETED) {
-    throw new AppError(400, 'SESSION_IN_PROGRESS', 'Cannot delete a session that is currently in progress');
+    throw new AppError(400, 'SESSION_IN_PROGRESS', 'Cannot delete an event that is currently in progress');
   }
 
   // Soft-delete: mark as cancelled
@@ -520,7 +523,7 @@ export async function generateLiveKitToken(sessionId: string, userId: string, ro
   );
 
   if (participantResult.rows.length === 0 && session.hostUserId !== userId) {
-    throw new ForbiddenError('User is not a participant in this session');
+    throw new ForbiddenError('User is not a participant in this event');
   }
 
   try {

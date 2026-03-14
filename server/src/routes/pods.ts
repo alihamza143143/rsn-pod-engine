@@ -235,6 +235,29 @@ router.delete(
   }
 );
 
+// ─── PATCH /pods/:id/members/:userId/role ────────────────────────────────────
+
+router.patch(
+  '/:id/members/:userId/role',
+  authenticate,
+  auditMiddleware('update_pod_member_role', 'pod'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { role } = req.body;
+      if (!role || !['host', 'member'].includes(role)) {
+        throw new ForbiddenError('Role must be "host" or "member"');
+      }
+      const member = await podService.updateMemberRole(
+        req.params.id, req.params.userId, role, req.user!.userId, req.user!.role
+      );
+      const response: ApiResponse = { success: true, data: member };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // ─── POST /pods/:id/join ────────────────────────────────────────────────────
 
 router.post(

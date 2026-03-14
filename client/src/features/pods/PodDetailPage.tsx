@@ -87,6 +87,16 @@ export default function PodDetailPage() {
     onError: () => addToast('Failed to remove member', 'error'),
   });
 
+  const changeRoleMutation = useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: string }) =>
+      api.patch(`/pods/${podId}/members/${userId}/role`, { role }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pod-members', podId] });
+      addToast('Member role updated', 'success');
+    },
+    onError: (err: any) => addToast(err?.response?.data?.error?.message || 'Failed to update role', 'error'),
+  });
+
   const updateMutation = useMutation({
     mutationFn: (body: { name?: string; description?: string }) => api.put(`/pods/${podId}`, body),
     onSuccess: () => {
@@ -588,6 +598,18 @@ export default function PodDetailPage() {
                     <Badge variant={m.role === 'director' ? 'brand' : 'info'} className="text-xs">
                       <Shield className="h-3 w-3 mr-1" /> {m.role}
                     </Badge>
+                  )}
+                  {isDirector && m.userId !== user?.id && m.role !== 'director' && (
+                    <button
+                      onClick={() => changeRoleMutation.mutate({
+                        userId: m.userId,
+                        role: m.role === 'host' ? 'member' : 'host',
+                      })}
+                      className="px-2 py-1 rounded-lg text-xs font-medium text-indigo-600 hover:bg-indigo-50 border border-indigo-200 transition-all"
+                      title={m.role === 'host' ? 'Demote to member' : 'Promote to host'}
+                    >
+                      {m.role === 'host' ? 'Demote' : 'Make Host'}
+                    </button>
                   )}
                   {isDirector && m.userId !== user?.id && (
                     <button
