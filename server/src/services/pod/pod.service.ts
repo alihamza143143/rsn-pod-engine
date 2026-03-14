@@ -58,9 +58,23 @@ export async function createPod(userId: string, input: CreatePodInput): Promise<
   return result.rows[0];
 }
 
-export async function getPodById(podId: string): Promise<Pod> {
-  const result = await query<Pod>(
-    `SELECT ${POD_COLUMNS} FROM pods WHERE id = $1`,
+export async function getPodById(podId: string): Promise<Pod & { memberCount?: number; sessionCount?: number; directorName?: string | null; directorId?: string | null }> {
+  const result = await query<Pod & { memberCount: number; sessionCount: number; directorName: string | null; directorId: string | null }>(
+    `SELECT ${POD_COLUMNS},
+            COALESCE(mc.cnt, 0)::int AS "memberCount",
+            COALESCE(sc.cnt, 0)::int AS "sessionCount",
+            dir.display_name AS "directorName",
+            dir.user_id AS "directorId"
+     FROM pods
+     LEFT JOIN (SELECT pod_id, COUNT(*) AS cnt FROM pod_members WHERE status = 'active' GROUP BY pod_id) mc ON mc.pod_id = pods.id
+     LEFT JOIN (SELECT pod_id, COUNT(*) AS cnt FROM sessions GROUP BY pod_id) sc ON sc.pod_id = pods.id
+     LEFT JOIN (
+       SELECT pm.pod_id, pm.user_id, u.display_name
+       FROM pod_members pm
+       JOIN users u ON u.id = pm.user_id
+       WHERE pm.role = 'director' AND pm.status = 'active'
+     ) dir ON dir.pod_id = pods.id
+     WHERE pods.id = $1`,
     [podId]
   );
 

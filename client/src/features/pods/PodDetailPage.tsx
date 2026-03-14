@@ -57,6 +57,12 @@ export default function PodDetailPage() {
     enabled: !!podId,
   });
 
+  const { data: podSessions } = useQuery({
+    queryKey: ['pod-sessions', podId],
+    queryFn: () => api.get(`/sessions?podId=${podId}`).then(r => r.data.data ?? []),
+    enabled: !!podId,
+  });
+
   const { data: podSearchResults } = useQuery({
     queryKey: ['user-search', podUserSearch],
     queryFn: () => api.get(`/users/search?q=${encodeURIComponent(podUserSearch)}`).then(r => r.data.data ?? []),
@@ -262,11 +268,11 @@ export default function PodDetailPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mt-4 pt-4 border-t border-gray-200">
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Users className="h-4 w-4 text-indigo-600" />
-            <span>{activeMembers.length} members</span>
+            <span>{pod.memberCount ?? activeMembers.length} members</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Calendar className="h-4 w-4 text-indigo-600" />
-            <span>{sessionCountData || 0} events</span>
+            <span>{pod.sessionCount ?? sessionCountData ?? 0} events</span>
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-500">
             <Radio className="h-4 w-4 text-indigo-600" />
@@ -281,6 +287,13 @@ export default function PodDetailPage() {
             <span>Created {new Date(pod.createdAt).toLocaleDateString()}</span>
           </div>
         </div>
+
+        {pod.directorName && (
+          <div className="flex items-center gap-2 mt-3 text-sm text-gray-500">
+            <Shield className="h-4 w-4 text-indigo-600" />
+            <span>Director: <span className="font-medium text-[#1a1a2e]">{pod.directorName}</span></span>
+          </div>
+        )}
 
         {pod.orchestrationMode && (
           <div className="flex gap-2 mt-3">
@@ -517,6 +530,36 @@ export default function PodDetailPage() {
                       <X className="h-4 w-4" />
                     </button>
                   </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Events */}
+      {podSessions && podSessions.length > 0 && (
+        <div className="animate-fade-in-up stagger-2">
+          <h2 className="text-lg font-semibold text-[#1a1a2e] mb-3 flex items-center gap-2">
+            <Calendar className="h-5 w-5 text-indigo-600" /> Events ({podSessions.length})
+          </h2>
+          <div className="grid gap-2">
+            {podSessions.map((s: any) => (
+              <Card
+                key={s.id}
+                className="!p-4 cursor-pointer hover:border-gray-300 transition-colors"
+                onClick={() => navigate(`/sessions/${s.id}`)}
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-[#1a1a2e]">{s.title || 'Untitled Event'}</p>
+                    <p className="text-xs text-gray-400">
+                      {s.scheduledAt ? new Date(s.scheduledAt).toLocaleString() : 'No date set'}
+                    </p>
+                  </div>
+                  <Badge variant={s.status === 'scheduled' ? 'info' : s.status === 'active' || s.status === 'lobby' ? 'success' : 'default'}>
+                    {s.status}
+                  </Badge>
                 </div>
               </Card>
             ))}
