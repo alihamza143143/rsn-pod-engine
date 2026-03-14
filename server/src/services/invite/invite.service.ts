@@ -145,7 +145,7 @@ export async function createInvite(userId: string, input: CreateInviteInput, use
       input.inviteeEmail?.toLowerCase() || null,
       input.podId || null,
       input.sessionId || null,
-      input.maxUses || 1,
+      input.maxUses || 2,
       expiresAt,
     ]
   );
