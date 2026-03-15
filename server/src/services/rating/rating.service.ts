@@ -262,9 +262,9 @@ export async function getPeopleMet(
   userId: string,
   sessionId: string
 ): Promise<PeopleMet> {
-  // Get session info
-  const sessionResult = await query<{ title: string; scheduledAt: Date }>(
-    `SELECT title, scheduled_at AS "scheduledAt" FROM sessions WHERE id = $1`,
+  // Get session info including config for totalRounds
+  const sessionResult = await query<{ title: string; scheduledAt: Date; config: any; currentRound: number }>(
+    `SELECT title, scheduled_at AS "scheduledAt", config, current_round AS "currentRound" FROM sessions WHERE id = $1`,
     [sessionId]
   );
 
@@ -273,9 +273,25 @@ export async function getPeopleMet(
   }
 
   const session = sessionResult.rows[0];
+  const config = typeof session.config === 'string'
+    ? JSON.parse(session.config as unknown as string)
+    : session.config;
+  const totalRounds = config?.numberOfRounds || session.currentRound || 0;
+
+  // Get rounds attended count
+  const roundsResult = await query<{ count: string }>(
+    `SELECT COUNT(DISTINCT round_number)::text AS count
+     FROM matches
+     WHERE session_id = $1
+       AND (participant_a_id = $2 OR participant_b_id = $2 OR participant_c_id = $2)
+       AND status IN ('completed', 'active')`,
+    [sessionId, userId]
+  );
+  const roundsAttended = parseInt(roundsResult.rows[0]?.count || '0', 10);
 
   // Get all matches the user participated in for this session
   // Uses LATERAL to handle 2-person and 3-person rooms uniformly
+  // Now also returns theirMeetAgain (whether the partner rated meet_again for us)
   const connectionsResult = await query<ConnectionResult>(
     `SELECT
        u.id AS "userId",
@@ -285,6 +301,7 @@ export async function getPeopleMet(
        u.job_title AS "jobTitle",
        COALESCE(r_given.quality_score, 0) AS "qualityScore",
        COALESCE(r_given.meet_again, FALSE) AS "meetAgain",
+       COALESCE(r_received.meet_again, FALSE) AS "theirMeetAgain",
        COALESCE(eh.mutual_meet_again, FALSE) AS "mutualMeetAgain",
        m.round_number AS "roundNumber"
      FROM matches m
@@ -297,6 +314,7 @@ export async function getPeopleMet(
      ) AS partners
      JOIN users u ON u.id = partners.partner_id
      LEFT JOIN ratings r_given ON r_given.match_id = m.id AND r_given.from_user_id = $1 AND r_given.to_user_id = u.id
+     LEFT JOIN ratings r_received ON r_received.match_id = m.id AND r_received.from_user_id = u.id AND r_received.to_user_id = $1
      LEFT JOIN encounter_history eh ON (
        (eh.user_a_id = LEAST($1, u.id) AND eh.user_b_id = GREATEST($1, u.id))
      )
@@ -315,6 +333,8 @@ export async function getPeopleMet(
     sessionId,
     sessionTitle: session.title,
     sessionDate: session.scheduledAt,
+    totalRounds,
+    roundsAttended,
     connections,
     mutualConnections,
   };

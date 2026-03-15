@@ -236,6 +236,33 @@ router.get(
     }
   }
 );
+// ─── GET /sessions/:id/participant-counts ─────────────────────────────────────
+
+router.get(
+  '/:id/participant-counts',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      // Only host, pod members, or admins
+      if (!hasRoleAtLeast(req.user!.role, UserRole.ADMIN)) {
+        const session = await sessionService.getSessionById(req.params.id);
+        const isHost = session.hostUserId === req.user!.userId;
+        const isPodMember = session.podId
+          ? !!(await podService.getMemberRole(session.podId, req.user!.userId))
+          : false;
+        if (!isHost && !isPodMember) {
+          throw new ForbiddenError('You must be the host or a pod member to view participant counts');
+        }
+      }
+      const counts = await sessionService.getParticipantStatusCounts(req.params.id);
+      const response: ApiResponse = { success: true, data: counts };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // ─── POST /sessions/:id/token (LiveKit access token) ─────────────────────────
 
 router.post(

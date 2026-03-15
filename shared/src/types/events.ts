@@ -60,6 +60,10 @@ export interface ServerToClientEvents {
   'lobby:token': (data: { token: string; livekitUrl: string; roomId: string }) => void;
   'lobby:mute_command': (data: { muted: boolean; byHost: boolean }) => void;
 
+  // Chat
+  'chat:message': (data: { id: string; userId: string; displayName: string; message: string; timestamp: string; scope: 'lobby' | 'room'; isHost: boolean }) => void;
+  'chat:history': (data: { messages: { id: string; userId: string; displayName: string; message: string; timestamp: string; scope: 'lobby' | 'room'; isHost: boolean }[] }) => void;
+
   // Timer sync
   'timer:sync': (data: { segmentType: string; secondsRemaining: number; totalSeconds: number }) => void;
 
@@ -97,4 +101,7 @@ export interface ClientToServerEvents {
   'host:mute_participant': (data: { sessionId: string; targetUserId: string; muted: boolean }) => void;
   'host:mute_all': (data: { sessionId: string; muted: boolean }) => void;
   'host:remove_from_room': (data: { sessionId: string; matchId: string; userId: string }) => void;
+
+  // Chat
+  'chat:send': (data: { sessionId: string; message: string; scope: 'lobby' | 'room' }) => void;
 }

@@ -66,6 +66,7 @@ export interface ConnectionResult {
   jobTitle: string | null;
   qualityScore: number;
   meetAgain: boolean;
+  theirMeetAgain: boolean;
   mutualMeetAgain: boolean;
   roundNumber: number;
 }
@@ -74,6 +75,8 @@ export interface PeopleMet {
   sessionId: string;
   sessionTitle: string;
   sessionDate: Date;
+  totalRounds: number;
+  roundsAttended: number;
   connections: ConnectionResult[];
   mutualConnections: ConnectionResult[];
 }

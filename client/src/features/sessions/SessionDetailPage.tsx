@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Calendar, Users, Play, Clock, UserPlus, UserMinus, Settings, CheckCircle, Pencil, Trash2, Mail, Copy, Check, AlertTriangle, ShieldAlert, CopyPlus, Search } from 'lucide-react';
+import { ArrowLeft, Calendar, Users, Play, Clock, UserPlus, UserMinus, Settings, CheckCircle, Pencil, Trash2, Mail, Copy, Check, AlertTriangle, ShieldAlert, CopyPlus, Search, Send } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
@@ -44,6 +44,7 @@ export default function SessionDetailPage() {
   const [copied, setCopied] = useState(false);
   const [userSearch, setUserSearch] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<any[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   const { data: session, isLoading } = useQuery({
     queryKey: ['session', sessionId],
@@ -65,6 +66,12 @@ export default function SessionDetailPage() {
 
   const isHost = session?.hostUserId === user?.id;
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+
+  const { data: participantCounts } = useQuery({
+    queryKey: ['session-participant-counts', sessionId],
+    queryFn: () => api.get(`/sessions/${sessionId}/participant-counts`).then(r => r.data.data),
+    enabled: !!sessionId && (isHost || isAdmin),
+  });
   const isRegistered = (participants || []).some((p: any) => p.userId === user?.id && p.status !== 'removed');
   const isMember = !!pod?.memberRole || isAdmin;
   const isRestrictedPod = pod?.visibility === 'invite_only' || pod?.visibility === 'private';
@@ -338,21 +345,57 @@ export default function SessionDetailPage() {
       {/* Participants */}
       <div className="animate-fade-in-up stagger-2">
         <h2 className="text-lg font-semibold text-[#1a1a2e] mb-3 flex items-center gap-2">
-          <Users className="h-5 w-5 text-rsn-red" /> Participants ({(participants || []).length})
+          <Users className="h-5 w-5 text-rsn-red" /> Participants ({(participants || []).filter((p: any) => p.status !== 'removed').length})
         </h2>
+
+        {/* Status summary row (host/admin only) */}
+        {(isHost || isAdmin) && participantCounts && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {[
+              { key: null, label: 'All', count: participantCounts.total, color: 'bg-gray-100 text-gray-700 border-gray-200' },
+              ...(participantCounts.registered > 0 ? [{ key: 'registered', label: 'Registered', count: participantCounts.registered, color: 'bg-blue-50 text-blue-700 border-blue-200' }] : []),
+              ...(participantCounts.checked_in > 0 ? [{ key: 'checked_in', label: 'Checked In', count: participantCounts.checked_in, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' }] : []),
+              ...(participantCounts.in_lobby > 0 ? [{ key: 'in_lobby', label: 'In Lobby', count: participantCounts.in_lobby, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' }] : []),
+              ...(participantCounts.in_round > 0 ? [{ key: 'in_round', label: 'In Round', count: participantCounts.in_round, color: 'bg-green-50 text-green-700 border-green-200' }] : []),
+              ...(participantCounts.disconnected > 0 ? [{ key: 'disconnected', label: 'Disconnected', count: participantCounts.disconnected, color: 'bg-amber-50 text-amber-700 border-amber-200' }] : []),
+              ...(participantCounts.left > 0 ? [{ key: 'left', label: 'Left', count: participantCounts.left, color: 'bg-gray-100 text-gray-500 border-gray-200' }] : []),
+              ...(participantCounts.no_show > 0 ? [{ key: 'no_show', label: 'No Show', count: participantCounts.no_show, color: 'bg-red-50 text-red-600 border-red-200' }] : []),
+              ...(participantCounts.pendingInvites > 0 ? [{ key: 'pending_invite', label: 'Pending Invites', count: participantCounts.pendingInvites, color: 'bg-purple-50 text-purple-700 border-purple-200' }] : []),
+            ].map((tab: any) => (
+              <button
+                key={tab.key ?? 'all'}
+                onClick={() => setStatusFilter(tab.key === 'pending_invite' ? statusFilter : tab.key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                  statusFilter === tab.key
+                    ? 'ring-2 ring-rsn-red/30 border-rsn-red ' + tab.color
+                    : tab.color + ' hover:opacity-80'
+                }`}
+              >
+                {tab.key === 'pending_invite' && <Send className="h-3 w-3" />}
+                <span>{tab.label}</span>
+                <span className="font-bold">{tab.count}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         {(participants || []).length === 0 ? (
           <Card>
             <p className="text-gray-400 text-sm text-center py-4">No participants yet. Be the first to register!</p>
           </Card>
         ) : (
           <div className="grid gap-2">
-            {(participants || []).filter((p: any) => p.status !== 'removed').map((p: any) => {
+            {(participants || [])
+              .filter((p: any) => p.status !== 'removed')
+              .filter((p: any) => statusFilter === null || p.status === statusFilter)
+              .map((p: any) => {
               const pIsHost = p.userId === session.hostUserId;
               const statusLabel = pIsHost ? 'Host'
                 : (p.status === 'registered' || p.status === 'left' || p.status === 'checked_in') ? 'Member'
                 : p.status === 'in_lobby' ? 'In Lobby'
                 : p.status === 'in_round' ? 'In Round'
                 : p.status === 'disconnected' ? 'Reconnecting...'
+                : p.status === 'no_show' ? 'No Show'
                 : p.status || 'Member';
               return (
                 <Card key={p.userId || p.id} className="!p-4">

@@ -9,15 +9,16 @@ import VideoRoom from './VideoRoom';
 import RatingPrompt from './RatingPrompt';
 import SessionComplete from './SessionComplete';
 import HostControls from './HostControls';
+import ChatPanel from './ChatPanel';
 import { PageLoader } from '@/components/ui/Spinner';
-import { AlertCircle, X, LogOut, WifiOff, Loader2, RefreshCw } from 'lucide-react';
+import { AlertCircle, X, LogOut, WifiOff, Loader2, RefreshCw, MessageCircle } from 'lucide-react';
 import api from '@/lib/api';
 import { disconnectSocket, connectSocket, getSocket } from '@/lib/socket';
 
 export default function LiveSessionPage() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
-  const { phase, broadcasts, error: sessionError, connectionStatus, transitionStatus, setError, setPhase, reset } = useSessionStore();
+  const { phase, broadcasts, error: sessionError, connectionStatus, transitionStatus, setError, setPhase, reset, chatOpen, setChatOpen, unreadChatCount } = useSessionStore();
   const { user } = useAuthStore();
   const mediaRequestedRef = useRef(false);
 
@@ -137,10 +138,38 @@ export default function LiveSessionPage() {
         </div>
       )}
 
-      {phase === 'lobby' && <Lobby isHost={isHost} sessionId={sessionId} />}
-      {phase === 'matched' && <VideoRoom isHost={isHost} />}
-      {phase === 'rating' && <RatingPrompt sessionId={sessionId} />}
-      {phase === 'complete' && <SessionComplete sessionId={sessionId} />}
+      {/* Main content + chat panel layout */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Session content */}
+        <div className={`flex-1 flex flex-col overflow-hidden ${chatOpen ? 'hidden sm:flex' : ''}`}>
+          {phase === 'lobby' && <Lobby isHost={isHost} sessionId={sessionId} />}
+          {phase === 'matched' && <VideoRoom isHost={isHost} />}
+          {phase === 'rating' && <RatingPrompt sessionId={sessionId} />}
+          {phase === 'complete' && <SessionComplete sessionId={sessionId} />}
+        </div>
+
+        {/* Chat panel -- side panel on desktop, full overlay on mobile */}
+        {chatOpen && (
+          <div className="w-full sm:w-80 sm:min-w-[320px] flex-shrink-0 h-full">
+            <ChatPanel sessionId={sessionId} onClose={() => setChatOpen(false)} />
+          </div>
+        )}
+
+        {/* Chat toggle button -- fixed bottom-right */}
+        {!chatOpen && phase !== 'complete' && (
+          <button
+            onClick={() => setChatOpen(true)}
+            className="absolute bottom-4 right-4 z-20 p-3 bg-rsn-red text-white rounded-full shadow-lg hover:bg-rsn-red/90 transition-all hover:scale-105"
+          >
+            <MessageCircle className="h-5 w-5" />
+            {unreadChatCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[20px] h-5 flex items-center justify-center bg-amber-500 text-white text-[11px] font-bold rounded-full px-1">
+                {unreadChatCount > 9 ? '9+' : unreadChatCount}
+              </span>
+            )}
+          </button>
+        )}
+      </div>
 
       {/* Host controls visible in all active phases */}
       {isHost && phase !== 'complete' && <HostControls sessionId={sessionId} />}

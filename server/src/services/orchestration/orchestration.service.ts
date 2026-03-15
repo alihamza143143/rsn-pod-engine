@@ -41,6 +41,22 @@ interface ActiveSession {
 
 const activeSessions = new Map<string, ActiveSession>();
 
+// ─── In-Memory Chat Store ──────────────────────────────────────────────────
+
+interface ChatMessage {
+  id: string;
+  userId: string;
+  displayName: string;
+  message: string;
+  timestamp: string;
+  scope: 'lobby' | 'room';
+  isHost: boolean;
+  roomId?: string; // breakout room ID for room-scope messages
+}
+
+const MAX_CHAT_MESSAGES = 50;
+const chatMessages = new Map<string, ChatMessage[]>(); // sessionId -> messages
+
 // ─── Socket Namespaces ──────────────────────────────────────────────────────
 
 let io: SocketServer<ClientToServerEvents, ServerToClientEvents>;
@@ -79,6 +95,9 @@ export function initOrchestration(
     socket.on('host:mute_all', (data) => handleHostMuteAll(socket, data));
     socket.on('host:remove_from_room', (data) => handleHostRemoveFromRoom(socket, data));
 
+    // Chat
+    socket.on('chat:send', (data) => handleChatSend(socket, data));
+
     socket.on('disconnect', () => handleDisconnect(socket));
   });
 
@@ -95,6 +114,7 @@ export function initOrchestration(
         logger.warn({ sessionId }, 'TTL cleanup: purging stale active session');
         if (session.timer) clearTimeout(session.timer);
         activeSessions.delete(sessionId);
+        chatMessages.delete(sessionId);
       }
     }
   }, 5 * 60 * 1000); // Check every 5 minutes
@@ -306,6 +326,12 @@ async function handleJoinSession(
           durationSeconds: remainingSeconds,
         });
       }
+    }
+
+    // Send chat history to joining user
+    const history = chatMessages.get(data.sessionId) || [];
+    if (history.length > 0) {
+      socket.emit('chat:history', { messages: history });
     }
 
     logger.info({ sessionId: data.sessionId, userId }, 'User joined session');
@@ -1050,49 +1076,14 @@ async function handleHostGenerateMatches(
     // Generate matches for preview (store them in DB but don't activate yet)
     // Exclude host from matching — host stays in lobby to manage the event
     await matchingService.generateSingleRound(data.sessionId, nextRound, [activeSession.hostUserId]);
-    const matches = await matchingService.getMatchesByRound(data.sessionId, nextRound);
-
-    // Look up display names for all participants in matches
-    const allUserIds = new Set<string>();
-    for (const m of matches) {
-      allUserIds.add(m.participantAId);
-      allUserIds.add(m.participantBId);
-    }
-
-    const namesResult = await query<{ id: string; displayName: string }>(
-      `SELECT id, display_name AS "displayName" FROM users WHERE id = ANY($1)`,
-      [Array.from(allUserIds)]
-    );
-    const nameMap = new Map(namesResult.rows.map(r => [r.id, r.displayName || 'User']));
-
-    // Build preview data
-    const matchPreview = matches.map(m => ({
-      participantA: { userId: m.participantAId, displayName: nameMap.get(m.participantAId) || 'User' },
-      participantB: { userId: m.participantBId, displayName: nameMap.get(m.participantBId) || 'User' },
-    }));
-
-    // Determine bye participants (exclude host — host stays in lobby, not a "bye")
-    const allParticipants = await query<{ user_id: string }>(
-      `SELECT user_id FROM session_participants WHERE session_id = $1 AND status IN ('in_lobby', 'checked_in', 'registered')
-         AND user_id != $2`,
-      [data.sessionId, activeSession.hostUserId]
-    );
-    const matchedIds = new Set(matches.flatMap(m => [m.participantAId, m.participantBId, ...(m.participantCId ? [m.participantCId] : [])]));
-    const byeParticipants = allParticipants.rows
-      .filter(p => !matchedIds.has(p.user_id))
-      .map(p => ({ userId: p.user_id, displayName: nameMap.get(p.user_id) || 'User' }));
 
     // Store pending round number so confirm_round knows what to start
     activeSession.pendingRoundNumber = nextRound;
 
-    // Send preview to host only
-    socket.emit('host:match_preview', {
-      roundNumber: nextRound,
-      matches: matchPreview,
-      byeParticipants,
-    });
+    // Send preview to host only (includes trio support + encounter history)
+    await sendMatchPreview(socket, data.sessionId, nextRound, activeSession.hostUserId);
 
-    logger.info({ sessionId: data.sessionId, roundNumber: nextRound, matchCount: matches.length },
+    logger.info({ sessionId: data.sessionId, roundNumber: nextRound },
       'Match preview generated for host');
   } catch (err: any) {
     logger.error({ err }, 'Error generating match preview');
@@ -1183,8 +1174,8 @@ async function handleHostSwapMatch(
     await query('UPDATE matches SET participant_a_id = $1, participant_b_id = $2, participant_c_id = $3 WHERE id = $4',
       [newB.a, newB.b, newB.c, matchB.id]);
 
-    // Re-send updated preview
-    await sendMatchPreview(socket, data.sessionId, roundNumber);
+    // Re-send updated preview (pass hostUserId so host is excluded from bye list)
+    await sendMatchPreview(socket, data.sessionId, roundNumber, activeSession.hostUserId);
 
     logger.info({ sessionId: data.sessionId, userA: data.userA, userB: data.userB }, 'Host swapped match participants');
   } catch (err: any) {
@@ -1232,8 +1223,8 @@ async function handleHostExcludeFromRound(
       }
     }
 
-    // Re-send updated preview
-    await sendMatchPreview(socket, data.sessionId, roundNumber);
+    // Re-send updated preview (pass hostUserId so host is excluded from bye list)
+    await sendMatchPreview(socket, data.sessionId, roundNumber, activeSession.hostUserId);
 
     logger.info({ sessionId: data.sessionId, excludedUser: data.userId }, 'Host excluded participant from round');
   } catch (err: any) {
@@ -1896,6 +1887,7 @@ async function completeSession(sessionId: string): Promise<void> {
   } finally {
     // Always clean up to prevent memory leak, even on error
     activeSessions.delete(sessionId);
+    cleanupChatMessages(sessionId);
   }
 }
 
@@ -2273,6 +2265,96 @@ export async function broadcastMessage(
       sentAt: new Date().toISOString(),
     });
   }
+}
+
+// ─── Chat ──────────────────────────────────────────────────────────────────
+
+async function handleChatSend(
+  socket: Socket,
+  data: { sessionId: string; message: string; scope: 'lobby' | 'room' }
+): Promise<void> {
+  try {
+    const userId = getUserIdFromSocket(socket);
+    if (!userId) {
+      socket.emit('error', { code: 'UNAUTHORIZED', message: 'Not authenticated' });
+      return;
+    }
+
+    const { sessionId, message, scope } = data;
+
+    // Validate message
+    if (!message || typeof message !== 'string' || message.trim().length === 0) return;
+    const trimmed = message.trim().slice(0, 500); // Cap at 500 chars
+
+    // Verify user is in the session room
+    const rooms = socket.rooms;
+    if (!rooms.has(sessionRoom(sessionId))) {
+      socket.emit('error', { code: 'NOT_IN_SESSION', message: 'You are not in this session' });
+      return;
+    }
+
+    // Determine if sender is host
+    const session = await sessionService.getSessionById(sessionId).catch(() => null);
+    const isHost = session?.hostUserId === userId;
+
+    const displayName = (socket.data as any)?.displayName || 'Unknown';
+    const chatMsg: ChatMessage = {
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      userId,
+      displayName,
+      message: trimmed,
+      timestamp: new Date().toISOString(),
+      scope,
+      isHost,
+    };
+
+    // Store message in memory
+    if (!chatMessages.has(sessionId)) chatMessages.set(sessionId, []);
+    const msgs = chatMessages.get(sessionId)!;
+    msgs.push(chatMsg);
+    // Keep only the last MAX_CHAT_MESSAGES
+    if (msgs.length > MAX_CHAT_MESSAGES) msgs.splice(0, msgs.length - MAX_CHAT_MESSAGES);
+
+    if (scope === 'lobby') {
+      // Broadcast to everyone in the session
+      io.to(sessionRoom(sessionId)).emit('chat:message', chatMsg);
+    } else {
+      // Room scope: find the user's current breakout room match and emit only to those users
+      const activeSession = activeSessions.get(sessionId);
+      if (!activeSession || activeSession.status !== SessionStatus.ROUND_ACTIVE) {
+        // Not in a round, fall back to lobby broadcast
+        chatMsg.scope = 'lobby';
+        io.to(sessionRoom(sessionId)).emit('chat:message', chatMsg);
+        return;
+      }
+
+      const matches = await matchingService.getMatchesByRound(sessionId, activeSession.currentRound);
+      const userMatch = matches.find(
+        m => (m.participantAId === userId || m.participantBId === userId || m.participantCId === userId) && m.status === 'active'
+      );
+
+      if (userMatch) {
+        chatMsg.roomId = userMatch.roomId || undefined;
+        // Emit to all participants in this match
+        const participantIds = [userMatch.participantAId, userMatch.participantBId];
+        if (userMatch.participantCId) participantIds.push(userMatch.participantCId);
+        for (const pid of participantIds) {
+          io.to(userRoom(pid)).emit('chat:message', chatMsg);
+        }
+      } else {
+        // Not matched, send only to self
+        socket.emit('chat:message', chatMsg);
+      }
+    }
+  } catch (err: any) {
+    logger.error({ err }, 'Error handling chat message');
+    socket.emit('error', { code: 'CHAT_FAILED', message: 'Failed to send message' });
+  }
+}
+
+// Clean up chat messages when session completes
+function cleanupChatMessages(sessionId: string): void {
+  chatMessages.delete(sessionId);
 }
 
 // ─── Get Active Session State ───────────────────────────────────────────────

@@ -3,17 +3,19 @@ import Card from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useToastStore } from '@/stores/toastStore';
-import { Star, UserCheck, CheckCircle, Loader2, Clock } from 'lucide-react';
+import { Star, UserCheck, CheckCircle, Loader2, Clock, Heart } from 'lucide-react';
 import api from '@/lib/api';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface Props { sessionId: string; }
 
+type SubmissionState = null | { meetAgain: boolean };
+
 function PartnerRatingForm({ partnerName, toUserId, matchId, onSubmitted, onSkip, partnerIndex, totalPartners }: {
   partnerName: string;
   toUserId: string;
   matchId: string;
-  onSubmitted: () => void;
+  onSubmitted: (meetAgain: boolean) => void;
   onSkip: () => void;
   partnerIndex: number;
   totalPartners: number;
@@ -33,8 +35,7 @@ function PartnerRatingForm({ partnerName, toUserId, matchId, onSubmitted, onSkip
         meetAgain,
         toUserId,
       });
-      addToast(`Rating for ${partnerName} submitted!`, 'success');
-      onSubmitted();
+      onSubmitted(meetAgain);
     } catch (err: any) {
       const msg = err?.response?.data?.error?.message || 'Failed to submit rating';
       addToast(msg, 'error');
@@ -44,7 +45,7 @@ function PartnerRatingForm({ partnerName, toUserId, matchId, onSubmitted, onSkip
   };
 
   return (
-    <Card className="max-w-md w-full text-center">
+    <Card className="max-w-md w-full text-center animate-fade-in-up">
       {totalPartners > 1 && (
         <p className="text-xs text-gray-400 mb-2">Partner {partnerIndex + 1} of {totalPartners}</p>
       )}
@@ -88,10 +89,46 @@ function PartnerRatingForm({ partnerName, toUserId, matchId, onSubmitted, onSkip
   );
 }
 
+function RatingConfirmation({ meetAgain, isLastPartner, isLastRound, onContinue }: {
+  meetAgain: boolean;
+  isLastPartner: boolean;
+  isLastRound: boolean;
+  onContinue: () => void;
+}) {
+  useEffect(() => {
+    const timer = setTimeout(onContinue, meetAgain ? 2500 : 1800);
+    return () => clearTimeout(timer);
+  }, [onContinue, meetAgain]);
+
+  return (
+    <Card className="max-w-md w-full text-center animate-fade-in-up">
+      <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-emerald-500/20 text-emerald-400 mb-3">
+        <CheckCircle className="h-7 w-7" />
+      </div>
+      <h2 className="text-lg font-bold text-[#1a1a2e] mb-1">Rating submitted!</h2>
+      {meetAgain && (
+        <div className="flex items-center justify-center gap-2 mt-2 px-4 py-2 rounded-lg bg-pink-50 border border-pink-200">
+          <Heart className="h-4 w-4 text-rsn-red" />
+          <p className="text-sm text-pink-600">
+            You want to meet again! We'll let you know if it's mutual.
+          </p>
+        </div>
+      )}
+      {isLastPartner && isLastRound && (
+        <div className="flex items-center justify-center gap-2 mt-3 text-sm text-gray-500">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>Last round complete! Event wrapping up...</span>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 export default function RatingPrompt(_props: Props) {
   const { currentMatch, currentMatchId, currentPartners, timerSeconds, setPhase, currentRound, totalRounds } = useSessionStore();
   const { addToast } = useToastStore();
   const [currentPartnerIdx, setCurrentPartnerIdx] = useState(0);
+  const [submissionState, setSubmissionState] = useState<SubmissionState>(null);
   const hasRedirected = useRef(false);
 
   const partners = currentPartners.length > 0
@@ -111,12 +148,31 @@ export default function RatingPrompt(_props: Props) {
 
   if (noMatchData) return null;
 
-  const allDone = currentPartnerIdx >= partners.length;
+  const isLastRound = currentRound >= totalRounds && totalRounds > 0;
+  const isLastPartner = currentPartnerIdx >= partners.length - 1;
+  const allDone = currentPartnerIdx >= partners.length && submissionState === null;
+
+  // Show the brief confirmation after submitting a rating
+  if (submissionState !== null) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-4">
+        <RatingConfirmation
+          meetAgain={submissionState.meetAgain}
+          isLastPartner={isLastPartner || currentPartnerIdx >= partners.length}
+          isLastRound={isLastRound}
+          onContinue={() => {
+            setSubmissionState(null);
+            setCurrentPartnerIdx(prev => prev + 1);
+          }}
+        />
+      </div>
+    );
+  }
 
   if (allDone) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full text-center">
+        <Card className="max-w-md w-full text-center animate-fade-in-up">
           <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-500/20 text-emerald-400 mb-4">
             <CheckCircle className="h-8 w-8" />
           </div>
@@ -126,7 +182,7 @@ export default function RatingPrompt(_props: Props) {
           <div className="flex items-center justify-center gap-2">
             <Loader2 className="h-4 w-4 text-gray-500 animate-spin" />
             <p className="text-gray-500">
-              {currentRound >= totalRounds && totalRounds > 0
+              {isLastRound
                 ? 'Event wrapping up — preparing your recap...'
                 : 'Waiting for the next round to begin...'}
             </p>
@@ -143,6 +199,11 @@ export default function RatingPrompt(_props: Props) {
   }
 
   const partner = partners[currentPartnerIdx];
+
+  const handleSubmitted = (meetAgain: boolean) => {
+    setSubmissionState({ meetAgain });
+  };
+
   const advance = () => setCurrentPartnerIdx(prev => prev + 1);
 
   return (
@@ -158,7 +219,7 @@ export default function RatingPrompt(_props: Props) {
         partnerName={partner.displayName || 'your partner'}
         toUserId={partner.userId}
         matchId={currentMatchId}
-        onSubmitted={advance}
+        onSubmitted={handleSubmitted}
         onSkip={advance}
         partnerIndex={currentPartnerIdx}
         totalPartners={partners.length}

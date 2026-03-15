@@ -4,7 +4,7 @@ import Card from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
 import { Spinner } from '@/components/ui/Spinner';
-import { CheckCircle, Users, Star, Heart, ArrowRight } from 'lucide-react';
+import { CheckCircle, Users, Star, Heart, ArrowRight, UserCheck, CircleDot } from 'lucide-react';
 import api from '@/lib/api';
 
 interface Connection {
@@ -15,6 +15,7 @@ interface Connection {
   jobTitle?: string;
   qualityScore: number;
   meetAgain: boolean;
+  theirMeetAgain: boolean;
   mutualMeetAgain: boolean;
   roundNumber: number;
 }
@@ -28,11 +29,41 @@ interface Stats {
 
 interface Props { sessionId: string; }
 
+function InterestBadge({ connection }: { connection: Connection }) {
+  if (connection.mutualMeetAgain) {
+    return (
+      <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-rsn-red/10 border border-rsn-red/20 text-rsn-red font-medium">
+        <Heart className="h-3 w-3 fill-rsn-red" />
+        <span>Mutual Match!</span>
+      </div>
+    );
+  }
+  if (connection.meetAgain && !connection.theirMeetAgain) {
+    return (
+      <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-600">
+        <UserCheck className="h-3 w-3" />
+        <span>You expressed interest</span>
+      </div>
+    );
+  }
+  if (!connection.meetAgain && connection.theirMeetAgain) {
+    return (
+      <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-600">
+        <UserCheck className="h-3 w-3" />
+        <span>They expressed interest</span>
+      </div>
+    );
+  }
+  return null;
+}
+
 export default function SessionComplete({ sessionId }: Props) {
   const navigate = useNavigate();
   const [connections, setConnections] = useState<Connection[]>([]);
   const [mutualConnections, setMutualConnections] = useState<Connection[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [totalRounds, setTotalRounds] = useState(0);
+  const [roundsAttended, setRoundsAttended] = useState(0);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
 
@@ -45,8 +76,11 @@ export default function SessionComplete({ sessionId }: Props) {
         api.get(`/ratings/sessions/${sessionId}/stats`),
       ]);
       if (peopleRes.status === 'fulfilled') {
-        setConnections(peopleRes.value.data.data?.connections || []);
-        setMutualConnections(peopleRes.value.data.data?.mutualConnections || []);
+        const d = peopleRes.value.data.data;
+        setConnections(d?.connections || []);
+        setMutualConnections(d?.mutualConnections || []);
+        setTotalRounds(d?.totalRounds || 0);
+        setRoundsAttended(d?.roundsAttended || 0);
       }
       if (statsRes.status === 'fulfilled') {
         setStats(statsRes.value.data.data || null);
@@ -85,6 +119,16 @@ export default function SessionComplete({ sessionId }: Props) {
           </Card>
         ) : (
           <>
+            {/* Participation summary */}
+            {totalRounds > 0 && (
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 border border-gray-200">
+                <CircleDot className="h-4 w-4 text-rsn-red shrink-0" />
+                <p className="text-sm text-gray-600">
+                  You attended <span className="font-semibold text-[#1a1a2e]">{roundsAttended}</span> round{roundsAttended !== 1 ? 's' : ''} out of <span className="font-semibold text-[#1a1a2e]">{totalRounds}</span> total
+                </p>
+              </div>
+            )}
+
             {/* Stats summary */}
             {stats && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -94,7 +138,7 @@ export default function SessionComplete({ sessionId }: Props) {
                   <p className="text-xs text-gray-400">People Met</p>
                 </Card>
                 <Card className="text-center py-3">
-                  <Heart className="h-5 w-5 text-pink-400 mx-auto mb-1" />
+                  <Heart className="h-5 w-5 text-rsn-red mx-auto mb-1" />
                   <p className="text-2xl font-bold text-[#1a1a2e]">{stats.mutualMeetAgainCount}</p>
                   <p className="text-xs text-gray-400">Mutual Matches</p>
                 </Card>
@@ -113,12 +157,13 @@ export default function SessionComplete({ sessionId }: Props) {
             {/* Mutual connections */}
             {mutualConnections.length > 0 && (
               <Card>
-                <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider mb-3">
-                  Mutual Connections
+                <h3 className="text-sm font-semibold text-rsn-red uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <Heart className="h-4 w-4 fill-rsn-red" />
+                  Mutual Matches
                 </h3>
                 <div className="space-y-3">
                   {mutualConnections.map(c => (
-                    <div key={c.userId} className="flex items-center gap-3 p-2 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                    <div key={c.userId} className="flex items-center gap-3 p-2 rounded-lg bg-rsn-red/5 border border-rsn-red/20">
                       <Avatar name={c.displayName || 'User'} size="sm" />
                       <div className="flex-1 min-w-0">
                         <p className="text-gray-800 font-medium truncate">{c.displayName}</p>
@@ -128,7 +173,7 @@ export default function SessionComplete({ sessionId }: Props) {
                           </p>
                         )}
                       </div>
-                      <Heart className="h-4 w-4 text-emerald-400 fill-emerald-400 shrink-0" />
+                      <Heart className="h-4 w-4 text-rsn-red fill-rsn-red shrink-0" />
                     </div>
                   ))}
                 </div>
@@ -146,7 +191,10 @@ export default function SessionComplete({ sessionId }: Props) {
                     <div key={`${c.userId}-${c.roundNumber}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
                       <Avatar name={c.displayName || 'User'} size="sm" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-gray-800 font-medium truncate">{c.displayName}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-gray-800 font-medium truncate">{c.displayName}</p>
+                          <InterestBadge connection={c} />
+                        </div>
                         <p className="text-xs text-gray-400">Round {c.roundNumber}</p>
                       </div>
                       {c.qualityScore > 0 && (

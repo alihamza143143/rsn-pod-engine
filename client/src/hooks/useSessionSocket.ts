@@ -14,6 +14,7 @@ const SOCKET_EVENTS = [
   'host:broadcast', 'lobby:token', 'host:participant_removed',
   'host:match_preview', 'lobby:mute_command',
   'host:round_dashboard', 'host:room_status_update',
+  'chat:message', 'chat:history',
   'timer:sync', 'error',
 ] as const;
 
@@ -272,6 +273,14 @@ export default function useSessionSocket(sessionId: string) {
 
     socket.on('host:room_status_update', (data: any) => {
       store.updateRoomStatus(data.matchId, data.status, data.participants);
+    });
+
+    // ── Chat ──
+    socket.on('chat:message', (data: any) => store.addChatMessage(data));
+    socket.on('chat:history', (data: any) => {
+      if (data.messages && Array.isArray(data.messages)) {
+        store.setChatMessages(data.messages);
+      }
     });
 
     // ── Sync & errors ──

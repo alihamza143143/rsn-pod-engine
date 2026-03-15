@@ -552,6 +552,58 @@ export async function generateLiveKitToken(sessionId: string, userId: string, ro
 
 // ─── Check if user is a participant in a session ──────────────────────────
 
+export async function getParticipantStatusCounts(sessionId: string): Promise<{
+  registered: number;
+  checked_in: number;
+  in_lobby: number;
+  in_round: number;
+  left: number;
+  removed: number;
+  disconnected: number;
+  no_show: number;
+  total: number;
+  pendingInvites: number;
+}> {
+  const statusResult = await query<{ status: string; count: string }>(
+    `SELECT status, COUNT(*)::text AS count
+     FROM session_participants
+     WHERE session_id = $1
+     GROUP BY status`,
+    [sessionId]
+  );
+
+  const counts: Record<string, number> = {};
+  let total = 0;
+  for (const row of statusResult.rows) {
+    counts[row.status] = parseInt(row.count, 10);
+    if (row.status !== 'removed' && row.status !== 'left') {
+      total += parseInt(row.count, 10);
+    }
+  }
+
+  // Count pending invites for this session
+  const inviteResult = await query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count
+     FROM invites
+     WHERE session_id = $1 AND status = 'pending' AND (expires_at IS NULL OR expires_at > NOW())`,
+    [sessionId]
+  );
+  const pendingInvites = parseInt(inviteResult.rows[0]?.count || '0', 10);
+
+  return {
+    registered: counts['registered'] || 0,
+    checked_in: counts['checked_in'] || 0,
+    in_lobby: counts['in_lobby'] || 0,
+    in_round: counts['in_round'] || 0,
+    left: counts['left'] || 0,
+    removed: counts['removed'] || 0,
+    disconnected: counts['disconnected'] || 0,
+    no_show: counts['no_show'] || 0,
+    total,
+    pendingInvites,
+  };
+}
+
 export async function isSessionParticipant(sessionId: string, userId: string): Promise<boolean> {
   const result = await query(
     `SELECT 1 FROM session_participants WHERE session_id = $1 AND user_id = $2 AND status NOT IN ('removed', 'left')`,
