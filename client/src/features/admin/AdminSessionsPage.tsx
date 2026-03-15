@@ -29,7 +29,7 @@ export default function AdminSessionsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-sessions', filter],
-    queryFn: () => api.get(`/sessions?pageSize=100${filter !== 'all' ? `&status=${filter}` : ''}`).then(r => r.data.data ?? []),
+    queryFn: () => api.get(`/sessions?pageSize=100&admin=true${filter !== 'all' ? `&status=${filter}` : ''}`).then(r => r.data.data ?? []),
     enabled: isAdmin(user?.role),
   });
 

@@ -18,7 +18,7 @@ export default function AdminPodsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-pods', filter],
-    queryFn: () => api.get(`/pods?pageSize=100${filter !== 'all' ? `&status=${filter}` : ''}`).then(r => r.data.data ?? []),
+    queryFn: () => api.get(`/pods?pageSize=100&admin=true${filter !== 'all' ? `&status=${filter}` : ''}`).then(r => r.data.data ?? []),
     enabled: isAdmin(user?.role),
   });
 
