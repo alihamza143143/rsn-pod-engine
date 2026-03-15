@@ -192,40 +192,41 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
 
 /**
  * Hook: delays "host is offline" by a grace period to avoid flickering on brief disconnects.
- * Also checks participant list as a fallback — if the host is in the participants list,
- * they're online regardless of the hostInLobby flag.
- * Starts as `null` (unknown) — waits for session:state before showing status.
- * Once the first real signal arrives, applies 5s debounce only for going offline.
+ * Also checks participant list as a fallback.
+ * - Starts as `null` (unknown) until session:state arrives
+ * - First signal: shows the real value immediately (no grace period)
+ * - Subsequent online→offline transitions: 5s grace period to absorb blips
  */
 function useHostPresence(gracePeriodMs = 5000): boolean | null {
   const rawHostInLobby = useSessionStore(s => s.hostInLobby);
   const participants = useSessionStore(s => s.participants);
   const hostUserId = useSessionStore(s => s.hostUserId);
 
-  // Fallback: if the host is in the participants list, they're online
   const hostInParticipants = hostUserId ? participants.some(p => p.userId === hostUserId) : false;
   const isHostOnline = rawHostInLobby || hostInParticipants;
 
-  // Start null (unknown) — don't assume online or offline until session:state arrives
   const [debouncedOnline, setDebouncedOnline] = useState<boolean | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasReceivedSignal = useRef(false);
+  const wasEverOnline = useRef(false);
 
   useEffect(() => {
-    // Wait for hostUserId to be set (means session:state has arrived)
     if (!hostUserId) return;
-    hasReceivedSignal.current = true;
 
     if (isHostOnline) {
-      // Host came online — show immediately, cancel any pending offline transition
+      wasEverOnline.current = true;
       if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
       setDebouncedOnline(true);
-    } else if (hasReceivedSignal.current) {
-      // Host went offline — delay before showing offline to absorb brief network blips
-      timerRef.current = setTimeout(() => {
+    } else {
+      if (wasEverOnline.current) {
+        // Host was online, now offline — apply grace period for brief disconnects
+        timerRef.current = setTimeout(() => {
+          setDebouncedOnline(false);
+          timerRef.current = null;
+        }, gracePeriodMs);
+      } else {
+        // Host was never online — show offline immediately, no grace period
         setDebouncedOnline(false);
-        timerRef.current = null;
-      }, gracePeriodMs);
+      }
     }
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
