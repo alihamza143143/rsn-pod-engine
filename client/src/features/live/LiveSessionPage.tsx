@@ -112,16 +112,16 @@ export default function LiveSessionPage() {
         </div>
       )}
 
-      {/* Transition status overlay */}
+      {/* Transition status overlay — host sees host-specific messages */}
       {transitionStatus && (
         <div className="bg-[#1a1a2e]/10 border-b border-brand-500/20 px-4 py-2 flex items-center justify-center gap-2">
           <Loader2 className="h-4 w-4 text-rsn-red animate-spin" />
           <p className="text-sm text-brand-300">
-            {transitionStatus === 'starting_session' && 'Event is starting — preparing your first match...'}
-            {transitionStatus === 'preparing_match' && "You've been matched! Connecting to your partner..."}
-            {transitionStatus === 'round_ending' && 'Round ending — wrapping up...'}
-            {transitionStatus === 'between_rounds' && 'Getting ready for the next round...'}
-            {transitionStatus === 'session_ending' && 'Event is wrapping up — preparing your recap...'}
+            {transitionStatus === 'starting_session' && (isHost ? 'Starting event — generating matches...' : 'Event is starting — preparing your first match...')}
+            {transitionStatus === 'preparing_match' && (isHost ? 'Sending participants to breakout rooms...' : "You've been matched! Connecting to your partner...")}
+            {transitionStatus === 'round_ending' && (isHost ? 'Ending round — collecting participants...' : 'Round ending — wrapping up...')}
+            {transitionStatus === 'between_rounds' && (isHost ? 'Preparing next round...' : 'Getting ready for the next round...')}
+            {transitionStatus === 'session_ending' && (isHost ? 'Ending event — generating recaps...' : 'Event is wrapping up — preparing your recap...')}
           </p>
         </div>
       )}

@@ -23,6 +23,7 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
   );
   const participants = useParticipants();
   const { localParticipant } = useLocalParticipant();
+  const hostUserId = useSessionStore(s => s.hostUserId);
   const cameraTracks = tracks.filter(t => t.source === Track.Source.Camera);
 
   // Responsive grid: up to 2 cols on mobile, 3 on tablet, 4-5 on desktop
@@ -64,8 +65,11 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
                 <VideoOff className="h-3.5 w-3.5 text-gray-300" />
               </div>
             )}
-            <div className="absolute bottom-1.5 left-1.5 bg-black/50 backdrop-blur-sm rounded-lg px-2 py-0.5 text-[11px] text-white truncate max-w-[90%]">
+            <div className="absolute bottom-1.5 left-1.5 bg-black/50 backdrop-blur-sm rounded-lg px-2 py-0.5 text-[11px] text-white truncate max-w-[90%] flex items-center gap-1.5">
               {name}
+              {trackRef.participant.identity === hostUserId && (
+                <span className="bg-amber-500 text-[9px] font-bold text-white px-1.5 py-0.5 rounded-full">Host</span>
+              )}
             </div>
             {/* Host mute/unmute + kick buttons on remote participant tiles */}
             {isHost && !isLocal && (
