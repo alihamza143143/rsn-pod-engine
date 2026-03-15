@@ -97,6 +97,10 @@ export async function submitRating(
     const result = await client.query<Rating>(
       `INSERT INTO ratings (id, match_id, from_user_id, to_user_id, quality_score, meet_again, feedback)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
+       ON CONFLICT (match_id, from_user_id) DO UPDATE SET
+         quality_score = EXCLUDED.quality_score,
+         meet_again = EXCLUDED.meet_again,
+         feedback = EXCLUDED.feedback
        RETURNING ${RATING_COLUMNS}`,
       [ratingId, input.matchId, fromUserId, toUserId, input.qualityScore, input.meetAgain, input.feedback || null]
     );
