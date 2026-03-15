@@ -1,6 +1,9 @@
 # Exclude source reference text documents
 *.txt
 
+# Claude Code local config
+.claude/
+
 # Dependencies
 node_modules/
 npm-debug.log*

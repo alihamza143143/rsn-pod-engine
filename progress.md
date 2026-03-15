@@ -40,13 +40,58 @@ Purpose: Persistent execution history and current state, independent of chat mem
 
 ## Current Phase Snapshot
 
-- Active Phase: Change 1.4 (Stefan's Changes 1.3 Evening Review feedback)
-- Active Milestone: **All Changes 1.3 evening review items implemented**
-- Current Session: UI fixes, bug fixes, feature additions per Stefan's 9-page PDF review
-- Overall Build Status: Shared + Client + Server production builds passing, 262/262 tests passing (16 suites), client Vite build clean
+- Active Phase: Change 1.4 — Shradha call fixes + platform broadening
+- Active Milestone: **Phase 1 & 2 complete, Phase 3 next**
+- Source Document: `assets/Changes 1.4 RSN System Architecture.pdf` (16-page doc from Shradha call March 15)
+- Reference Spec: "Dr Prompt" — RSN Matching Engine spec (in Claude memory)
+- Overall Build Status: Client + Server + Shared all compile with zero TypeScript errors
 - Architecture: Landing page (Stefan/Lovable) at rsn.network | App (our codebase) at app.rsn.network
-- Deployment: Render ✅ working | Vercel ✅ vercel.json added for monorepo build
-- Last Updated: March 14, 2026
+- Deployment: Render ✅ | Vercel ✅ | Both auto-deploy from main
+- Testing Checklist: `CHANGE_1.4_LOG.md` in project root (16 items, 68 checkpoints)
+- Last Updated: March 16, 2026
+
+### What's Done (Change 1.4)
+
+**Phase 1 — Core Reliability (33 items, ALL COMPLETE)**
+- RSN brand colors #DE322E across entire platform (31+ files)
+- Email templates rebranded (7 emails, RSN red + "Connect with Reason")
+- Logout confirmation dialog
+- No auto-logout + token expiry 7d/30d
+- LinkedIn field: accepts username, auto-prepends URL
+- Invite error messages: 8 friendly error codes, correct validation order
+- Invite landing page: shows inviter name, event/pod context, date
+- Lobby gate: participants wait before host starts
+- Host presence: 5s grace period, no false states on join/rejoin
+- Host tile first in grid with "Host" badge + media controls on own tile
+- Trio rating: all 3 get rating window, unique constraint migration
+- Encounter history double-counting fix
+- Recap resilience: participants see data instead of error
+- Event detail button: "Go Live" (navigation) vs "Start Event" (actual start)
+
+**Phase 2 — Live Event Quality (5 features, ALL COMPLETE)**
+- Chat system: real-time Socket.IO messaging, ChatPanel, unread badges
+- Announcement: host broadcast renamed, amber styling, banner display
+- Host match review: preview pairings before starting round (3 bugs fixed)
+- Post-round flow: rating confirmation, meet-again message, transitions
+- Recap enhancement: mutual match badges, interest indicators, participation summary
+- Participant status tracking: counts endpoint, filterable tabs on session detail
+
+### What's Next
+
+**Phase 3 — Pod System Overhaul**
+- Pod types → purpose-based (reason, conversational, speed_networking, etc.)
+- Max members decoupled from pod type
+- Full pod editing, pod copy, member states (declined, no_response)
+- Pod browse UX, access models, request-to-join flow
+
+**Phase 4 — Profile & Matching Data**
+- Expanded profile fields, profile card, premium pre-selection
+
+**Phase 5 — Search, Invites & Permissions**
+- User search in invites, enforce limits, role-based permissions
+
+**Phase 6 — Admin Power-Up**
+- Bulk actions, matching templates, violations, stats dashboard
 
 ---
 
