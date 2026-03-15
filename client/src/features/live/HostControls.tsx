@@ -103,7 +103,7 @@ export default function HostControls({ sessionId }: Props) {
             <p className="text-sm text-gray-600 font-medium">Event ending — preparing recap...</p>
           </div>
           <div className="flex gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setShowBroadcast(!showBroadcast)} title="Send final message">
+            <Button size="sm" variant="ghost" onClick={() => setShowBroadcast(!showBroadcast)} title="Send announcement to all">
               <MessageSquare className="h-4 w-4" />
             </Button>
             <Button size="sm" variant="danger" onClick={() => socket?.emit('host:end_session', { sessionId })}>
@@ -234,17 +234,19 @@ export default function HostControls({ sessionId }: Props) {
         </div>
       )}
 
-      {/* Broadcast input */}
+      {/* Announcement input */}
       {showBroadcast && (
-        <div className="border-b border-gray-200 bg-white px-4 py-3">
+        <div className="border-b border-gray-200 bg-amber-50 px-4 py-3">
+          <p className="text-xs font-semibold text-amber-600 mb-2 max-w-4xl mx-auto">Announcement — visible as a banner to all participants</p>
           <div className="max-w-4xl mx-auto flex gap-2">
             <input
               type="text"
               value={broadcastMsg}
               onChange={e => setBroadcastMsg(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && sendBroadcast()}
-              placeholder="Type a message to all participants..."
-              className="flex-1 rounded-lg border border-gray-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-rsn-red"
+              placeholder="Type an announcement..."
+              style={{ color: '#000000' }}
+              className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
               autoFocus
             />
             <Button size="sm" onClick={sendBroadcast} disabled={!broadcastMsg.trim()}>Send</Button>
@@ -330,9 +332,9 @@ export default function HostControls({ sessionId }: Props) {
               </Button>
             )}
 
-            {/* Broadcast */}
+            {/* Announcement */}
             {sessionStarted && (
-              <Button size="sm" variant="ghost" onClick={() => setShowBroadcast(!showBroadcast)} title="Send message to all">
+              <Button size="sm" variant="ghost" onClick={() => setShowBroadcast(!showBroadcast)} title="Send announcement to all">
                 <MessageSquare className="h-4 w-4" />
               </Button>
             )}
