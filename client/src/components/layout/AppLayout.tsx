@@ -83,8 +83,11 @@ export default function AppLayout() {
         </div>
         {sidebarContent()}
         {user && (
-          <div className="p-3 border-t border-gray-200 flex items-center gap-2.5">
-            <Avatar name={user.displayName || user.email} size="sm" />
+          <div
+            onClick={() => navigate('/profile')}
+            className="p-3 border-t border-gray-200 flex items-center gap-2.5 cursor-pointer hover:bg-gray-100 transition-colors"
+          >
+            <Avatar name={user.displayName || user.email} src={user.avatarUrl} size="sm" />
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-800 truncate">{user.displayName || 'User'}</p>
               <p className="text-xs text-gray-400 truncate">{user.role}</p>
