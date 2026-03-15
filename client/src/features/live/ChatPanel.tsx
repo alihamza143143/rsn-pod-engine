@@ -105,7 +105,7 @@ export default function ChatPanel({ sessionId, onClose }: ChatPanelProps) {
               onKeyDown={handleKeyDown}
               placeholder={scope === 'room' ? 'Message your room...' : 'Message everyone...'}
               maxLength={500}
-              className="flex-1 px-3 py-2 text-sm bg-white border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-rsn-red/30 focus:border-rsn-red/50 placeholder-gray-400"
+              className="flex-1 px-3 py-2 text-sm text-gray-900 bg-white border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-rsn-red/30 focus:border-rsn-red/50 placeholder-gray-400"
             />
             <button
               onClick={handleSend}

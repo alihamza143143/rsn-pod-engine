@@ -194,9 +194,10 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
  * Hook: delays "host is offline" by a grace period to avoid flickering on brief disconnects.
  * Also checks participant list as a fallback — if the host is in the participants list,
  * they're online regardless of the hostInLobby flag.
- * Starts as `true` (optimistic) to avoid "offline" flash on initial load / rejoin.
+ * Starts as `null` (unknown) — waits for session:state before showing status.
+ * Once the first real signal arrives, applies 5s debounce only for going offline.
  */
-function useHostPresence(gracePeriodMs = 5000): boolean {
+function useHostPresence(gracePeriodMs = 5000): boolean | null {
   const rawHostInLobby = useSessionStore(s => s.hostInLobby);
   const participants = useSessionStore(s => s.participants);
   const hostUserId = useSessionStore(s => s.hostUserId);
@@ -205,16 +206,21 @@ function useHostPresence(gracePeriodMs = 5000): boolean {
   const hostInParticipants = hostUserId ? participants.some(p => p.userId === hostUserId) : false;
   const isHostOnline = rawHostInLobby || hostInParticipants;
 
-  // Start optimistic (true) to avoid flash on initial load / rejoin
-  const [debouncedOnline, setDebouncedOnline] = useState(true);
+  // Start null (unknown) — don't assume online or offline until session:state arrives
+  const [debouncedOnline, setDebouncedOnline] = useState<boolean | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasReceivedSignal = useRef(false);
 
   useEffect(() => {
+    // Wait for hostUserId to be set (means session:state has arrived)
+    if (!hostUserId) return;
+    hasReceivedSignal.current = true;
+
     if (isHostOnline) {
       // Host came online — show immediately, cancel any pending offline transition
       if (timerRef.current) { clearTimeout(timerRef.current); timerRef.current = null; }
       setDebouncedOnline(true);
-    } else {
+    } else if (hasReceivedSignal.current) {
       // Host went offline — delay before showing offline to absorb brief network blips
       timerRef.current = setTimeout(() => {
         setDebouncedOnline(false);
@@ -224,7 +230,7 @@ function useHostPresence(gracePeriodMs = 5000): boolean {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [isHostOnline, gracePeriodMs]);
+  }, [isHostOnline, hostUserId, gracePeriodMs]);
 
   return debouncedOnline;
 }
@@ -385,19 +391,26 @@ function PreLobbyWaitingRoom() {
           </div>
           <h2 className="text-xl font-bold text-[#1a1a2e]">Waiting for host to start the event...</h2>
           <p className="text-gray-500 text-sm max-w-xs">
-            {hostOnline
+            {hostOnline === true
               ? 'The host is here! The event will begin shortly.'
-              : 'The host hasn\'t joined yet. Once they start the event, you\'ll enter the lobby.'}
+              : hostOnline === false
+              ? 'The host hasn\'t joined yet. Once they start the event, you\'ll enter the lobby.'
+              : 'Connecting to the event...'}
           </p>
-          {hostOnline ? (
+          {hostOnline === true ? (
             <div className="inline-flex items-center gap-1.5 text-xs text-green-600 bg-green-50 px-3 py-1.5 rounded-full">
               <span className="h-2 w-2 rounded-full bg-green-500 animate-pulse" />
               Host is online
             </div>
-          ) : (
+          ) : hostOnline === false ? (
             <div className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full">
               <span className="h-2 w-2 rounded-full bg-gray-400" />
               Host is offline
+            </div>
+          ) : (
+            <div className="inline-flex items-center gap-1.5 text-xs text-gray-400 bg-gray-50 px-3 py-1.5 rounded-full">
+              <span className="h-2 w-2 rounded-full bg-gray-300 animate-pulse" />
+              Checking...
             </div>
           )}
         </div>
