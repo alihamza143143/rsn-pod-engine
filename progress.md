@@ -99,16 +99,47 @@ Purpose: Persistent execution history and current state, independent of chat mem
 - PodDetailPage: edit modal is full-featured (type, visibility, capacity, orchestration, communication, rules); Copy Pod → Duplicate Pod opens pre-filled form; declined/no_response member buckets shown to director; new visibility labels/icons
 - PodsPage: default tab = active; tab order Browse All | Active | Archived | All; browse callout banner; visibility badges always shown
 
+### What's Done (Phase 4 — Profile & Matching Data) — 2026-03-16
+
+**DB Migrations (018, 019):**
+- 018: Added expertise_text, what_i_care_about, what_i_can_help_with, who_i_want_to_meet, why_i_want_to_meet, my_intent, invite_opt_out_public_events to users table
+- 019: Created premium_selections table (user_id, session_id, selected_user_id) with unique + self-select constraints
+
+**Shared types:**
+- User/UserProfile/UpdateUserInput: new matching signal fields + inviteOptOutPublicEvents
+- PremiumSelection interface added
+
+**Server:**
+- identity.service.ts: all SELECT queries and updateUser fieldMap include new fields
+- users.ts routes: updateUserSchema expanded; public profile view includes matching fields
+- sessions.ts routes: GET/POST /sessions/:id/preferred-people (premium selection foundation)
+- session.service.ts: getPremiumSelections/setPremiumSelections; getSessionParticipants now returns avatarUrl/jobTitle/company
+- pod.service.ts: getPodMembers now returns avatarUrl/jobTitle/company/interests
+- invite.service.ts: enforces max_invites_per_day from user_entitlements; role-based restriction (standard users can only invite encountered/pod-shared users)
+- api.ts: added INVITE_NOT_PERMITTED error code
+
+**Client:**
+- ProfilePage: new "Matching Profile" section with 6 textareas (whatICareAbout, whatICanHelpWith, whoIWantToMeet, whyIWantToMeet, myIntent) + expertise detailed text
+- ProfileCard component: reusable scannable card (compact + full variants) showing photo, name, job, interests, intent
+- ProfileCard integrated into lobby HostParticipantPanel + PodDetailPage member list
+- SettingsPage: invite opt-out toggle for public events
+- PodDetailPage: request-to-join rules modal (shows joinConfig.rulesText + agreement checkbox)
+- Avatar fix: avatarUrl now passed to Avatar in 12+ locations (SessionDetailPage, RecapPage, EncounterHistoryPage, SessionComplete, AdminUsersPage, HostDashboardPage, PodDetailPage pending/declined/noResponse members)
+
+### What's Done (Phase 5 — Search, Invites & Permissions) — 2026-03-16
+
+- User search when inviting: already done (prior phase)
+- Entitlements enforcement: max_invites_per_day checked from user_entitlements table
+- Role-based invite permissions: standard users can only invite encountered users or pod co-members
+- Invite opt-out preference: inviteOptOutPublicEvents toggle in Settings
+- Pod access models: done in Phase 3
+- Request-to-join rules: joinConfig rules modal with checkbox
+- Admin configurable limits: deferred to Phase 6
+
 ### What's Next
 
-**Phase 4 — Profile & Matching Data**
-- Expanded profile fields, profile card, premium pre-selection
-
-**Phase 5 — Search, Invites & Permissions**
-- User search in invites, enforce limits, role-based permissions
-
 **Phase 6 — Admin Power-Up**
-- Bulk actions, matching templates, violations, stats dashboard
+- Bulk actions, matching templates, violations, stats dashboard, admin-configurable entitlement limits
 
 ---
 

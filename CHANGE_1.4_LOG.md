@@ -146,6 +146,43 @@ Hi! We've shipped a major update. Please test on app.rsn.network — log out and
   - Set a pod to "Request to Join" → same button appears for others
   - Public pod → others still see the plain "Join Pod" button
 
----
+-----------------------------------------------------------------
+
+  23. Profile Matching Fields
+  - Go to Profile → scroll down to "Matching Profile" section
+  - Six new text fields: What I care about, What I can help with, Who I want to meet, Why I want to meet them, My intent, Expertise (detailed)
+  - Fill them in → save → reload → values persist
+  - These fields will feed future AI-based matching
+
+  24. Profile Card
+  - Open any pod → Members section now shows richer cards (photo, name, job title, company, interest tags)
+  - Lobby → host participant panel shows the same compact cards
+  - Profile photos now appear everywhere (not just initials) — pods, sessions, recap, encounters, admin
+
+  25. Premium Pre-Selection (foundation)
+  - Database and API are ready for "pick up to 12 preferred people" per event
+  - No UI selection screen yet — coming when matching engine wires it in
+
+  26. Invite Limits
+  - Standard users are limited to 10 invites per day (from entitlements table)
+  - Admins bypass this limit
+  - If you hit the limit → clear error message: "You can send up to 10 invites per day"
+
+  27. Invite Permissions
+  - Standard users can only invite people they've met before (encounter history) or share a pod with
+  - Admins can invite anyone
+  - If you try to invite a stranger → "You can only invite people you've met or share a pod with"
+
+  28. Invite Opt-Out
+  - Go to Settings → Privacy section
+  - New toggle: "Opt out of public event invites"
+  - When ON, you won't receive invites to public recurring events
+
+  29. Request to Join — Rules
+  - If a pod director sets rules text in joinConfig, users see a rules modal before requesting
+  - Must check the agreement checkbox before the request goes through
+  - If no rules are set, request goes through immediately (same as before)
+
+-----------------------------------------------------------------
 
 Questions? Reply with screenshots and we'll fix anything immediately.
