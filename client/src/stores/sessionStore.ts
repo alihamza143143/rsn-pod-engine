@@ -52,6 +52,18 @@ interface SessionLiveState {
   } | null;
   hostMuteCommand: boolean | null; // null=no command, true=muted by host, false=unmuted by host
   partnerDisconnected: boolean;
+  roundDashboard: {
+    roundNumber: number;
+    rooms: {
+      matchId: string;
+      roomId: string;
+      status: string;
+      participants: { userId: string; displayName: string; isConnected: boolean }[];
+      isTrio: boolean;
+    }[];
+    byeParticipants: { userId: string; displayName: string }[];
+    reassignmentInProgress: boolean;
+  } | null;
 
   setPhase: (phase: SessionPhase) => void;
   setConnectionStatus: (status: ConnectionStatus) => void;
@@ -77,6 +89,8 @@ interface SessionLiveState {
   setMatchPreview: (preview: SessionLiveState['matchPreview']) => void;
   setHostMuteCommand: (muted: boolean | null) => void;
   setPartnerDisconnected: (v: boolean) => void;
+  setRoundDashboard: (data: SessionLiveState['roundDashboard']) => void;
+  updateRoomStatus: (matchId: string, status: string, participants: { userId: string; displayName: string; isConnected: boolean }[]) => void;
   reset: () => void;
 }
 
@@ -107,6 +121,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   matchPreview: null,
   hostMuteCommand: null,
   partnerDisconnected: false,
+  roundDashboard: null,
 
   setPhase: (phase) => set({ phase }),
   setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
@@ -136,6 +151,18 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   setMatchPreview: (matchPreview) => set({ matchPreview }),
   setHostMuteCommand: (muted) => set({ hostMuteCommand: muted }),
   setPartnerDisconnected: (partnerDisconnected) => set({ partnerDisconnected }),
+  setRoundDashboard: (roundDashboard) => set({ roundDashboard }),
+  updateRoomStatus: (matchId, status, participants) => set((s) => {
+    if (!s.roundDashboard) return {};
+    return {
+      roundDashboard: {
+        ...s.roundDashboard,
+        rooms: s.roundDashboard.rooms.map(r =>
+          r.matchId === matchId ? { ...r, status, participants } : r
+        ),
+      },
+    };
+  }),
   reset: () => set({
     phase: 'lobby', connectionStatus: 'connecting', transitionStatus: null,
     sessionStatus: 'scheduled', hostInLobby: false, totalRounds: 5,
@@ -144,6 +171,6 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
     isReconnecting: false, isByeRound: false, liveKitToken: null, livekitUrl: null, currentRoomId: null,
     lobbyToken: null, lobbyUrl: null, lobbyRoomId: null,
     timerVisibility: 'always_visible', matchPreview: null,
-    hostMuteCommand: null, partnerDisconnected: false,
+    hostMuteCommand: null, partnerDisconnected: false, roundDashboard: null,
   }),
 }));

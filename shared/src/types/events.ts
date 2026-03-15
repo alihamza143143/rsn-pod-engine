@@ -42,6 +42,20 @@ export interface ServerToClientEvents {
     byeParticipants: { userId: string; displayName: string }[];
   }) => void;
 
+  // Host round dashboard (breakout room monitoring)
+  'host:round_dashboard': (data: {
+    roundNumber: number;
+    rooms: { matchId: string; roomId: string; status: string; participants: { userId: string; displayName: string; isConnected: boolean }[]; isTrio: boolean }[];
+    byeParticipants: { userId: string; displayName: string }[];
+    timerSecondsRemaining: number;
+    reassignmentInProgress: boolean;
+  }) => void;
+  'host:room_status_update': (data: {
+    matchId: string;
+    status: string;
+    participants: { userId: string; displayName: string; isConnected: boolean }[];
+  }) => void;
+
   // Lobby video
   'lobby:token': (data: { token: string; livekitUrl: string; roomId: string }) => void;
   'lobby:mute_command': (data: { muted: boolean; byHost: boolean }) => void;
@@ -82,4 +96,5 @@ export interface ClientToServerEvents {
   'host:regenerate_matches': (data: { sessionId: string }) => void;
   'host:mute_participant': (data: { sessionId: string; targetUserId: string; muted: boolean }) => void;
   'host:mute_all': (data: { sessionId: string; muted: boolean }) => void;
+  'host:remove_from_room': (data: { sessionId: string; matchId: string; userId: string }) => void;
 }

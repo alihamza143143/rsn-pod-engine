@@ -438,7 +438,7 @@ export default function PodDetailPage() {
             )}
             {podSearchResults && podSearchResults.length > 0 && (
               <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
-                {podSearchResults.map((u: any) => {
+                {podSearchResults.filter((u: any) => u.id !== user?.id).map((u: any) => {
                   const isMember = activeMembers.some((m: any) => m.userId === u.id);
                   const isSelected = !isMember && podSelectedUsers.some(s => s.id === u.id);
                   return (

@@ -305,7 +305,13 @@ function HostParticipantPanel({ sessionId }: { sessionId?: string }) {
 }
 
 export default function Lobby({ isHost = false, sessionId }: { isHost?: boolean; sessionId?: string }) {
-  const { participants, lobbyToken, lobbyUrl, sessionStatus } = useSessionStore();
+  const { participants, lobbyToken, lobbyUrl, sessionStatus, roundDashboard } = useSessionStore();
+
+  // During an active round, the host sees the breakout room dashboard instead of lobby
+  if (isHost && sessionStatus === 'round_active' && roundDashboard) {
+    const HostRoundDashboard = require('./HostRoundDashboard').default;
+    return <HostRoundDashboard sessionId={sessionId} />;
+  }
 
   // If we have a lobby token, render the video mosaic
   if (lobbyToken && lobbyUrl) {

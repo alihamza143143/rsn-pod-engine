@@ -13,6 +13,7 @@ const SOCKET_EVENTS = [
   'rating:window_open', 'rating:window_closed',
   'host:broadcast', 'lobby:token', 'host:participant_removed',
   'host:match_preview', 'lobby:mute_command',
+  'host:round_dashboard', 'host:room_status_update',
   'timer:sync', 'error',
 ] as const;
 
@@ -131,6 +132,7 @@ export default function useSessionSocket(sessionId: string) {
 
     socket.on('session:round_ended', () => {
       clearTimer();
+      store.setRoundDashboard(null); // Clear host dashboard
       const state = useSessionStore.getState();
       if (state.isByeRound) {
         // Bye-round users have no match to rate — stay in lobby
@@ -246,6 +248,15 @@ export default function useSessionSocket(sessionId: string) {
 
     socket.on('host:match_preview', (data: any) => {
       store.setMatchPreview(data);
+    });
+
+    // ── Host round dashboard (breakout room monitoring) ──
+    socket.on('host:round_dashboard', (data: any) => {
+      store.setRoundDashboard(data);
+    });
+
+    socket.on('host:room_status_update', (data: any) => {
+      store.updateRoomStatus(data.matchId, data.status, data.participants);
     });
 
     // ── Sync & errors ──

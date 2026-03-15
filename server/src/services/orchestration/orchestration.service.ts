@@ -77,6 +77,7 @@ export function initOrchestration(
     socket.on('host:regenerate_matches', (data) => handleHostRegenerateMatches(socket, data));
     socket.on('host:mute_participant', (data) => handleHostMuteParticipant(socket, data));
     socket.on('host:mute_all', (data) => handleHostMuteAll(socket, data));
+    socket.on('host:remove_from_room', (data) => handleHostRemoveFromRoom(socket, data));
 
     socket.on('disconnect', () => handleDisconnect(socket));
   });
@@ -227,6 +228,11 @@ async function handleJoinSession(
       } catch (tokenErr) {
         logger.warn({ err: tokenErr }, 'Failed to issue lobby token');
       }
+    }
+
+    // If host reconnects mid-round, send them the dashboard
+    if (activeSession && activeSession.status === SessionStatus.ROUND_ACTIVE && isHost) {
+      emitHostDashboard(data.sessionId);
     }
 
     // If session is mid-round, restore user's match assignment
@@ -1280,6 +1286,62 @@ async function handleHostMuteAll(socket: Socket, data: any): Promise<void> {
     'Host mute/unmute all command sent');
 }
 
+// ─── Host: Remove participant from breakout room ────────────────────────────
+
+async function handleHostRemoveFromRoom(socket: Socket, data: any): Promise<void> {
+  const userId = getUserIdFromSocket(socket);
+  if (!userId) return;
+
+  const activeSession = activeSessions.get(data.sessionId);
+  if (!activeSession) {
+    socket.emit('error', { code: 'SESSION_NOT_FOUND', message: 'Session not found' });
+    return;
+  }
+
+  if (activeSession.hostUserId !== userId) {
+    socket.emit('error', { code: 'NOT_HOST', message: 'Only the host can remove participants from rooms' });
+    return;
+  }
+
+  try {
+    // Mark the match as no_show
+    await query(
+      `UPDATE matches SET status = 'no_show', ended_at = NOW() WHERE id = $1 AND status = 'active'`,
+      [data.matchId]
+    );
+
+    // Notify the removed user
+    io.to(userRoom(data.userId)).emit('host:participant_removed', {
+      userId: data.userId,
+      reason: 'The host removed you from the current round.',
+    });
+
+    // Notify partner if exists
+    const matchResult = await query<{ participant_a_id: string; participant_b_id: string }>(
+      `SELECT participant_a_id, participant_b_id FROM matches WHERE id = $1`,
+      [data.matchId]
+    );
+    if (matchResult.rows.length > 0) {
+      const match = matchResult.rows[0];
+      const partnerId = match.participant_a_id === data.userId
+        ? match.participant_b_id : match.participant_a_id;
+      io.to(userRoom(partnerId)).emit('match:bye_round', {
+        roundNumber: activeSession.currentRound,
+        reason: 'Your partner was removed by the host. You have a bye this round.',
+      });
+    }
+
+    // Refresh host dashboard
+    await emitHostDashboard(data.sessionId);
+
+    logger.info({ sessionId: data.sessionId, matchId: data.matchId, removedUserId: data.userId },
+      'Host removed participant from breakout room');
+  } catch (err) {
+    logger.error({ err }, 'Error removing participant from room');
+    socket.emit('error', { code: 'REMOVE_FAILED', message: 'Failed to remove participant from room' });
+  }
+}
+
 // ─── Helper: Send Match Preview to Host ─────────────────────────────────────
 
 async function sendMatchPreview(
@@ -1360,6 +1422,96 @@ async function sendMatchPreview(
 // ═════════════════════════════════════════════════════════════════════════════
 // STATE MACHINE TRANSITIONS
 // ═════════════════════════════════════════════════════════════════════════════
+
+// ─── Host Round Dashboard ───────────────────────────────────────────────────
+
+async function emitHostDashboard(sessionId: string): Promise<void> {
+  const activeSession = activeSessions.get(sessionId);
+  if (!activeSession || !io) return;
+
+  try {
+    const matches = await matchingService.getMatchesByRound(sessionId, activeSession.currentRound);
+
+    // Look up display names for all participant IDs
+    const allUserIds = new Set<string>();
+    for (const m of matches) {
+      allUserIds.add(m.participantAId);
+      allUserIds.add(m.participantBId);
+      if (m.participantCId) allUserIds.add(m.participantCId);
+    }
+    const nameMap = new Map<string, string>();
+    if (allUserIds.size > 0) {
+      const nameResult = await query<{ id: string; displayName: string }>(
+        `SELECT id, display_name AS "displayName" FROM users WHERE id = ANY($1)`,
+        [Array.from(allUserIds)]
+      );
+      for (const row of nameResult.rows) nameMap.set(row.id, row.displayName);
+    }
+
+    const rooms = matches
+      .filter(m => m.status === 'active' || m.status === 'completed' || m.status === 'no_show')
+      .map(m => {
+        const participants = [
+          {
+            userId: m.participantAId,
+            displayName: nameMap.get(m.participantAId) || 'User',
+            isConnected: activeSession.presenceMap.has(m.participantAId),
+          },
+          {
+            userId: m.participantBId,
+            displayName: nameMap.get(m.participantBId) || 'User',
+            isConnected: activeSession.presenceMap.has(m.participantBId),
+          },
+        ];
+        if (m.participantCId) {
+          participants.push({
+            userId: m.participantCId,
+            displayName: nameMap.get(m.participantCId) || 'User',
+            isConnected: activeSession.presenceMap.has(m.participantCId),
+          });
+        }
+        return {
+          matchId: m.id,
+          roomId: m.roomId || '',
+          status: m.status,
+          participants,
+          isTrio: !!m.participantCId,
+        };
+      });
+
+    // Find bye participants (matched to nobody)
+    const matchedUserIds = new Set<string>();
+    for (const m of matches) {
+      matchedUserIds.add(m.participantAId);
+      matchedUserIds.add(m.participantBId);
+      if (m.participantCId) matchedUserIds.add(m.participantCId);
+    }
+
+    const byeParticipants: { userId: string; displayName: string }[] = [];
+    for (const [userId] of activeSession.presenceMap) {
+      if (userId !== activeSession.hostUserId && !matchedUserIds.has(userId)) {
+        byeParticipants.push({
+          userId,
+          displayName: nameMap.get(userId) || 'User',
+        });
+      }
+    }
+
+    const timerSecondsRemaining = activeSession.timerEndsAt
+      ? Math.max(0, Math.ceil((activeSession.timerEndsAt.getTime() - Date.now()) / 1000))
+      : 0;
+
+    io.to(userRoom(activeSession.hostUserId)).emit('host:round_dashboard', {
+      roundNumber: activeSession.currentRound,
+      rooms,
+      byeParticipants,
+      timerSecondsRemaining,
+      reassignmentInProgress: false,
+    });
+  } catch (err) {
+    logger.warn({ err, sessionId }, 'Failed to emit host dashboard');
+  }
+}
 
 // ─── Transition to Round ────────────────────────────────────────────────────
 
@@ -1478,6 +1630,17 @@ async function transitionToRound(
     setTimeout(() => {
       detectNoShows(sessionId, roundNumber);
     }, activeSession.config.noShowTimeoutSeconds * 1000);
+
+    // Emit host dashboard immediately and every 5 seconds during the round
+    emitHostDashboard(sessionId);
+    const dashboardInterval = setInterval(() => {
+      const s = activeSessions.get(sessionId);
+      if (!s || s.status !== SessionStatus.ROUND_ACTIVE) {
+        clearInterval(dashboardInterval);
+        return;
+      }
+      emitHostDashboard(sessionId);
+    }, 5000);
 
     logger.info({ sessionId, roundNumber }, 'Round started');
   } catch (err) {
