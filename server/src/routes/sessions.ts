@@ -297,4 +297,41 @@ router.delete(
     }
   }
 );
+// ─── Premium Selections ───────────────────────────────────────────────────────
+
+const MAX_PREMIUM_SELECTIONS = 12;
+
+// GET /sessions/:id/preferred-people
+router.get(
+  '/:id/preferred-people',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { rows } = await sessionService.getPremiumSelections(req.params.id, req.user!.userId);
+      const response: ApiResponse = { success: true, data: rows };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// POST /sessions/:id/preferred-people
+router.post(
+  '/:id/preferred-people',
+  authenticate,
+  validate(z.object({
+    selectedUserIds: z.array(z.string().uuid()).min(1).max(MAX_PREMIUM_SELECTIONS),
+  })),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await sessionService.setPremiumSelections(req.params.id, req.user!.userId, req.body.selectedUserIds);
+      const response: ApiResponse = { success: true, data: { message: 'Preferred people saved' } };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 export default router;

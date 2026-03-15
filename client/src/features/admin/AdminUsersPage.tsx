@@ -151,7 +151,7 @@ export default function AdminUsersPage() {
             <Card key={u.id} className="!p-4 card-hover">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <Avatar name={u.displayName || u.email} size="sm" />
+                  <Avatar src={u.avatarUrl} name={u.displayName || u.email} size="sm" />
                   <div>
                     <p className="text-sm font-medium text-gray-800">{u.displayName || 'No name'}</p>
                     <p className="text-xs text-gray-400">{u.email}</p>

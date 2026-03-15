@@ -112,7 +112,7 @@ Hi! We've shipped a major update. Please test on app.rsn.network — log out and
   - Each rates 2 partners independently
   - Ratings save without errors
 
----
+--------------------------------------------------------------------------------------------
 
   17. Pod Types
   - Click "Create Pod" → Pod Type dropdown shows: Speed Networking, Reason Pod, Conversational, Webinar, Physical Event, Chat Pod, Two-Sided Networking, One-Sided Networking
@@ -129,11 +129,10 @@ Hi! We've shipped a major update. Please test on app.rsn.network — log out and
   - A pre-filled Create Pod form opens (all fields copied from the original)
   - Edit anything you want → confirm → new pod appears in My Pods
 
-  20. Member States
-  - Open a pod where you're director → Members section
-  - If any members declined an invite, they show in a "Declined" group
-  - If any invited members never responded, they show in a "No Response" group
-  - Pending join requests still show with Approve / Reject buttons
+  20. Member States (deferred)
+  - Database supports "Declined" and "No Response" member statuses
+  - UI display is ready but requires decline invite flow + no-response detection to be built first
+  - Will be completed in a future phase
 
   21. Pod Browse
   - Go to the Pods page → default tab is "Active" (your own active pods)

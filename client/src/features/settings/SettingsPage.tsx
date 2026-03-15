@@ -51,6 +51,7 @@ export default function SettingsPage() {
   const [eventReminders, setEventReminders] = useState(true);
   const [matchNotifs, setMatchNotifs] = useState(true);
   const [profileVisible, setProfileVisible] = useState(true);
+  const [inviteOptOut, setInviteOptOut] = useState(false);
 
   // Load preferences from user object
   useEffect(() => {
@@ -59,6 +60,7 @@ export default function SettingsPage() {
       setEventReminders(user.notifyEventReminders ?? true);
       setMatchNotifs(user.notifyMatches ?? true);
       setProfileVisible(user.profileVisible ?? true);
+      setInviteOptOut((user as any).inviteOptOutPublicEvents ?? false);
     }
   }, [user]);
 
@@ -68,6 +70,7 @@ export default function SettingsPage() {
       notifyEventReminders: eventReminders,
       notifyMatches: matchNotifs,
       profileVisible,
+      inviteOptOutPublicEvents: inviteOptOut,
     }),
     onSuccess: () => {
       addToast('Settings saved', 'success');
@@ -123,6 +126,12 @@ export default function SettingsPage() {
             onToggle={() => setProfileVisible(!profileVisible)}
             label="Profile visibility"
             description="Allow other members to see your profile"
+          />
+          <Toggle
+            enabled={inviteOptOut}
+            onToggle={() => setInviteOptOut(!inviteOptOut)}
+            label="Opt out of public event invites"
+            description="Don't send me invites to public recurring events"
           />
         </div>
       </Card>

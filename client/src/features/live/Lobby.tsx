@@ -2,6 +2,7 @@ import { Users, Loader2, VideoOff, Sparkles, ChevronDown, ChevronUp, Mic, MicOff
 import HostRoundDashboard from './HostRoundDashboard';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import Card from '@/components/ui/Card';
+import ProfileCard from '@/components/ui/ProfileCard';
 import { useSessionStore } from '@/stores/sessionStore';
 import { getSocket } from '@/lib/socket';
 import {
@@ -349,20 +350,26 @@ function HostParticipantPanel({ sessionId }: { sessionId?: string }) {
           {participants.length === 0 ? (
             <p className="text-xs text-gray-400 text-center py-3">No participants yet</p>
           ) : (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
               {participants.map(p => (
-                <div key={p.userId} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 group/participant">
-                  <div className={`h-6 w-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
-                    p.userId === hostUserId ? 'bg-amber-50 text-amber-600' : 'bg-rsn-red-light text-rsn-red'
-                  }`}>
-                    {(p.displayName || 'U').charAt(0).toUpperCase()}
-                  </div>
-                  <span className="text-xs text-gray-700 truncate flex-1">{p.displayName || 'User'}</span>
-                  {p.userId === hostUserId && <span className="text-[9px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full">Host</span>}
-                  {sessionId && (
+                <div key={p.userId} className="relative group/participant">
+                  <ProfileCard
+                    compact
+                    user={{
+                      id: p.userId,
+                      displayName: p.displayName || 'User',
+                      avatarUrl: (p as any).avatarUrl,
+                      jobTitle: (p as any).jobTitle,
+                      company: (p as any).company,
+                      interests: (p as any).interests,
+                    }}
+                    badge={p.userId === hostUserId ? 'Host' : undefined}
+                    badgeVariant="warning"
+                  />
+                  {sessionId && p.userId !== hostUserId && (
                     <button
                       onClick={() => handleKick(p.userId, p.displayName || 'User')}
-                      className="opacity-0 group-hover/participant:opacity-100 transition-opacity text-gray-400 hover:text-red-500 p-0.5 rounded"
+                      className="absolute top-2 right-2 opacity-0 group-hover/participant:opacity-100 transition-opacity text-gray-400 hover:text-red-500 p-1 rounded"
                       title={`Remove ${p.displayName || 'User'}`}
                     >
                       <UserX className="h-3.5 w-3.5" />

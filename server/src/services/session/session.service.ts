@@ -330,8 +330,9 @@ export async function unregisterParticipant(sessionId: string, userId: string): 
 export async function getSessionParticipants(
   sessionId: string,
   status?: ParticipantStatus
-): Promise<(SessionParticipant & { displayName?: string; email?: string })[]> {
-  let sql = `SELECT ${PARTICIPANT_COLUMNS}, u.display_name AS "displayName", u.email
+): Promise<(SessionParticipant & { displayName?: string; email?: string; avatarUrl?: string; jobTitle?: string; company?: string })[]> {
+  let sql = `SELECT ${PARTICIPANT_COLUMNS}, u.display_name AS "displayName", u.email,
+                    u.avatar_url AS "avatarUrl", u.job_title AS "jobTitle", u.company
              FROM session_participants
              JOIN users u ON u.id = session_participants.user_id
              WHERE session_id = $1`;
@@ -343,7 +344,7 @@ export async function getSessionParticipants(
   }
 
   sql += ' ORDER BY session_participants.created_at ASC';
-  const result = await query<SessionParticipant & { displayName?: string; email?: string }>(sql, values);
+  const result = await query<SessionParticipant & { displayName?: string; email?: string; avatarUrl?: string; jobTitle?: string; company?: string }>(sql, values);
   return result.rows;
 }
 
@@ -610,4 +611,37 @@ export async function isSessionParticipant(sessionId: string, userId: string): P
     [sessionId, userId]
   );
   return result.rows.length > 0;
+}
+
+// ─── Premium Selections ───────────────────────────────────────────────────────
+
+export async function getPremiumSelections(sessionId: string, userId: string) {
+  return query<{ selectedUserId: string; displayName: string; avatarUrl: string | null }>(
+    `SELECT ps.selected_user_id AS "selectedUserId",
+            u.display_name AS "displayName", u.avatar_url AS "avatarUrl"
+     FROM premium_selections ps
+     JOIN users u ON u.id = ps.selected_user_id
+     WHERE ps.session_id = $1 AND ps.user_id = $2
+     ORDER BY ps.created_at`,
+    [sessionId, userId]
+  );
+}
+
+export async function setPremiumSelections(sessionId: string, userId: string, selectedUserIds: string[]): Promise<void> {
+  await transaction(async (client) => {
+    // Clear existing selections for this user+session
+    await client.query(
+      `DELETE FROM premium_selections WHERE user_id = $1 AND session_id = $2`,
+      [userId, sessionId]
+    );
+    // Insert new selections
+    for (const selectedId of selectedUserIds) {
+      if (selectedId === userId) continue; // skip self (constraint would catch it, but be safe)
+      await client.query(
+        `INSERT INTO premium_selections (user_id, session_id, selected_user_id) VALUES ($1, $2, $3)
+         ON CONFLICT (user_id, session_id, selected_user_id) DO NOTHING`,
+        [userId, sessionId, selectedId]
+      );
+    }
+  });
 }

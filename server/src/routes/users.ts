@@ -27,10 +27,17 @@ const updateUserSchema = z.object({
   languages: z.array(z.string().max(30)).max(10).optional(),
   timezone: z.string().max(50).nullable().optional(),
   phone: z.string().max(30).nullable().optional(),
+  expertiseText: z.string().max(5000).nullable().optional(),
+  whatICareAbout: z.string().max(2000).nullable().optional(),
+  whatICanHelpWith: z.string().max(2000).nullable().optional(),
+  whoIWantToMeet: z.string().max(2000).nullable().optional(),
+  whyIWantToMeet: z.string().max(2000).nullable().optional(),
+  myIntent: z.string().max(2000).nullable().optional(),
   notifyEmail: z.boolean().optional(),
   notifyEventReminders: z.boolean().optional(),
   notifyMatches: z.boolean().optional(),
   profileVisible: z.boolean().optional(),
+  inviteOptOutPublicEvents: z.boolean().optional(),
 });
 
 const listUsersQuerySchema = z.object({
@@ -134,6 +141,12 @@ router.get(
             industry: user.industry,
             interests: user.interests,
             reasonsToConnect: user.reasonsToConnect,
+            expertiseText: user.expertiseText,
+            whatICareAbout: user.whatICareAbout,
+            whatICanHelpWith: user.whatICanHelpWith,
+            whoIWantToMeet: user.whoIWantToMeet,
+            whyIWantToMeet: user.whyIWantToMeet,
+            myIntent: user.myIntent,
           };
 
       const response: ApiResponse = { success: true, data };

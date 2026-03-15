@@ -51,6 +51,12 @@ export interface User {
   languages: string[];
   timezone: string | null;
   phone: string | null;
+  expertiseText: string | null;
+  whatICareAbout: string | null;
+  whatICanHelpWith: string | null;
+  whoIWantToMeet: string | null;
+  whyIWantToMeet: string | null;
+  myIntent: string | null;
   invitedByUserId: string | null;
   role: UserRole;
   status: UserStatus;
@@ -60,6 +66,7 @@ export interface User {
   notifyEventReminders: boolean;
   notifyMatches: boolean;
   profileVisible: boolean;
+  inviteOptOutPublicEvents: boolean;
   lastActiveAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -77,6 +84,12 @@ export interface UserProfile {
   industry: string | null;
   interests: string[];
   reasonsToConnect: string[];
+  expertiseText: string | null;
+  whatICareAbout: string | null;
+  whatICanHelpWith: string | null;
+  whoIWantToMeet: string | null;
+  whyIWantToMeet: string | null;
+  myIntent: string | null;
 }
 
 export interface CreateUserInput {
@@ -102,8 +115,23 @@ export interface UpdateUserInput {
   languages?: string[];
   timezone?: string | null;
   phone?: string | null;
+  expertiseText?: string | null;
+  whatICareAbout?: string | null;
+  whatICanHelpWith?: string | null;
+  whoIWantToMeet?: string | null;
+  whyIWantToMeet?: string | null;
+  myIntent?: string | null;
   notifyEmail?: boolean;
   notifyEventReminders?: boolean;
   notifyMatches?: boolean;
   profileVisible?: boolean;
+  inviteOptOutPublicEvents?: boolean;
+}
+
+export interface PremiumSelection {
+  id: string;
+  userId: string;
+  sessionId: string;
+  selectedUserId: string;
+  createdAt: Date;
 }

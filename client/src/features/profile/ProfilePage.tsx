@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Card from '@/components/ui/Card';
 import Avatar from '@/components/ui/Avatar';
-import { X, User, Briefcase, MapPin, Globe, Languages, Sparkles, Camera, Info } from 'lucide-react';
+import { X, User, Briefcase, MapPin, Globe, Languages, Sparkles, Camera, Info, Target, Heart, HelpCircle, Users, MessageSquare } from 'lucide-react';
 import api from '@/lib/api';
 
 interface ProfileForm {
@@ -21,6 +21,12 @@ interface ProfileForm {
   linkedinUrl: string;
   timezone: string;
   phone: string;
+  expertiseText: string;
+  whatICareAbout: string;
+  whatICanHelpWith: string;
+  whoIWantToMeet: string;
+  whyIWantToMeet: string;
+  myIntent: string;
 }
 
 function TagInput({ label, tags, setTags, placeholder, icon: Icon }: {
@@ -84,6 +90,12 @@ export default function ProfilePage() {
         linkedinUrl: user.linkedinUrl || '',
         timezone: user.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone || '',
         phone: (user as any).phone || '',
+        expertiseText: (user as any).expertiseText || '',
+        whatICareAbout: (user as any).whatICareAbout || '',
+        whatICanHelpWith: (user as any).whatICanHelpWith || '',
+        whoIWantToMeet: (user as any).whoIWantToMeet || '',
+        whyIWantToMeet: (user as any).whyIWantToMeet || '',
+        myIntent: (user as any).myIntent || '',
       });
       setInterests(user.interests || []);
       setReasons(user.reasonsToConnect || []);
@@ -165,6 +177,12 @@ export default function ProfilePage() {
         interests,
         reasonsToConnect: reasons,
         languages,
+        expertiseText: data.expertiseText || null,
+        whatICareAbout: data.whatICareAbout || null,
+        whatICanHelpWith: data.whatICanHelpWith || null,
+        whoIWantToMeet: data.whoIWantToMeet || null,
+        whyIWantToMeet: data.whyIWantToMeet || null,
+        myIntent: data.myIntent || null,
       });
       await checkSession();
       addToast('Profile updated!', 'success');
@@ -340,11 +358,87 @@ export default function ProfilePage() {
           </h2>
           <div className="space-y-5">
             <TagInput label="Expertise & Interests" tags={interests} setTags={handleSetInterests} placeholder="e.g. react, machine-learning" />
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-600 mb-1.5">
+                <MessageSquare className="h-4 w-4 text-gray-400" /> Expertise (detailed)
+              </label>
+              <textarea
+                {...register('expertiseText')}
+                rows={3}
+                placeholder="Describe your expertise in more detail — this helps with AI-based matching..."
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200 resize-none"
+              />
+            </div>
             <TagInput label="Reasons to Connect" tags={reasons} setTags={handleSetReasons} placeholder="e.g. hiring, co-founder search" />
           </div>
         </Card>
 
-        <div className="animate-fade-in-up stagger-5">
+        {/* Matching Signals */}
+        <Card className="animate-fade-in-up stagger-5">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-800 mb-4">
+            <Target className="h-5 w-5 text-rsn-red" /> Matching Profile
+          </h2>
+          <p className="text-xs text-gray-400 mb-4">This information helps us match you with the right people. The more you share, the better your matches.</p>
+          <div className="space-y-4">
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-600 mb-1.5">
+                <Heart className="h-4 w-4 text-gray-400" /> What I care about
+              </label>
+              <textarea
+                {...register('whatICareAbout')}
+                rows={2}
+                placeholder="What topics, causes, or goals are most important to you?"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200 resize-none"
+              />
+            </div>
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-600 mb-1.5">
+                <HelpCircle className="h-4 w-4 text-gray-400" /> What I can help with
+              </label>
+              <textarea
+                {...register('whatICanHelpWith')}
+                rows={2}
+                placeholder="What knowledge, skills, or connections can you offer?"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200 resize-none"
+              />
+            </div>
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-600 mb-1.5">
+                <Users className="h-4 w-4 text-gray-400" /> Who I want to meet
+              </label>
+              <textarea
+                {...register('whoIWantToMeet')}
+                rows={2}
+                placeholder="What kind of people are you hoping to connect with?"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200 resize-none"
+              />
+            </div>
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-600 mb-1.5">
+                Why I want to meet them
+              </label>
+              <textarea
+                {...register('whyIWantToMeet')}
+                rows={2}
+                placeholder="What are you hoping to get out of these connections?"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200 resize-none"
+              />
+            </div>
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-600 mb-1.5">
+                My intent
+              </label>
+              <textarea
+                {...register('myIntent')}
+                rows={2}
+                placeholder="What's your main goal on the platform right now? (e.g. hiring, fundraising, learning, networking)"
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200 resize-none"
+              />
+            </div>
+          </div>
+        </Card>
+
+        <div className="animate-fade-in-up stagger-6">
           <Button type="submit" isLoading={isSubmitting} disabled={!hasChanges} className="w-full sm:w-auto btn-glow">
             Save Changes
           </Button>

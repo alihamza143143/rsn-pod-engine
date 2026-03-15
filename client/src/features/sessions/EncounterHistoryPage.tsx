@@ -61,7 +61,7 @@ export default function EncounterHistoryPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="relative">
-                    <Avatar name={e.displayName || e.otherUserName || e.email || 'User'} size="md" />
+                    <Avatar src={e.avatarUrl} name={e.displayName || e.otherUserName || e.email || 'User'} size="md" />
                     {e.mutual && (
                       <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-pink-500 flex items-center justify-center">
                         <Heart className="h-3 w-3 text-white fill-white" />

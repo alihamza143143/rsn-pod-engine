@@ -164,7 +164,7 @@ export default function SessionComplete({ sessionId }: Props) {
                 <div className="space-y-3">
                   {mutualConnections.map(c => (
                     <div key={c.userId} className="flex items-center gap-3 p-2 rounded-lg bg-rsn-red/5 border border-rsn-red/20">
-                      <Avatar name={c.displayName || 'User'} size="sm" />
+                      <Avatar src={c.avatarUrl} name={c.displayName || 'User'} size="sm" />
                       <div className="flex-1 min-w-0">
                         <p className="text-gray-800 font-medium truncate">{c.displayName}</p>
                         {(c.jobTitle || c.company) && (
@@ -189,7 +189,7 @@ export default function SessionComplete({ sessionId }: Props) {
                 <div className="space-y-2">
                   {connections.map(c => (
                     <div key={`${c.userId}-${c.roundNumber}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
-                      <Avatar name={c.displayName || 'User'} size="sm" />
+                      <Avatar src={c.avatarUrl} name={c.displayName || 'User'} size="sm" />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <p className="text-gray-800 font-medium truncate">{c.displayName}</p>

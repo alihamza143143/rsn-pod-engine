@@ -9,6 +9,7 @@ import {
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
+import ProfileCard from '@/components/ui/ProfileCard';
 import { Button } from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
@@ -116,6 +117,9 @@ export default function PodDetailPage() {
 
   // Duplicate pod: open CreatePodModal pre-filled
   const [duplicateOpen, setDuplicateOpen] = useState(false);
+  // Request to join: rules agreement
+  const [showJoinRules, setShowJoinRules] = useState(false);
+  const [rulesAgreed, setRulesAgreed] = useState(false);
 
   const { data: pod, isLoading } = useQuery({
     queryKey: ['pod', podId],
@@ -395,7 +399,15 @@ export default function PodDetailPage() {
             </>
           ) : (
             <>
-              <Button onClick={() => requestJoinMutation.mutate()} isLoading={requestJoinMutation.isPending} className="btn-glow">
+              <Button onClick={() => {
+                const jc = pod.joinConfig;
+                if (jc?.rulesText || jc?.agreementText) {
+                  setShowJoinRules(true);
+                  setRulesAgreed(false);
+                } else {
+                  requestJoinMutation.mutate();
+                }
+              }} isLoading={requestJoinMutation.isPending} className="btn-glow">
                 <UserPlus className="h-4 w-4 mr-2" /> Request to Join
               </Button>
               <p className="text-sm text-gray-400 self-center">
@@ -701,7 +713,7 @@ export default function PodDetailPage() {
               <Card key={m.userId || m.id} className="!p-4 border-amber-500/20">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Avatar name={m.displayName || m.email || 'User'} size="sm" />
+                    <Avatar src={m.avatarUrl} name={m.displayName || m.email || 'User'} size="sm" />
                     <div>
                       <p className="text-sm font-medium text-gray-800">{m.displayName || m.email || 'User'}</p>
                       <p className="text-xs text-amber-400">Pending approval</p>
@@ -732,7 +744,7 @@ export default function PodDetailPage() {
             {declinedMembers.map((m: any) => (
               <Card key={m.userId || m.id} className="!p-3 bg-gray-50 border-gray-200">
                 <div className="flex items-center gap-3">
-                  <Avatar name={m.displayName || m.email || 'User'} size="sm" />
+                  <Avatar src={m.avatarUrl} name={m.displayName || m.email || 'User'} size="sm" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-700">{m.displayName || m.email || 'User'}</p>
                     <p className="text-xs text-gray-400">Declined</p>
@@ -743,7 +755,7 @@ export default function PodDetailPage() {
             {noResponseMembers.map((m: any) => (
               <Card key={m.userId || m.id} className="!p-3 bg-gray-50 border-gray-200">
                 <div className="flex items-center gap-3">
-                  <Avatar name={m.displayName || m.email || 'User'} size="sm" />
+                  <Avatar src={m.avatarUrl} name={m.displayName || m.email || 'User'} size="sm" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-700">{m.displayName || m.email || 'User'}</p>
                     <p className="text-xs text-gray-400">No response</p>
@@ -785,6 +797,47 @@ export default function PodDetailPage() {
         </div>
       )}
 
+      {/* ── Join Rules Modal ───────────────────────────────────────────── */}
+      <Modal open={showJoinRules} onClose={() => setShowJoinRules(false)} title="Pod Rules">
+        <div className="space-y-4">
+          {pod?.joinConfig?.rulesText && (
+            <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-700 whitespace-pre-wrap">
+              {pod.joinConfig.rulesText}
+            </div>
+          )}
+          {pod?.joinConfig?.agreementText && (
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={rulesAgreed}
+                onChange={e => setRulesAgreed(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-rsn-red focus:ring-rsn-red"
+              />
+              <span className="text-sm text-gray-700">{pod.joinConfig.agreementText}</span>
+            </label>
+          )}
+          {!pod?.joinConfig?.agreementText && (
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={rulesAgreed}
+                onChange={e => setRulesAgreed(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-rsn-red focus:ring-rsn-red"
+              />
+              <span className="text-sm text-gray-700">I have read and agree to the pod rules</span>
+            </label>
+          )}
+          <Button
+            disabled={!rulesAgreed}
+            isLoading={requestJoinMutation.isPending}
+            onClick={() => { requestJoinMutation.mutate(); setShowJoinRules(false); }}
+            className="w-full"
+          >
+            Submit Request
+          </Button>
+        </div>
+      </Modal>
+
       {/* ── Active Members ───────────────────────────────────────────────── */}
       <div className="animate-fade-in-up stagger-2">
         <h2 className="text-lg font-semibold text-[#1a1a2e] mb-3 flex items-center gap-2">
@@ -792,21 +845,24 @@ export default function PodDetailPage() {
         </h2>
         <div className="grid gap-2">
           {activeMembers.map((m: any) => (
-            <Card key={m.userId || m.id} className="!p-4">
+            <Card key={m.userId || m.id} className="!p-3">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <Avatar name={m.displayName || m.email || 'User'} size="sm" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">{m.displayName || m.email || 'Member'}</p>
-                    <p className="text-xs text-gray-400">{m.role || 'member'}</p>
-                  </div>
+                <div className="flex-1 min-w-0">
+                  <ProfileCard
+                    compact
+                    user={{
+                      id: m.userId || m.id,
+                      displayName: m.displayName || m.email || 'Member',
+                      avatarUrl: m.avatarUrl,
+                      jobTitle: m.jobTitle,
+                      company: m.company,
+                      interests: m.interests,
+                    }}
+                    badge={m.role === 'director' ? 'director' : m.role === 'host' ? 'host' : undefined}
+                    badgeVariant={m.role === 'director' ? 'brand' : 'info'}
+                  />
                 </div>
-                <div className="flex items-center gap-2">
-                  {(m.role === 'director' || m.role === 'host') && (
-                    <Badge variant={m.role === 'director' ? 'brand' : 'info'} className="text-xs">
-                      <Shield className="h-3 w-3 mr-1" /> {m.role}
-                    </Badge>
-                  )}
+                <div className="flex items-center gap-2 shrink-0">
                   {isDirector && m.userId !== user?.id && m.role !== 'director' && (
                     <button
                       onClick={() => changeRoleMutation.mutate({

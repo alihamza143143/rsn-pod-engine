@@ -192,7 +192,7 @@ export default function HostDashboardPage() {
               <Card key={p.userId || p.id} className="!p-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <Avatar name={p.displayName || p.email || 'User'} size="sm" />
+                    <Avatar src={p.avatarUrl} name={p.displayName || p.email || 'User'} size="sm" />
                     <div>
                       <p className="text-sm font-medium text-gray-800">{p.displayName || p.email || 'Participant'}</p>
                       <p className="text-xs text-gray-400">Rounds: {p.roundsCompleted || 0}</p>
