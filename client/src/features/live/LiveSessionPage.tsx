@@ -83,7 +83,7 @@ export default function LiveSessionPage() {
       {/* Broadcast banner */}
       {broadcasts.length > 0 && (
         <div className="bg-rsn-red-light border-b border-rsn-red/30 px-4 py-2 text-center">
-          <p className="text-sm text-brand-300">{broadcasts[broadcasts.length - 1]}</p>
+          <p className="text-sm font-medium text-rsn-red">{broadcasts[broadcasts.length - 1]}</p>
         </div>
       )}
 
@@ -117,7 +117,7 @@ export default function LiveSessionPage() {
       {transitionStatus && (
         <div className="bg-[#1a1a2e]/10 border-b border-brand-500/20 px-4 py-2 flex items-center justify-center gap-2">
           <Loader2 className="h-4 w-4 text-rsn-red animate-spin" />
-          <p className="text-sm text-brand-300">
+          <p className="text-sm text-rsn-red">
             {transitionStatus === 'starting_session' && (isHost ? 'Starting event — generating matches...' : 'Event is starting — preparing your first match...')}
             {transitionStatus === 'preparing_match' && (isHost ? 'Sending participants to breakout rooms...' : "You've been matched! Connecting to your partner...")}
             {transitionStatus === 'round_ending' && (isHost ? 'Ending round — collecting participants...' : 'Round ending — wrapping up...')}
@@ -155,11 +155,11 @@ export default function LiveSessionPage() {
           </div>
         )}
 
-        {/* Chat toggle button -- fixed bottom-right */}
+        {/* Chat toggle button -- positioned above host controls bar */}
         {!chatOpen && phase !== 'complete' && (
           <button
             onClick={() => setChatOpen(true)}
-            className="absolute bottom-4 right-4 z-20 p-3 bg-rsn-red text-white rounded-full shadow-lg hover:bg-rsn-red/90 transition-all hover:scale-105"
+            className="absolute bottom-20 right-4 z-20 p-3 bg-rsn-red text-white rounded-full shadow-lg hover:bg-rsn-red/90 transition-all hover:scale-105"
           >
             <MessageCircle className="h-5 w-5" />
             {unreadChatCount > 0 && (

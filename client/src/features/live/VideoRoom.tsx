@@ -225,7 +225,7 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
       {transitionStatus === 'preparing_match' && (
         <div className="bg-[#1a1a2e]/10 border-b border-brand-500/20 px-4 py-2 flex items-center justify-center gap-2">
           <div className="h-4 w-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-brand-300">Connecting to your partner...</p>
+          <p className="text-sm text-rsn-red">Connecting to your partner...</p>
         </div>
       )}
 
