@@ -45,7 +45,7 @@ export default function AppLayout() {
       className={({ isActive }) => cn(
         'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200 group',
         isActive
-          ? 'bg-[#1a1a2e]/10 text-[#1a1a2e] font-semibold'
+          ? 'bg-rsn-red-light text-rsn-red font-semibold border-l-2 border-rsn-red'
           : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800',
       )}
     >
@@ -131,7 +131,7 @@ export default function AppLayout() {
               key={l.to} to={l.to} end={l.to === '/'}
               className={({ isActive }) => cn(
                 'flex-1 flex flex-col items-center py-2 text-xs transition-all duration-200',
-                isActive ? 'text-[#1a1a2e] scale-110 font-semibold' : 'text-gray-400',
+                isActive ? 'text-rsn-red scale-110 font-semibold' : 'text-gray-400',
               )}
             >
               <l.icon className="h-5 w-5 mb-0.5" />

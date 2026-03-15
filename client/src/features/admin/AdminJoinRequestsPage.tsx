@@ -98,7 +98,7 @@ export default function AdminJoinRequestsPage() {
             onClick={() => { setStatusFilter(s); setPage(1); }}
             className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
               statusFilter === s
-                ? 'bg-[#1a1a2e] text-white'
+                ? 'bg-rsn-red text-white'
                 : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
           >

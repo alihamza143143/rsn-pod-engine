@@ -50,7 +50,7 @@ export default function AdminPodsPage() {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === f ? 'bg-[#1a1a2e] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === f ? 'bg-rsn-red text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
           >
             {f.charAt(0).toUpperCase() + f.slice(1)}
           </button>
