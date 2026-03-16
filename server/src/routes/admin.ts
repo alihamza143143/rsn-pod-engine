@@ -1,0 +1,501 @@
+// ─── Admin Routes ────────────────────────────────────────────────────────────
+import { Router, Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
+import { validate } from '../middleware/validate';
+import { authenticate } from '../middleware/auth';
+import { requireRole } from '../middleware/rbac';
+import { query } from '../db';
+import { ApiResponse, UserRole } from '@rsn/shared';
+
+const router = Router();
+
+// ─── GET /admin/stats ────────────────────────────────────────────────────────
+
+router.get(
+  '/stats',
+  authenticate,
+  requireRole(UserRole.ADMIN),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      // Run all counts in parallel
+      const [
+        usersResult,
+        activeUsersResult,
+        podsResult,
+        activePodsResult,
+        eventsResult,
+        completedEventsResult,
+        matchesResult,
+        avgRatingResult,
+        growthResult,
+      ] = await Promise.all([
+        query<{ count: string }>(`SELECT COUNT(*) as count FROM users`),
+        query<{ count: string }>(`SELECT COUNT(*) as count FROM users WHERE last_active_at > NOW() - INTERVAL '7 days'`),
+        query<{ count: string }>(`SELECT COUNT(*) as count FROM pods`),
+        query<{ count: string }>(`SELECT COUNT(*) as count FROM pods WHERE status = 'active'`),
+        query<{ count: string }>(`SELECT COUNT(*) as count FROM sessions`),
+        query<{ count: string }>(`SELECT COUNT(*) as count FROM sessions WHERE status = 'completed'`),
+        query<{ count: string }>(`SELECT COUNT(*) as count FROM matches`),
+        query<{ avg: string | null }>(`SELECT ROUND(AVG(quality_score), 1) as avg FROM ratings WHERE quality_score IS NOT NULL`),
+        query<{ date: string; count: string }>(
+          `SELECT TO_CHAR(created_at::date, 'YYYY-MM-DD') as date, COUNT(*) as count
+           FROM users
+           WHERE created_at > NOW() - INTERVAL '30 days'
+           GROUP BY created_at::date
+           ORDER BY date`
+        ),
+      ]);
+
+      const stats = {
+        totalUsers: parseInt(usersResult.rows[0].count, 10),
+        activeUsers7d: parseInt(activeUsersResult.rows[0].count, 10),
+        totalPods: parseInt(podsResult.rows[0].count, 10),
+        activePods: parseInt(activePodsResult.rows[0].count, 10),
+        totalEvents: parseInt(eventsResult.rows[0].count, 10),
+        completedEvents: parseInt(completedEventsResult.rows[0].count, 10),
+        totalMatches: parseInt(matchesResult.rows[0].count, 10),
+        avgRating: avgRatingResult.rows[0].avg ? parseFloat(avgRatingResult.rows[0].avg) : null,
+        userGrowth: growthResult.rows.map(r => ({ date: r.date, count: parseInt(r.count, 10) })),
+      };
+
+      const response: ApiResponse = { success: true, data: stats };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ─── GET /admin/users/:id/entitlements ───────────────────────────────────────
+
+router.get(
+  '/users/:id/entitlements',
+  authenticate,
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await query(
+        `SELECT id, user_id AS "userId",
+                max_pods_owned AS "maxPodsOwned", max_sessions_per_month AS "maxSessionsPerMonth",
+                max_invites_per_day AS "maxInvitesPerDay", can_host_sessions AS "canHostSessions",
+                can_create_pods AS "canCreatePods", access_level AS "accessLevel", overrides
+         FROM user_entitlements WHERE user_id = $1`,
+        [req.params.id]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ success: false, error: { message: 'No entitlements found for user' } });
+      }
+      const response: ApiResponse = { success: true, data: result.rows[0] };
+      return res.json(response);
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+// ─── PUT /admin/users/:id/entitlements ───────────────────────────────────────
+
+const updateEntitlementsSchema = z.object({
+  maxPodsOwned: z.number().int().min(0).max(100).optional(),
+  maxSessionsPerMonth: z.number().int().min(0).max(500).optional(),
+  maxInvitesPerDay: z.number().int().min(0).max(1000).optional(),
+  canHostSessions: z.boolean().optional(),
+  canCreatePods: z.boolean().optional(),
+  accessLevel: z.string().max(50).optional(),
+});
+
+router.put(
+  '/users/:id/entitlements',
+  authenticate,
+  requireRole(UserRole.ADMIN),
+  validate(updateEntitlementsSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const fieldMap: Record<string, string> = {
+        maxPodsOwned: 'max_pods_owned',
+        maxSessionsPerMonth: 'max_sessions_per_month',
+        maxInvitesPerDay: 'max_invites_per_day',
+        canHostSessions: 'can_host_sessions',
+        canCreatePods: 'can_create_pods',
+        accessLevel: 'access_level',
+      };
+
+      const setClauses: string[] = [];
+      const values: unknown[] = [];
+      let idx = 1;
+
+      for (const [key, col] of Object.entries(fieldMap)) {
+        if (key in req.body) {
+          setClauses.push(`${col} = $${idx}`);
+          values.push(req.body[key]);
+          idx++;
+        }
+      }
+
+      if (setClauses.length === 0) {
+        return res.json({ success: true, data: {} });
+      }
+
+      setClauses.push(`updated_at = NOW()`);
+      values.push(req.params.id);
+
+      await query(
+        `UPDATE user_entitlements SET ${setClauses.join(', ')} WHERE user_id = $${idx}`,
+        values
+      );
+
+      // Return updated entitlements
+      const result = await query(
+        `SELECT id, user_id AS "userId",
+                max_pods_owned AS "maxPodsOwned", max_sessions_per_month AS "maxSessionsPerMonth",
+                max_invites_per_day AS "maxInvitesPerDay", can_host_sessions AS "canHostSessions",
+                can_create_pods AS "canCreatePods", access_level AS "accessLevel", overrides
+         FROM user_entitlements WHERE user_id = $1`,
+        [req.params.id]
+      );
+      const response: ApiResponse = { success: true, data: result.rows[0] };
+      return res.json(response);
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+// ─── POST /admin/users/bulk-action ───────────────────────────────────────────
+
+const bulkUserActionSchema = z.object({
+  userIds: z.array(z.string().uuid()).min(1).max(100),
+  action: z.enum(['suspend', 'ban', 'activate', 'delete']),
+});
+
+router.post(
+  '/users/bulk-action',
+  authenticate,
+  requireRole(UserRole.ADMIN),
+  validate(bulkUserActionSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { userIds, action } = req.body;
+      let statusUpdate: string;
+
+      switch (action) {
+        case 'suspend': statusUpdate = 'suspended'; break;
+        case 'ban': statusUpdate = 'banned'; break;
+        case 'activate': statusUpdate = 'active'; break;
+        case 'delete': statusUpdate = 'deactivated'; break;
+        default: return res.status(400).json({ success: false, error: { message: 'Invalid action' } });
+      }
+
+      const result = await query(
+        `UPDATE users SET status = $1, updated_at = NOW() WHERE id = ANY($2::uuid[]) RETURNING id`,
+        [statusUpdate, userIds]
+      );
+
+      const response: ApiResponse = { success: true, data: { affected: result.rowCount } };
+      return res.json(response);
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+// ─── POST /admin/join-requests/bulk-action ───────────────────────────────────
+
+const bulkJoinRequestActionSchema = z.object({
+  requestIds: z.array(z.string().uuid()).min(1).max(100),
+  action: z.enum(['approve', 'decline']),
+  notes: z.string().max(500).optional(),
+});
+
+router.post(
+  '/join-requests/bulk-action',
+  authenticate,
+  requireRole(UserRole.ADMIN),
+  validate(bulkJoinRequestActionSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { requestIds, action, notes } = req.body;
+      const status = action === 'approve' ? 'approved' : 'declined';
+
+      const result = await query(
+        `UPDATE join_requests SET status = $1, reviewed_by = $2, reviewed_at = NOW(), admin_notes = $3, updated_at = NOW()
+         WHERE id = ANY($4::uuid[]) AND status = 'pending'
+         RETURNING id`,
+        [status, req.user!.userId, notes || null, requestIds]
+      );
+
+      const response: ApiResponse = { success: true, data: { affected: result.rowCount } };
+      return res.json(response);
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// VIOLATIONS / MODERATION
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET /admin/violations
+router.get(
+  '/violations',
+  authenticate,
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const status = (req.query.status as string) || 'open';
+      const result = await query(
+        `SELECT v.id, v.reason, v.details, v.status, v.admin_notes AS "adminNotes",
+                v.created_at AS "createdAt", v.resolved_at AS "resolvedAt",
+                reporter.display_name AS "reporterName", reporter.email AS "reporterEmail",
+                reported.display_name AS "reportedName", reported.email AS "reportedEmail",
+                reported.id AS "reportedUserId",
+                resolver.display_name AS "resolverName"
+         FROM violations v
+         LEFT JOIN users reporter ON reporter.id = v.reporter_id
+         JOIN users reported ON reported.id = v.reported_user_id
+         LEFT JOIN users resolver ON resolver.id = v.resolved_by
+         WHERE ($1 = '' OR v.status = $1::violation_status)
+         ORDER BY v.created_at DESC
+         LIMIT 100`,
+        [status]
+      );
+      const response: ApiResponse = { success: true, data: result.rows };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// POST /admin/violations/:id/resolve
+const resolveViolationSchema = z.object({
+  action: z.enum(['dismiss', 'warn', 'suspend', 'ban']),
+  adminNotes: z.string().max(2000).optional(),
+});
+
+router.post(
+  '/violations/:id/resolve',
+  authenticate,
+  requireRole(UserRole.ADMIN),
+  validate(resolveViolationSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { action, adminNotes } = req.body;
+      const newStatus = action === 'dismiss' ? 'dismissed' : 'actioned';
+
+      await query(
+        `UPDATE violations SET status = $1, admin_notes = $2, resolved_by = $3, resolved_at = NOW(), updated_at = NOW()
+         WHERE id = $4`,
+        [newStatus, adminNotes || null, req.user!.userId, req.params.id]
+      );
+
+      // If action is suspend or ban, update the user's status
+      if (action === 'suspend' || action === 'ban') {
+        const violation = await query<{ reported_user_id: string }>(
+          `SELECT reported_user_id FROM violations WHERE id = $1`, [req.params.id]
+        );
+        if (violation.rows[0]) {
+          const userStatus = action === 'suspend' ? 'suspended' : 'banned';
+          await query(`UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2`, [userStatus, violation.rows[0].reported_user_id]);
+        }
+      }
+
+      const response: ApiResponse = { success: true, data: { message: `Violation ${newStatus}` } };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// POST /violations/report (any authenticated user can report)
+const reportSchema = z.object({
+  reportedUserId: z.string().uuid(),
+  reason: z.string().min(1).max(500),
+  details: z.string().max(2000).optional(),
+});
+
+router.post(
+  '/violations/report',
+  authenticate,
+  validate(reportSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { reportedUserId, reason, details } = req.body;
+      await query(
+        `INSERT INTO violations (reporter_id, reported_user_id, reason, details)
+         VALUES ($1, $2, $3, $4)`,
+        [req.user!.userId, reportedUserId, reason, details || null]
+      );
+      const response: ApiResponse = { success: true, data: { message: 'Report submitted' } };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// MATCHING TEMPLATES
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET /admin/templates
+router.get(
+  '/templates',
+  authenticate,
+  requireRole(UserRole.ADMIN),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await query(
+        `SELECT id, name, description, is_default AS "isDefault",
+                weight_industry AS "weightIndustry", weight_interests AS "weightInterests",
+                weight_intent AS "weightIntent", weight_experience AS "weightExperience",
+                weight_location AS "weightLocation",
+                rematch_cooldown_rounds AS "rematchCooldownRounds",
+                exploration_level AS "explorationLevel",
+                same_company_allowed AS "sameCompanyAllowed",
+                fallback_strategy AS "fallbackStrategy",
+                created_at AS "createdAt"
+         FROM matching_templates ORDER BY is_default DESC, created_at DESC`
+      );
+      const response: ApiResponse = { success: true, data: result.rows };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// POST /admin/templates
+const createTemplateSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().max(2000).optional(),
+  weightIndustry: z.number().min(0).max(1).optional(),
+  weightInterests: z.number().min(0).max(1).optional(),
+  weightIntent: z.number().min(0).max(1).optional(),
+  weightExperience: z.number().min(0).max(1).optional(),
+  weightLocation: z.number().min(0).max(1).optional(),
+  rematchCooldownRounds: z.number().int().min(0).max(50).optional(),
+  explorationLevel: z.number().min(0).max(1).optional(),
+  sameCompanyAllowed: z.boolean().optional(),
+  fallbackStrategy: z.string().max(50).optional(),
+});
+
+router.post(
+  '/templates',
+  authenticate,
+  requireRole(UserRole.ADMIN),
+  validate(createTemplateSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const b = req.body;
+      const result = await query(
+        `INSERT INTO matching_templates (name, description, weight_industry, weight_interests, weight_intent,
+         weight_experience, weight_location, rematch_cooldown_rounds, exploration_level,
+         same_company_allowed, fallback_strategy, created_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING id`,
+        [b.name, b.description || null, b.weightIndustry ?? 0.3, b.weightInterests ?? 0.3,
+         b.weightIntent ?? 0.2, b.weightExperience ?? 0.1, b.weightLocation ?? 0.1,
+         b.rematchCooldownRounds ?? 3, b.explorationLevel ?? 0.2,
+         b.sameCompanyAllowed ?? false, b.fallbackStrategy ?? 'random', req.user!.userId]
+      );
+      const response: ApiResponse = { success: true, data: result.rows[0] };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// PUT /admin/templates/:id
+router.put(
+  '/templates/:id',
+  authenticate,
+  requireRole(UserRole.ADMIN),
+  validate(createTemplateSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const b = req.body;
+      await query(
+        `UPDATE matching_templates SET name=$1, description=$2, weight_industry=$3, weight_interests=$4,
+         weight_intent=$5, weight_experience=$6, weight_location=$7, rematch_cooldown_rounds=$8,
+         exploration_level=$9, same_company_allowed=$10, fallback_strategy=$11, updated_at=NOW()
+         WHERE id=$12`,
+        [b.name, b.description || null, b.weightIndustry ?? 0.3, b.weightInterests ?? 0.3,
+         b.weightIntent ?? 0.2, b.weightExperience ?? 0.1, b.weightLocation ?? 0.1,
+         b.rematchCooldownRounds ?? 3, b.explorationLevel ?? 0.2,
+         b.sameCompanyAllowed ?? false, b.fallbackStrategy ?? 'random', req.params.id]
+      );
+      const response: ApiResponse = { success: true, data: { message: 'Template updated' } };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// DELETE /admin/templates/:id
+router.delete(
+  '/templates/:id',
+  authenticate,
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await query(`DELETE FROM matching_templates WHERE id = $1 AND is_default = FALSE`, [req.params.id]);
+      const response: ApiResponse = { success: true, data: { message: 'Template deleted' } };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// EMAIL CONTROLS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// GET /admin/email-config
+router.get(
+  '/email-config',
+  authenticate,
+  requireRole(UserRole.ADMIN),
+  async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await query(
+        `SELECT id, email_type AS "emailType", enabled, subject, updated_at AS "updatedAt"
+         FROM email_config ORDER BY email_type`
+      );
+      const response: ApiResponse = { success: true, data: result.rows };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// PUT /admin/email-config/:id
+const updateEmailConfigSchema = z.object({
+  enabled: z.boolean(),
+});
+
+router.put(
+  '/email-config/:id',
+  authenticate,
+  requireRole(UserRole.ADMIN),
+  validate(updateEmailConfigSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await query(
+        `UPDATE email_config SET enabled = $1, updated_by = $2, updated_at = NOW() WHERE id = $3`,
+        [req.body.enabled, req.user!.userId, req.params.id]
+      );
+      const response: ApiResponse = { success: true, data: { message: 'Email config updated' } };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+export default router;

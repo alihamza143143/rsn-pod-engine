@@ -6,7 +6,7 @@ import Input from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useToastStore } from '@/stores/toastStore';
 import { useAuthStore } from '@/stores/authStore';
-import { ArrowLeft, Clock, Users, Settings } from 'lucide-react';
+import { ArrowLeft, Clock, Users, Settings, Radio } from 'lucide-react';
 import api from '@/lib/api';
 
 interface SessionForm {
@@ -14,12 +14,33 @@ interface SessionForm {
   title: string;
   description: string;
   scheduledAt: string;
+  eventType: string;
   numberOfRounds: number;
   roundDurationSeconds: number;
   lobbyDurationSeconds: number;
   transitionDurationSeconds: number;
   maxParticipants: number;
   timerVisibility: string;
+}
+
+const EVENT_TYPES = [
+  { value: 'speed_networking', label: 'Speed Networking', description: 'Timed 1-on-1 rounds with automatic matching' },
+  { value: 'video_meeting', label: 'Video Meeting', description: 'Group video call with all participants' },
+  { value: 'voice_meeting', label: 'Voice Meeting', description: 'Audio-only group call' },
+  { value: 'webinar', label: 'Webinar', description: 'One-to-many presentation with Q&A' },
+  { value: 'physical_event', label: 'Physical Event', description: 'In-person meetup with digital coordination' },
+];
+
+/** Returns current datetime rounded up to next 15-min slot, formatted for datetime-local input */
+function getDefaultScheduledAt(): string {
+  const now = new Date();
+  const mins = now.getMinutes();
+  const roundedMins = Math.ceil(mins / 15) * 15;
+  now.setMinutes(roundedMins, 0, 0);
+  if (roundedMins >= 60) now.setHours(now.getHours() + 1, 0, 0, 0);
+  // Format as YYYY-MM-DDTHH:MM for datetime-local input
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}T${pad(now.getHours())}:${pad(now.getMinutes())}`;
 }
 
 const selectClass = 'w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200';
@@ -41,6 +62,8 @@ export default function CreateSessionPage() {
   const { register, handleSubmit, formState: { errors } } = useForm<SessionForm>({
     defaultValues: {
       podId: params.get('podId') || '',
+      scheduledAt: getDefaultScheduledAt(),
+      eventType: 'speed_networking',
       numberOfRounds: 5,
       roundDurationSeconds: 480,
       lobbyDurationSeconds: 480,
@@ -58,6 +81,7 @@ export default function CreateSessionPage() {
         description: data.description || undefined,
         scheduledAt: new Date(data.scheduledAt).toISOString(),
         config: {
+          eventType: data.eventType,
           numberOfRounds: data.numberOfRounds,
           roundDurationSeconds: data.roundDurationSeconds,
           lobbyDurationSeconds: data.lobbyDurationSeconds,
@@ -116,11 +140,23 @@ export default function CreateSessionPage() {
                 className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#1a1a2e] transition-all duration-200 resize-none"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1.5">
+                <Radio className="h-4 w-4 inline mr-1.5 text-gray-400" />Event Type
+              </label>
+              <select {...register('eventType')} className={selectClass}>
+                {EVENT_TYPES.map(t => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                {EVENT_TYPES.find(t => t.value === 'speed_networking')?.description}
+              </p>
+            </div>
             <Input
               label="Scheduled At"
               type="datetime-local"
               {...register('scheduledAt', { required: 'Required' })}
-              onChangeCapture={(e) => (e.target as HTMLInputElement).blur()}
               error={errors.scheduledAt?.message}
             />
           </div>

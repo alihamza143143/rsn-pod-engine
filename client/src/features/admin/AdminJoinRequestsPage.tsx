@@ -32,6 +32,7 @@ export default function AdminJoinRequestsPage() {
   const [statusFilter, setStatusFilter] = useState('pending');
   const [reviewModal, setReviewModal] = useState<{ request: JoinRequest; decision: 'approved' | 'declined' } | null>(null);
   const [reviewNotes, setReviewNotes] = useState('');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-join-requests', page, statusFilter],
@@ -57,6 +58,23 @@ export default function AdminJoinRequestsPage() {
     onError: () => addToast('Failed to review request', 'error'),
   });
 
+  const bulkMutation = useMutation({
+    mutationFn: ({ action }: { action: 'approve' | 'decline' }) =>
+      api.post('/admin/join-requests/bulk-action', { requestIds: Array.from(selected), action }),
+    onSuccess: (_, { action }) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-join-requests'] });
+      addToast(`${selected.size} request(s) ${action}d`, 'success');
+      setSelected(new Set());
+    },
+    onError: () => addToast('Bulk action failed', 'error'),
+  });
+
+  const toggleSelect = (id: string) => setSelected(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
   if (!isAdmin(user?.role)) {
     return (
       <div className="max-w-md mx-auto text-center py-20">
@@ -70,6 +88,14 @@ export default function AdminJoinRequestsPage() {
 
   const requests: JoinRequest[] = data?.data ?? [];
   const meta = data?.meta;
+  const pendingReqs = requests.filter(r => r.status === 'pending');
+  const toggleAll = () => {
+    if (selected.size === pendingReqs.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(pendingReqs.map(r => r.id)));
+    }
+  };
 
   const handleReview = () => {
     if (!reviewModal) return;
@@ -107,28 +133,67 @@ export default function AdminJoinRequestsPage() {
         ))}
       </div>
 
+      {/* Bulk Action Bar */}
+      {selected.size > 0 && (
+        <div className="sticky top-0 z-10 flex items-center gap-3 bg-[#1a1a2e] text-white rounded-xl px-4 py-3 shadow-lg animate-fade-in">
+          <span className="text-sm font-medium">{selected.size} selected</span>
+          <div className="flex-1" />
+          <Button size="sm" variant="ghost" className="!text-emerald-300 !text-xs" onClick={() => { if (confirm(`Approve ${selected.size} request(s)?`)) bulkMutation.mutate({ action: 'approve' }); }}>
+            Bulk Approve
+          </Button>
+          <Button size="sm" variant="ghost" className="!text-red-300 !text-xs" onClick={() => { if (confirm(`Decline ${selected.size} request(s)?`)) bulkMutation.mutate({ action: 'decline' }); }}>
+            Bulk Decline
+          </Button>
+          <Button size="sm" variant="ghost" className="!text-gray-300 !text-xs" onClick={() => setSelected(new Set())}>
+            Clear
+          </Button>
+        </div>
+      )}
+
       {/* Request List */}
       {isLoading ? <PageLoader /> : (
         <div className="space-y-3 animate-fade-in-up">
+          {/* Select all for pending */}
+          {statusFilter === 'pending' && pendingReqs.length > 0 && (
+            <label className="flex items-center gap-2 px-4 py-1 text-xs text-gray-500 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selected.size > 0 && selected.size === pendingReqs.length}
+                onChange={toggleAll}
+                className="h-3.5 w-3.5 rounded border-gray-300 text-rsn-red focus:ring-rsn-red"
+              />
+              Select all pending
+            </label>
+          )}
           {requests.map((r) => (
-            <Card key={r.id} className="!p-5">
+            <Card key={r.id} className={`!p-5 ${selected.has(r.id) ? 'ring-2 ring-rsn-red/30' : ''}`}>
               <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="text-sm font-semibold text-gray-800">{r.fullName}</p>
-                    <Badge variant={r.status === 'pending' ? 'warning' : r.status === 'approved' ? 'success' : 'default'}>
-                      {r.status}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-gray-400 mb-2">{r.email}</p>
-                  <p className="text-sm text-gray-600 line-clamp-2 mb-2">{r.reason}</p>
-                  <div className="flex items-center gap-4 text-xs text-gray-400">
-                    <a href={r.linkedinUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-600">
-                      <ExternalLink className="h-3 w-3" /> LinkedIn
-                    </a>
-                    <span className="inline-flex items-center gap-1">
-                      <Clock className="h-3 w-3" /> {new Date(r.createdAt).toLocaleDateString()}
-                    </span>
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  {r.status === 'pending' && (
+                    <input
+                      type="checkbox"
+                      checked={selected.has(r.id)}
+                      onChange={() => toggleSelect(r.id)}
+                      className="h-4 w-4 rounded border-gray-300 text-rsn-red focus:ring-rsn-red mt-0.5 shrink-0"
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm font-semibold text-gray-800">{r.fullName}</p>
+                      <Badge variant={r.status === 'pending' ? 'warning' : r.status === 'approved' ? 'success' : 'default'}>
+                        {r.status}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-gray-400 mb-2">{r.email}</p>
+                    <p className="text-sm text-gray-600 line-clamp-2 mb-2">{r.reason}</p>
+                    <div className="flex items-center gap-4 text-xs text-gray-400">
+                      <a href={r.linkedinUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-blue-500 hover:text-blue-600">
+                        <ExternalLink className="h-3 w-3" /> LinkedIn
+                      </a>
+                      <span className="inline-flex items-center gap-1">
+                        <Clock className="h-3 w-3" /> {new Date(r.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
                   </div>
                 </div>
 

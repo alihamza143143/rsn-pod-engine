@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Users, Mail, Hexagon, HelpCircle, Activity, Calendar } from 'lucide-react';
+import { Shield, Users, Mail, Hexagon, Activity, Calendar, BarChart3, Star, Zap, TrendingUp } from 'lucide-react';
 import axios from 'axios';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
@@ -9,19 +9,40 @@ import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/api';
 import { isAdmin } from '@/lib/utils';
 
-function StatCard({ label, value, icon: Icon, color }: { label: string; value: string | number; icon: any; color: string }) {
+function StatCard({ label, value, subtitle, icon: Icon, color }: { label: string; value: string | number; subtitle?: string; icon: any; color: string }) {
   return (
     <Card className="!p-5">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">{label}</p>
           <p className="text-2xl font-bold text-[#1a1a2e] mt-1">{value}</p>
+          {subtitle && <p className="text-[11px] text-gray-400 mt-0.5">{subtitle}</p>}
         </div>
         <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${color}`}>
           <Icon className="h-5 w-5 text-white" />
         </div>
       </div>
     </Card>
+  );
+}
+
+function MiniBarChart({ data }: { data: { date: string; count: number }[] }) {
+  if (!data || data.length === 0) return <p className="text-xs text-gray-400 text-center py-4">No data yet</p>;
+  const max = Math.max(...data.map(d => d.count), 1);
+  return (
+    <div className="flex items-end gap-[3px] h-24">
+      {data.map(d => (
+        <div key={d.date} className="flex-1 flex flex-col items-center justify-end group relative">
+          <div
+            className="w-full bg-rsn-red/70 rounded-t-sm min-h-[2px] transition-all hover:bg-rsn-red"
+            style={{ height: `${(d.count / max) * 100}%` }}
+          />
+          <div className="absolute -top-6 bg-gray-800 text-white text-[9px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none">
+            {d.date.slice(5)}: {d.count}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -39,16 +60,9 @@ export default function AdminDashboardPage() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
 
-  // Fetch admin stats
-  const { data: usersData } = useQuery({
-    queryKey: ['admin-users-count'],
-    queryFn: () => api.get('/users?pageSize=1').then(r => r.data),
-    enabled: isAdmin(user?.role),
-  });
-
-  const { data: podsData } = useQuery({
-    queryKey: ['admin-pods-count'],
-    queryFn: () => api.get('/pods?pageSize=1&admin=true').then(r => r.data),
+  const { data: stats } = useQuery({
+    queryKey: ['admin-stats'],
+    queryFn: () => api.get('/admin/stats').then(r => r.data.data),
     enabled: isAdmin(user?.role),
   });
 
@@ -61,7 +75,6 @@ export default function AdminDashboardPage() {
   const { data: healthData } = useQuery({
     queryKey: ['admin-health'],
     queryFn: () => {
-      // Health endpoint is at /health, not /api/health
       const base = api.defaults.baseURL?.replace(/\/api$/, '') || '';
       return axios.get(`${base}/health`).then(r => r.data).catch(() => null);
     },
@@ -80,8 +93,6 @@ export default function AdminDashboardPage() {
     );
   }
 
-  const totalUsers = usersData?.meta?.totalCount ?? '—';
-  const activePods = podsData?.meta?.totalCount ?? '—';
   const pendingRequests = joinRequestsData?.meta?.totalCount ?? 0;
 
   return (
@@ -94,12 +105,27 @@ export default function AdminDashboardPage() {
         <Shield className="h-8 w-8 text-red-600" />
       </div>
 
-      {/* Stats Grid */}
+      {/* Stats Grid — Row 1 */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-fade-in-up">
-        <StatCard label="Total Users" value={totalUsers} icon={Users} color="bg-blue-500" />
+        <StatCard label="Total Users" value={stats?.totalUsers ?? '—'} subtitle={`${stats?.activeUsers7d ?? 0} active last 7d`} icon={Users} color="bg-blue-500" />
         <StatCard label="Pending Requests" value={pendingRequests} icon={Mail} color="bg-amber-500" />
-        <StatCard label="Active Pods" value={activePods} icon={Hexagon} color="bg-emerald-500" />
-        <StatCard label="Open Tickets" value="—" icon={HelpCircle} color="bg-purple-500" />
+        <StatCard label="Pods" value={stats?.totalPods ?? '—'} subtitle={`${stats?.activePods ?? 0} active`} icon={Hexagon} color="bg-emerald-500" />
+        <StatCard label="Events" value={stats?.totalEvents ?? '—'} subtitle={`${stats?.completedEvents ?? 0} completed`} icon={Calendar} color="bg-purple-500" />
+      </div>
+
+      {/* Stats Grid — Row 2 */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-fade-in-up">
+        <StatCard label="Total Matches" value={stats?.totalMatches ?? '—'} icon={Zap} color="bg-pink-500" />
+        <StatCard label="Avg Rating" value={stats?.avgRating ?? '—'} subtitle="across all events" icon={Star} color="bg-amber-600" />
+        <div className="col-span-2">
+          <Card className="!p-5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs text-gray-400 font-medium uppercase tracking-wide">User Growth (30d)</p>
+              <TrendingUp className="h-4 w-4 text-gray-300" />
+            </div>
+            <MiniBarChart data={stats?.userGrowth ?? []} />
+          </Card>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -109,59 +135,28 @@ export default function AdminDashboardPage() {
             <Activity className="h-5 w-5 text-rsn-red" /> Quick Actions
           </h2>
           <div className="space-y-2">
-            <button
-              onClick={() => navigate('/admin/users')}
-              className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-between group"
-            >
-              <div className="flex items-center gap-3">
-                <Users className="h-4 w-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-700">Manage Users</span>
-              </div>
-              <span className="text-xs text-gray-400 group-hover:text-gray-600">→</span>
-            </button>
-            <button
-              onClick={() => navigate('/admin/join-requests')}
-              className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-between group"
-            >
-              <div className="flex items-center gap-3">
-                <Mail className="h-4 w-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-700">Join Requests</span>
-                {pendingRequests > 0 && (
-                  <Badge variant="warning">{pendingRequests} pending</Badge>
-                )}
-              </div>
-              <span className="text-xs text-gray-400 group-hover:text-gray-600">→</span>
-            </button>
-            <button
-              onClick={() => navigate('/admin/pods')}
-              className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-between group"
-            >
-              <div className="flex items-center gap-3">
-                <Hexagon className="h-4 w-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-700">Manage Pods</span>
-              </div>
-              <span className="text-xs text-gray-400 group-hover:text-gray-600">→</span>
-            </button>
-            <button
-              onClick={() => navigate('/admin/sessions')}
-              className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-between group"
-            >
-              <div className="flex items-center gap-3">
-                <Calendar className="h-4 w-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-700">Manage Events</span>
-              </div>
-              <span className="text-xs text-gray-400 group-hover:text-gray-600">→</span>
-            </button>
-            <button
-              onClick={() => navigate('/support')}
-              className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-between group"
-            >
-              <div className="flex items-center gap-3">
-                <HelpCircle className="h-4 w-4 text-gray-400" />
-                <span className="text-sm font-medium text-gray-700">Support Tickets</span>
-              </div>
-              <span className="text-xs text-gray-400 group-hover:text-gray-600">→</span>
-            </button>
+            {([
+              { path: '/admin/users', icon: Users, label: 'Manage Users', badge: null },
+              { path: '/admin/join-requests', icon: Mail, label: 'Join Requests', badge: pendingRequests > 0 ? `${pendingRequests} pending` : null },
+              { path: '/admin/pods', icon: Hexagon, label: 'Manage Pods', badge: null },
+              { path: '/admin/sessions', icon: Calendar, label: 'Manage Events', badge: null },
+              { path: '/admin/moderation', icon: Shield, label: 'Moderation Queue', badge: null },
+              { path: '/admin/templates', icon: BarChart3, label: 'Matching Templates', badge: null },
+              { path: '/admin/email', icon: Mail, label: 'Email Controls', badge: null },
+            ] as const).map(item => (
+              <button
+                key={item.path}
+                onClick={() => navigate(item.path)}
+                className="w-full text-left px-4 py-3 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-between group"
+              >
+                <div className="flex items-center gap-3">
+                  <item.icon className="h-4 w-4 text-gray-400" />
+                  <span className="text-sm font-medium text-gray-700">{item.label}</span>
+                  {item.badge && <Badge variant="warning">{item.badge}</Badge>}
+                </div>
+                <span className="text-xs text-gray-400 group-hover:text-gray-600">&rarr;</span>
+              </button>
+            ))}
           </div>
         </Card>
 
@@ -176,8 +171,8 @@ export default function AdminDashboardPage() {
               status={healthData?.status === 'ok' ? 'Connected' : 'Unknown'}
             />
             <HealthItem label="Auth" status="Operational" />
-            <HealthItem label="Edge Functions" status="Running" />
-            <HealthItem label="Stripe" status="Active" />
+            <HealthItem label="LiveKit" status="Running" />
+            <HealthItem label="Email (Resend)" status="Active" />
           </div>
           <div className="mt-4 pt-4 border-t border-gray-100">
             <div className="flex items-center justify-between text-xs text-gray-400">
@@ -187,16 +182,6 @@ export default function AdminDashboardPage() {
           </div>
         </Card>
       </div>
-
-      {/* Recent Activity */}
-      <Card className="animate-fade-in-up">
-        <h2 className="font-semibold text-[#1a1a2e] mb-4 flex items-center gap-2">
-          <Activity className="h-5 w-5 text-rsn-red" /> Recent Activity
-        </h2>
-        <div className="text-sm text-gray-400 text-center py-6">
-          Activity feed will be populated as the platform grows.
-        </div>
-      </Card>
     </div>
   );
 }

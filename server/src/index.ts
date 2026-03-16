@@ -27,6 +27,7 @@ import inviteRoutes from './routes/invites';
 import ratingRoutes from './routes/ratings';
 import hostRoutes from './routes/host';
 import joinRequestRoutes from './routes/join-requests';
+import adminRoutes from './routes/admin';
 
 // Services
 import { initOrchestration } from './services/orchestration/orchestration.service';
@@ -185,6 +186,7 @@ app.use('/api/invites', inviteRoutes);
 app.use('/api/ratings', ratingRoutes);
 app.use('/api/sessions', hostRoutes); // Host controls under /api/sessions/:id/host/*
 app.use('/api/join-requests', joinRequestRoutes);
+app.use('/api/admin', adminRoutes);
 
 // ─── Error Handling ─────────────────────────────────────────────────────────
 

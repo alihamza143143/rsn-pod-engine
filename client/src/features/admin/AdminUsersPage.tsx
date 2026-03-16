@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Shield, Search, ChevronLeft, ChevronRight, Ban, Trash2, UserX, RotateCcw } from 'lucide-react';
+import { Shield, Search, ChevronLeft, ChevronRight, Ban, Trash2, UserX, RotateCcw, Settings } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { PageLoader } from '@/components/ui/Spinner';
+import Modal from '@/components/ui/Modal';
 import { useAuthStore } from '@/stores/authStore';
 import { useNavigate } from 'react-router-dom';
 import api from '@/lib/api';
@@ -29,6 +30,9 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [statusTab, setStatusTab] = useState<StatusTab>('active');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [entitlementUser, setEntitlementUser] = useState<any | null>(null);
+  const [entitlements, setEntitlements] = useState<any>(null);
 
   const activeTabConfig = TAB_CONFIG.find(t => t.key === statusTab)!;
 
@@ -87,6 +91,45 @@ export default function AdminUsersPage() {
     mutationFn: ({ userId, role }: { userId: string; role: string }) => api.put(`/users/${userId}/role`, { role }),
     onSuccess: () => { invalidateUsers(); addToast('Role updated', 'success'); },
   });
+  const bulkMutation = useMutation({
+    mutationFn: ({ action }: { action: string }) =>
+      api.post('/admin/users/bulk-action', { userIds: Array.from(selected), action }),
+    onSuccess: (_, { action }) => {
+      invalidateUsers();
+      addToast(`${selected.size} user(s) ${action === 'activate' ? 'reactivated' : action + 'ned'}`, 'success');
+      setSelected(new Set());
+    },
+    onError: () => addToast('Bulk action failed', 'error'),
+  });
+
+  const toggleSelect = (id: string) => setSelected(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+  const toggleAll = () => {
+    const nonSelfUsers = users.filter((u: any) => u.id !== user?.id);
+    if (selected.size === nonSelfUsers.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(nonSelfUsers.map((u: any) => u.id)));
+    }
+  };
+
+  const openEntitlements = async (u: any) => {
+    setEntitlementUser(u);
+    try {
+      const res = await api.get(`/admin/users/${u.id}/entitlements`);
+      setEntitlements(res.data.data);
+    } catch {
+      setEntitlements({ maxPodsOwned: 1, maxSessionsPerMonth: 5, maxInvitesPerDay: 10, canHostSessions: false, canCreatePods: false });
+    }
+  };
+  const saveEntitlementsMutation = useMutation({
+    mutationFn: () => api.put(`/admin/users/${entitlementUser?.id}/entitlements`, entitlements),
+    onSuccess: () => { addToast('Entitlements updated', 'success'); setEntitlementUser(null); },
+    onError: () => addToast('Failed to save entitlements', 'error'),
+  });
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
@@ -144,13 +187,59 @@ export default function AdminUsersPage() {
         </select>
       </div>
 
+      {/* Bulk Action Bar */}
+      {selected.size > 0 && (
+        <div className="sticky top-0 z-10 flex items-center gap-3 bg-[#1a1a2e] text-white rounded-xl px-4 py-3 shadow-lg animate-fade-in">
+          <span className="text-sm font-medium">{selected.size} selected</span>
+          <div className="flex-1" />
+          {statusTab === 'active' && (
+            <>
+              <Button size="sm" variant="ghost" className="!text-amber-300 !text-xs" onClick={() => { if (confirm(`Suspend ${selected.size} user(s)?`)) bulkMutation.mutate({ action: 'suspend' }); }}>
+                Bulk Suspend
+              </Button>
+              <Button size="sm" variant="ghost" className="!text-red-300 !text-xs" onClick={() => { if (confirm(`Ban ${selected.size} user(s)?`)) bulkMutation.mutate({ action: 'ban' }); }}>
+                Bulk Ban
+              </Button>
+            </>
+          )}
+          {(statusTab === 'removed' || statusTab === 'banned') && (
+            <Button size="sm" variant="ghost" className="!text-emerald-300 !text-xs" onClick={() => { if (confirm(`Reactivate ${selected.size} user(s)?`)) bulkMutation.mutate({ action: 'activate' }); }}>
+              Bulk Reactivate
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" className="!text-gray-300 !text-xs" onClick={() => setSelected(new Set())}>
+            Clear
+          </Button>
+        </div>
+      )}
+
       {/* User List */}
       {isLoading ? <PageLoader /> : (
         <div className="space-y-2 animate-fade-in-up stagger-1">
+          {/* Select all checkbox */}
+          {users.length > 0 && (
+            <label className="flex items-center gap-2 px-4 py-1 text-xs text-gray-500 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selected.size > 0 && selected.size === users.filter((u: any) => u.id !== user?.id).length}
+                onChange={toggleAll}
+                className="h-3.5 w-3.5 rounded border-gray-300 text-rsn-red focus:ring-rsn-red"
+              />
+              Select all
+            </label>
+          )}
           {users.map((u: any) => (
-            <Card key={u.id} className="!p-4 card-hover">
+            <Card key={u.id} className={`!p-4 card-hover ${selected.has(u.id) ? 'ring-2 ring-rsn-red/30' : ''}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
+                  {u.id !== user?.id && (
+                    <input
+                      type="checkbox"
+                      checked={selected.has(u.id)}
+                      onChange={() => toggleSelect(u.id)}
+                      className="h-4 w-4 rounded border-gray-300 text-rsn-red focus:ring-rsn-red shrink-0"
+                    />
+                  )}
                   <Avatar src={u.avatarUrl} name={u.displayName || u.email} size="sm" />
                   <div>
                     <p className="text-sm font-medium text-gray-800">{u.displayName || 'No name'}</p>
@@ -185,6 +274,9 @@ export default function AdminUsersPage() {
                         {isSuperAdmin && <option value="admin">Admin</option>}
                         {isSuperAdmin && <option value="super_admin">Super Admin</option>}
                       </select>
+                      <Button size="sm" variant="ghost" onClick={() => openEntitlements(u)} className="!text-blue-600 !text-xs">
+                        <Settings className="h-3 w-3 mr-1" /> Limits
+                      </Button>
                       <Button size="sm" variant="ghost" onClick={() => suspendMutation.mutate(u.id)} className="!text-amber-600 !text-xs">
                         <UserX className="h-3 w-3 mr-1" /> Suspend
                       </Button>
@@ -235,6 +327,53 @@ export default function AdminUsersPage() {
             </Button>
           </div>
         </div>
+      )}
+      {/* Entitlements Modal */}
+      {entitlementUser && entitlements && (
+        <Modal open={!!entitlementUser} onClose={() => setEntitlementUser(null)} title={`Limits — ${entitlementUser.displayName || entitlementUser.email}`}>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Max Pods Owned</label>
+                <input type="number" min={0} max={100} value={entitlements.maxPodsOwned}
+                  onChange={e => setEntitlements((p: any) => ({ ...p, maxPodsOwned: parseInt(e.target.value) || 0 }))}
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#1a1a2e]" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Max Sessions / Month</label>
+                <input type="number" min={0} max={500} value={entitlements.maxSessionsPerMonth}
+                  onChange={e => setEntitlements((p: any) => ({ ...p, maxSessionsPerMonth: parseInt(e.target.value) || 0 }))}
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#1a1a2e]" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Max Invites / Day</label>
+                <input type="number" min={0} max={1000} value={entitlements.maxInvitesPerDay}
+                  onChange={e => setEntitlements((p: any) => ({ ...p, maxInvitesPerDay: parseInt(e.target.value) || 0 }))}
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm text-[#1a1a2e] focus:outline-none focus:ring-2 focus:ring-[#1a1a2e]" />
+              </div>
+            </div>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={entitlements.canHostSessions}
+                  onChange={e => setEntitlements((p: any) => ({ ...p, canHostSessions: e.target.checked }))}
+                  className="h-4 w-4 rounded border-gray-300 text-rsn-red focus:ring-rsn-red" />
+                Can host events
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={entitlements.canCreatePods}
+                  onChange={e => setEntitlements((p: any) => ({ ...p, canCreatePods: e.target.checked }))}
+                  className="h-4 w-4 rounded border-gray-300 text-rsn-red focus:ring-rsn-red" />
+                Can create pods
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="secondary" onClick={() => setEntitlementUser(null)}>Cancel</Button>
+              <Button onClick={() => saveEntitlementsMutation.mutate()} isLoading={saveEntitlementsMutation.isPending}>
+                Save Limits
+              </Button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );
