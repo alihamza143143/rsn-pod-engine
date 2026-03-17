@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Heart, Users, Calendar, Star } from 'lucide-react';
+import { Handshake, Users, Calendar, ThumbsUp } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
@@ -26,7 +26,7 @@ export default function EncounterHistoryPage() {
           <h1 className="text-2xl font-bold text-[#1a1a2e]">People</h1>
           <p className="text-gray-500 text-sm mt-1">People you've connected with</p>
         </div>
-        <Heart className="h-8 w-8 text-rsn-red" />
+        <Handshake className="h-8 w-8 text-rsn-red" />
       </div>
 
       {/* Filter */}
@@ -43,7 +43,7 @@ export default function EncounterHistoryPage() {
           size="sm"
           onClick={() => setMutualOnly(true)}
         >
-          <Heart className="h-4 w-4 mr-1" /> Mutual Matches
+          <Handshake className="h-4 w-4 mr-1" /> Mutual Matches
         </Button>
       </div>
 
@@ -63,8 +63,8 @@ export default function EncounterHistoryPage() {
                   <div className="relative">
                     <Avatar src={e.avatarUrl} name={e.displayName || e.otherUserName || e.email || 'User'} size="md" />
                     {e.mutual && (
-                      <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-pink-500 flex items-center justify-center">
-                        <Heart className="h-3 w-3 text-white fill-white" />
+                      <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-emerald-500 flex items-center justify-center">
+                        <Handshake className="h-3 w-3 text-white" />
                       </div>
                     )}
                   </div>
@@ -81,8 +81,8 @@ export default function EncounterHistoryPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {e.rating && (
-                    <div className="flex items-center gap-1 text-yellow-400">
-                      <Star className="h-4 w-4 fill-yellow-400" />
+                    <div className="flex items-center gap-1 text-emerald-500">
+                      <ThumbsUp className="h-4 w-4 fill-emerald-500" />
                       <span className="text-sm">{e.rating}</span>
                     </div>
                   )}

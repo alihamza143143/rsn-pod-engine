@@ -498,4 +498,42 @@ router.put(
   }
 );
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// RECENT MATCHES (admin view with user details)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+router.get(
+  '/matches',
+  authenticate,
+  requireRole(UserRole.ADMIN),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const limit = Math.min(parseInt((req.query.limit as string) || '20', 10), 100);
+      const result = await query(
+        `SELECT m.id, m.round_number AS "roundNumber", m.status, m.score,
+                m.started_at AS "startedAt", m.ended_at AS "endedAt", m.created_at AS "createdAt",
+                s.title AS "sessionTitle", s.scheduled_at AS "sessionDate",
+                ua.display_name AS "participantAName", ua.email AS "participantAEmail",
+                ua.avatar_url AS "participantAAvatarUrl", ua.id AS "participantAId",
+                ub.display_name AS "participantBName", ub.email AS "participantBEmail",
+                ub.avatar_url AS "participantBAvatarUrl", ub.id AS "participantBId",
+                uc.display_name AS "participantCName", uc.email AS "participantCEmail",
+                uc.avatar_url AS "participantCAvatarUrl", uc.id AS "participantCId"
+         FROM matches m
+         JOIN sessions s ON s.id = m.session_id
+         JOIN users ua ON ua.id = m.participant_a_id
+         JOIN users ub ON ub.id = m.participant_b_id
+         LEFT JOIN users uc ON uc.id = m.participant_c_id
+         ORDER BY m.created_at DESC
+         LIMIT $1`,
+        [limit]
+      );
+      const response: ApiResponse = { success: true, data: result.rows };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 export default router;

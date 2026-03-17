@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Users, Mail, Hexagon, Activity, Calendar, BarChart3, Star, Zap, TrendingUp } from 'lucide-react';
+import { Shield, Users, Mail, Hexagon, Activity, Calendar, BarChart3, Star, Zap, TrendingUp, Handshake } from 'lucide-react';
 import axios from 'axios';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
+import Avatar from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/authStore';
 import api from '@/lib/api';
@@ -69,6 +70,12 @@ export default function AdminDashboardPage() {
   const { data: joinRequestsData } = useQuery({
     queryKey: ['admin-join-requests-pending'],
     queryFn: () => api.get('/join-requests?status=pending&pageSize=1').then(r => r.data),
+    enabled: isAdmin(user?.role),
+  });
+
+  const { data: recentMatches } = useQuery({
+    queryKey: ['admin-recent-matches'],
+    queryFn: () => api.get('/admin/matches?limit=10').then(r => r.data.data ?? []),
     enabled: isAdmin(user?.role),
   });
 
@@ -182,6 +189,50 @@ export default function AdminDashboardPage() {
           </div>
         </Card>
       </div>
+
+      {/* Recent Matches */}
+      {recentMatches && recentMatches.length > 0 && (
+        <Card className="animate-fade-in-up">
+          <h2 className="font-semibold text-[#1a1a2e] mb-4 flex items-center gap-2">
+            <Handshake className="h-5 w-5 text-emerald-600" /> Recent Matches ({stats?.totalMatches ?? 0} total)
+          </h2>
+          <div className="space-y-3">
+            {recentMatches.map((m: any) => (
+              <div key={m.id} className="flex items-center justify-between py-2.5 border-b border-gray-50 last:border-0">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center -space-x-2">
+                    <Avatar src={m.participantAAvatarUrl} name={m.participantAName || 'User A'} size="sm" />
+                    <Avatar src={m.participantBAvatarUrl} name={m.participantBName || 'User B'} size="sm" />
+                    {m.participantCName && (
+                      <Avatar src={m.participantCAvatarUrl} name={m.participantCName} size="sm" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-800">
+                      {m.participantAName || m.participantAEmail}
+                      <span className="text-gray-400 mx-1">&harr;</span>
+                      {m.participantBName || m.participantBEmail}
+                      {m.participantCName && (
+                        <><span className="text-gray-400 mx-1">&harr;</span>{m.participantCName}</>
+                      )}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      {m.sessionTitle} &middot; Round {m.roundNumber}
+                      {m.sessionDate && <> &middot; {new Date(m.sessionDate).toLocaleDateString()}</>}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {m.score && <span className="text-xs text-gray-500">Score: {parseFloat(m.score).toFixed(1)}</span>}
+                  <Badge variant={m.status === 'completed' ? 'success' : m.status === 'active' ? 'brand' : 'default'}>
+                    {m.status}
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
