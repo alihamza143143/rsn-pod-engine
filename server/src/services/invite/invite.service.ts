@@ -259,6 +259,8 @@ export async function createInvite(userId: string, input: CreateInviteInput, use
             isRead: false,
             createdAt: notifResult.rows[0].created_at,
             inviteStatus: 'pending',
+            podId: input.podId || null,
+            sessionId: input.sessionId || null,
           });
         } catch { /* socket push is non-fatal */ }
       }

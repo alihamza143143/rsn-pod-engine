@@ -15,7 +15,9 @@ router.get(
     try {
       const result = await query<any>(
         `SELECT n.id, n.type, n.title, n.body, n.link, n.is_read AS "isRead", n.created_at AS "createdAt",
-                i.status AS "inviteStatus"
+                i.status AS "inviteStatus",
+                i.pod_id AS "podId",
+                i.session_id AS "sessionId"
          FROM notifications n
          LEFT JOIN invites i ON n.type IN ('pod_invite', 'event_invite')
            AND n.link LIKE '/invite/%'

@@ -14,7 +14,9 @@ interface Notification {
   link?: string;
   isRead: boolean;
   createdAt: string;
-  inviteStatus?: string | null; // 'pending' | 'accepted' | 'revoked' | 'expired' — from server join
+  inviteStatus?: string | null; // 'pending' | 'accepted' | 'revoked' | 'expired'
+  podId?: string | null;
+  sessionId?: string | null;
 }
 
 const INVITE_TYPES = ['pod_invite', 'event_invite'];
@@ -24,6 +26,15 @@ function extractInviteCode(link?: string): string | null {
   if (!link) return null;
   const match = link.match(/^\/invite\/([A-Za-z0-9]+)$/);
   return match ? match[1] : null;
+}
+
+/** Get the in-app destination for a notification */
+function getDestination(n: Notification): string | null {
+  if (n.sessionId) return `/sessions/${n.sessionId}`;
+  if (n.podId) return `/pods/${n.podId}`;
+  // For non-invite notifications, use the link directly (if it's an in-app path)
+  if (n.link && !n.link.startsWith('/invite/')) return n.link;
+  return null;
 }
 
 export default function NotificationBell() {
@@ -111,25 +122,25 @@ export default function NotificationBell() {
       const res = await api.post(`/invites/${code}/accept`);
       addToast('Invite accepted!', 'success');
       if (!n.isRead) markRead(n.id);
-      // Update notification status locally so buttons disappear
       setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, inviteStatus: 'accepted', isRead: true } : x));
       invalidateInviteCaches();
       setOpen(false);
-      // Navigate to destination
+      // Navigate to the pod/session
       const data = res.data?.data;
-      if (data?.sessionId) navigate(`/sessions/${data.sessionId}`);
-      else if (data?.podId) navigate(`/pods/${data.podId}`);
-      else navigate('/sessions');
+      const dest = data?.sessionId ? `/sessions/${data.sessionId}` : data?.podId ? `/pods/${data.podId}` : null;
+      if (dest) navigate(dest);
     } catch (err: any) {
-      const code_ = err?.response?.data?.error?.code;
-      const msg = code_ === 'INVITE_REVOKED' ? 'This invite has been revoked'
-        : code_ === 'INVITE_EXPIRED' ? 'This invite has expired'
-        : code_ === 'INVITE_ALREADY_USED' ? 'This invite has been fully used'
-        : code_ === 'AUTH_FORBIDDEN' ? 'This invite was sent to a different email'
+      const errCode = err?.response?.data?.error?.code;
+      const msg = errCode === 'INVITE_REVOKED' ? 'This invite has been revoked'
+        : errCode === 'INVITE_EXPIRED' ? 'This invite has expired'
+        : errCode === 'INVITE_ALREADY_USED' ? 'This invite has been fully used'
+        : errCode === 'AUTH_FORBIDDEN' ? 'This invite was sent to a different email'
         : err?.response?.data?.error?.message || 'Failed to accept invite';
       addToast(msg, 'error');
-      // Update status so buttons reflect reality
-      setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, inviteStatus: code_ === 'INVITE_REVOKED' ? 'revoked' : code_ === 'INVITE_EXPIRED' ? 'expired' : x.inviteStatus } : x));
+      setNotifications(prev => prev.map(x => x.id === n.id ? {
+        ...x,
+        inviteStatus: errCode === 'INVITE_REVOKED' ? 'revoked' : errCode === 'INVITE_EXPIRED' ? 'expired' : x.inviteStatus,
+      } : x));
     } finally {
       setActionLoading(null);
     }
@@ -143,7 +154,6 @@ export default function NotificationBell() {
       await api.post(`/invites/${code}/decline`);
       addToast('Invite declined', 'info');
       if (!n.isRead) markRead(n.id);
-      // Update notification status locally
       setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, inviteStatus: 'revoked', isRead: true } : x));
       invalidateInviteCaches();
     } catch {
@@ -153,11 +163,45 @@ export default function NotificationBell() {
     }
   };
 
+  /**
+   * Click handler for notification title. Navigates based on type + status:
+   * - Invite (accepted) → go to the pod/session
+   * - Invite (pending) → do nothing (use Accept/Decline buttons)
+   * - Invite (declined/expired) → toast, no navigation
+   * - Other notification types → navigate to link destination
+   */
   const handleClick = (n: Notification) => {
     if (!n.isRead) markRead(n.id);
-    if (n.link) {
+
+    const isInvite = INVITE_TYPES.includes(n.type);
+
+    if (isInvite) {
+      if (n.inviteStatus === 'pending') {
+        // Don't navigate — user should use Accept/Decline buttons
+        return;
+      }
+      if (n.inviteStatus === 'revoked') {
+        addToast('This invite was declined', 'info');
+        return;
+      }
+      if (n.inviteStatus === 'expired') {
+        addToast('This invite has expired', 'info');
+        return;
+      }
+      // accepted — navigate to the pod/session
+      const dest = getDestination(n);
+      if (dest) {
+        setOpen(false);
+        navigate(dest);
+      }
+      return;
+    }
+
+    // Non-invite notifications — navigate to destination
+    const dest = getDestination(n);
+    if (dest) {
       setOpen(false);
-      navigate(n.link);
+      navigate(dest);
     }
   };
 
@@ -174,11 +218,11 @@ export default function NotificationBell() {
     return `${days}d ago`;
   };
 
-  /** Only show action buttons for invite notifications where the invite is still pending */
+  /** Only show action buttons for pending invites */
   const canActOnInvite = (n: Notification) =>
     INVITE_TYPES.includes(n.type) && extractInviteCode(n.link) && n.inviteStatus === 'pending';
 
-  /** Show a status label for non-pending invite notifications */
+  /** Status label for resolved invites */
   const getInviteStatusLabel = (n: Notification) => {
     if (!INVITE_TYPES.includes(n.type) || !n.inviteStatus || n.inviteStatus === 'pending') return null;
     if (n.inviteStatus === 'accepted') return { text: 'Accepted', color: 'text-emerald-500' };
@@ -222,6 +266,7 @@ export default function NotificationBell() {
               const showActions = canActOnInvite(n);
               const statusLabel = getInviteStatusLabel(n);
               const isActing = actionLoading === n.id;
+              const isClickable = !INVITE_TYPES.includes(n.type) || n.inviteStatus === 'accepted';
 
               return (
                 <div
@@ -229,11 +274,19 @@ export default function NotificationBell() {
                   className={`w-full text-left px-4 py-3 border-b border-gray-50 transition-colors ${!n.isRead ? 'bg-blue-50/40' : ''}`}
                 >
                   {/* Clickable title area */}
-                  <button onClick={() => handleClick(n)} className="w-full text-left hover:opacity-80">
+                  <button
+                    onClick={() => handleClick(n)}
+                    className={`w-full text-left ${isClickable ? 'hover:opacity-80 cursor-pointer' : 'cursor-default'}`}
+                  >
                     <div className="flex items-start gap-2">
                       {!n.isRead && <div className="mt-1.5 w-2 h-2 rounded-full bg-rsn-red shrink-0" />}
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm truncate ${!n.isRead ? 'font-medium text-gray-800' : 'text-gray-600'}`}>{n.title}</p>
+                        <div className="flex items-center gap-2">
+                          <p className={`text-sm truncate ${!n.isRead ? 'font-medium text-gray-800' : 'text-gray-600'}`}>{n.title}</p>
+                          {statusLabel && (
+                            <span className={`text-[10px] font-medium shrink-0 ${statusLabel.color}`}>{statusLabel.text}</span>
+                          )}
+                        </div>
                         {n.body && <p className="text-xs text-gray-400 truncate mt-0.5">{n.body}</p>}
                         <p className="text-[10px] text-gray-300 mt-1">{formatTime(n.createdAt)}</p>
                       </div>
@@ -259,13 +312,6 @@ export default function NotificationBell() {
                         <X className="h-3 w-3" />
                         Decline
                       </button>
-                    </div>
-                  )}
-
-                  {/* Status label for already-acted invites */}
-                  {statusLabel && (
-                    <div className="mt-1.5 ml-4">
-                      <span className={`text-xs font-medium ${statusLabel.color}`}>{statusLabel.text}</span>
                     </div>
                   )}
                 </div>
