@@ -84,8 +84,8 @@ Hi! We've shipped Change 1.5 — a major live event UX overhaul. Please test on 
   - Host can remove co-host rights at any time
 
   13. Add People During Live Event
-  - Host → invite button available during lobby or between rounds
-  - Opens the normal invite modal (email, platform search, shareable link)
+  - Host → "Copy Link" button available during lobby or between rounds
+  - Copies the event link to clipboard (host stays in the live event, no navigation away)
   - New participants join into lobby (not into an active round)
   - Does NOT require ending or restarting the event
 
@@ -126,8 +126,8 @@ Hi! We've shipped Change 1.5 — a major live event UX overhaul. Please test on 
   - Bell icon in the left sidebar (desktop) and top bar (mobile)
   - Red badge shows how many unread notifications you have
   - Click the bell → dropdown shows your recent notifications (last 20)
-  - Right now only invite notifications appear (when someone invites you to a pod or event)
-  - Click a notification → goes to that pod/event page and marks it as read
+  - Invite notifications show inline Accept / Decline buttons — no need to leave the page
+  - Click a notification title → goes to the invite acceptance page as fallback
   - "Mark all read" button at the top of the dropdown
 
   20. Pin / Highlight Speaker
@@ -143,6 +143,17 @@ Hi! We've shipped Change 1.5 — a major live event UX overhaul. Please test on 
   - Normal: the default layout (what you see today)
   - Spacious: bigger video tiles, fewer per row (good for small groups under 10)
   - Preference resets when you leave the event
+
+  22. Dark Theme — Live Event Pages
+  - All live event screens now use a dark Google Meet-style theme
+  - Lobby, video room, rating, recap, host dashboard — all dark
+  - Chat panel and participant list sidebars — dark with readable text
+  - Feedback textarea and chat input use white background so typed text is always visible
+
+  23. Invite Email Mismatch Fix
+  - Accept an invite link while logged in with a different email → clear error message shown
+  - Shows which email you're signed in as
+  - "Log Out & Sign In with Correct Email" button — logs you out and redirects back to the invite
 
   ---
 
