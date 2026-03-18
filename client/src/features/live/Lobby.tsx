@@ -25,6 +25,7 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
   const participants = useParticipants();
   const { localParticipant } = useLocalParticipant();
   const hostUserId = useSessionStore(s => s.hostUserId);
+  const lobbyDensity = useSessionStore(s => s.lobbyDensity);
   const cameraTracksRaw = tracks.filter(t => t.source === Track.Source.Camera);
 
   // Sort: host (local) tile always first in the grid
@@ -34,12 +35,17 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
     return aIsLocal - bIsLocal;
   });
 
-  // Responsive grid: up to 2 cols on mobile, 3 on tablet, 4-5 on desktop
-  const gridCols =
-    participants.length <= 2 ? 'grid-cols-1 sm:grid-cols-2'
-    : participants.length <= 4 ? 'grid-cols-2 sm:grid-cols-2'
-    : participants.length <= 9 ? 'grid-cols-2 sm:grid-cols-3'
-    : 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5';
+  // Responsive grid based on density preference
+  const n = participants.length;
+  const gridCols = lobbyDensity === 'compact'
+    ? (n <= 4 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-6')
+    : lobbyDensity === 'spacious'
+    ? (n <= 2 ? 'grid-cols-1' : n <= 4 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-2 sm:grid-cols-3')
+    : // normal (default)
+      n <= 2 ? 'grid-cols-1 sm:grid-cols-2'
+      : n <= 4 ? 'grid-cols-2 sm:grid-cols-2'
+      : n <= 9 ? 'grid-cols-2 sm:grid-cols-3'
+      : 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5';
 
   const handleHostMute = useCallback((targetIdentity: string, mute: boolean) => {
     if (!sessionId) return;
@@ -485,6 +491,7 @@ export default function Lobby({ isHost = false, sessionId }: { isHost?: boolean;
     return (
       <div className="flex-1 flex flex-col items-center p-6 gap-6 overflow-auto bg-gradient-to-b from-white to-gray-50/50">
         <LobbyStatusOverlay isHost={isHost} />
+        <DensityToggle />
         {isHost && <HostParticipantPanel sessionId={sessionId} />}
         <LiveKitRoom
           token={lobbyToken}
@@ -527,6 +534,37 @@ export default function Lobby({ isHost = false, sessionId }: { isHost?: boolean;
           ))}
         </div>
       </Card>
+    </div>
+  );
+}
+
+/* ─── Layout Density Toggle ──────────────────────────────────────────────── */
+
+function DensityToggle() {
+  const lobbyDensity = useSessionStore(s => s.lobbyDensity);
+  const setLobbyDensity = useSessionStore(s => s.setLobbyDensity);
+
+  const options = [
+    { value: 'compact' as const, label: 'Compact' },
+    { value: 'normal' as const, label: 'Normal' },
+    { value: 'spacious' as const, label: 'Spacious' },
+  ];
+
+  return (
+    <div className="flex items-center gap-1 bg-gray-100 rounded-full p-0.5">
+      {options.map(o => (
+        <button
+          key={o.value}
+          onClick={() => setLobbyDensity(o.value)}
+          className={`px-3 py-1 text-[11px] font-medium rounded-full transition-colors ${
+            lobbyDensity === o.value
+              ? 'bg-white text-gray-800 shadow-sm'
+              : 'text-gray-400 hover:text-gray-600'
+          }`}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   );
 }

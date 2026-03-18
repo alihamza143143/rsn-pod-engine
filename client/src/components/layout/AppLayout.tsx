@@ -7,6 +7,7 @@ import { useScrollReveal } from '@/hooks/useScrollReveal';
 import Avatar from '@/components/ui/Avatar';
 import Modal from '@/components/ui/Modal';
 import ToastContainer from '@/components/ui/Toast';
+import NotificationBell from '@/components/ui/NotificationBell';
 
 export default function AppLayout() {
   const { user, logout } = useAuthStore();
@@ -78,8 +79,11 @@ export default function AppLayout() {
     <div className="flex h-screen bg-white text-[#1a1a2e]">
       {/* Desktop sidebar */}
       <aside className="hidden md:flex flex-col w-60 border-r border-gray-200 bg-gray-50/60 backdrop-blur-sm">
-        <div className="px-5 py-5 flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => navigate('/')}>
-          <img src="/rsn-logo.png" alt="RSN" className="h-8 w-auto" />
+        <div className="px-5 py-5 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => navigate('/')}>
+            <img src="/rsn-logo.png" alt="RSN" className="h-8 w-auto" />
+          </div>
+          <NotificationBell />
         </div>
         {sidebarContent()}
         {user && (
@@ -102,9 +106,12 @@ export default function AppLayout() {
           <div className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity" onClick={() => navigate('/')}>
             <img src="/rsn-logo.png" alt="RSN" className="h-7 w-auto" />
           </div>
-          <button onClick={() => setMobileOpen(!mobileOpen)} className="text-gray-500 hover:text-gray-800 transition-colors">
-            {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-          </button>
+          <div className="flex items-center gap-2">
+            <NotificationBell />
+            <button onClick={() => setMobileOpen(!mobileOpen)} className="text-gray-500 hover:text-gray-800 transition-colors">
+              {mobileOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
+            </button>
+          </div>
         </header>
 
         {/* Mobile drawer */}

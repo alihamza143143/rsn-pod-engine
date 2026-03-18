@@ -60,30 +60,68 @@ function VideoStage() {
   useParticipants(); // Keep subscribed for LiveKit track updates
   const { localParticipant } = useLocalParticipant();
   const { currentPartners } = useSessionStore();
+  const [pinnedSid, setPinnedSid] = useState<string | null>(null);
 
   const cameraTracks = tracks.filter(t => t.source === Track.Source.Camera);
   const localTrack = cameraTracks.find(t => t.participant.sid === localParticipant.sid);
   const remoteTracks = cameraTracks.filter(t => t.participant.sid !== localParticipant.sid);
 
+  const allTiles = [
+    { trackRef: localTrack, label: 'You', sid: localParticipant.sid },
+    ...remoteTracks.map((rt, i) => ({
+      trackRef: rt,
+      label: rt.participant.name || currentPartners[i]?.displayName || 'Partner',
+      sid: rt.participant.sid,
+    })),
+  ];
+
+  const pinnedTile = pinnedSid ? allTiles.find(t => t.sid === pinnedSid) : null;
+  const unpinnedTiles = pinnedSid ? allTiles.filter(t => t.sid !== pinnedSid) : allTiles;
+
   const isTrio = currentPartners.length > 1;
-  // Dynamic grid: 2 people → 2-col, 3 people → 3-col on desktop
   const gridClass = isTrio
     ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
     : 'grid-cols-1 md:grid-cols-2';
 
+  if (pinnedTile) {
+    return (
+      <div className="flex-1 flex flex-col gap-3 max-h-[calc(100vh-200px)]">
+        {/* Pinned tile — large */}
+        <div className="flex-1 min-h-0 cursor-pointer" onClick={() => setPinnedSid(null)}>
+          <div className="relative h-full">
+            <VideoTile trackRef={pinnedTile.trackRef} label={pinnedTile.label} />
+            <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
+              Pinned · click to unpin
+            </div>
+          </div>
+        </div>
+        {/* Unpinned tiles — small row */}
+        <div className="flex gap-3 h-28 shrink-0">
+          {unpinnedTiles.map(t => (
+            <div key={t.sid} className="flex-1 cursor-pointer" onClick={() => setPinnedSid(t.sid)}>
+              <VideoTile trackRef={t.trackRef} label={t.label} />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={`flex-1 grid ${gridClass} gap-4 max-h-[calc(100vh-200px)]`}>
-      <VideoTile trackRef={localTrack} label="You" />
       {remoteTracks.length > 0 ? (
-        remoteTracks.map((rt, i) => {
-          const name = rt.participant.name || currentPartners[i]?.displayName || 'Partner';
-          return <VideoTile key={rt.participant.sid} trackRef={rt} label={name} />;
-        })
-      ) : (
-        // Show placeholder tiles for expected partners who haven't connected yet
-        currentPartners.map((p, i) => (
-          <VideoTile key={p.userId || i} label={p.displayName || 'Partner'} isWaiting />
+        allTiles.map(t => (
+          <div key={t.sid} className="cursor-pointer" onClick={() => setPinnedSid(t.sid)}>
+            <VideoTile trackRef={t.trackRef} label={t.label} />
+          </div>
         ))
+      ) : (
+        <>
+          <VideoTile trackRef={localTrack} label="You" />
+          {currentPartners.map((p, i) => (
+            <VideoTile key={p.userId || i} label={p.displayName || 'Partner'} isWaiting />
+          ))}
+        </>
       )}
     </div>
   );
@@ -93,24 +131,7 @@ function MediaControls() {
   const { localParticipant } = useLocalParticipant();
   const [micEnabled, setMicEnabled] = useState(true);
   const [camEnabled, setCamEnabled] = useState(true);
-  const { bgBlur, setBgBlur } = useSessionStore();
-
-  // Re-apply blur when entering a new room if user had it enabled
-  useEffect(() => {
-    if (!bgBlur) return;
-    const applyBlur = async () => {
-      try {
-        // @ts-ignore
-        const mod = await import('@livekit/track-processors');
-        const camPub = Array.from(localParticipant.trackPublications.values()).find(p => p.source === 'camera');
-        const camTrack = camPub?.track;
-        if (camTrack) await (camTrack as any).setProcessor(mod.BackgroundBlur(10));
-      } catch { /* package not installed */ }
-    };
-    // Small delay to let camera track initialize in new room
-    const timer = setTimeout(applyBlur, 1000);
-    return () => clearTimeout(timer);
-  }, [localParticipant]);
+  const [bgBlur, setBgBlur] = useState(false);
 
   const toggleMic = useCallback(async () => {
     await localParticipant.setMicrophoneEnabled(!micEnabled);

@@ -230,6 +230,24 @@ export async function createInvite(userId: string, input: CreateInviteInput, use
       targetName,
       inviteUrl: `${config.clientUrl}/invite/${code}`,
     }).catch(err => logger.warn({ err }, 'Failed to send invite email (non-fatal)'));
+
+    // Create in-app notification for existing users
+    const inviteeUser = await query<{ id: string }>(`SELECT id FROM users WHERE email = $1`, [input.inviteeEmail.toLowerCase()]);
+    if (inviteeUser.rows.length > 0) {
+      const notifType = input.type === InviteType.POD ? 'pod_invite' : 'event_invite';
+      const notifTitle = input.type === InviteType.POD
+        ? `${inviterName} invited you to ${targetName || 'a pod'}`
+        : `${inviterName} invited you to ${targetName || 'an event'}`;
+      const notifLink = input.type === InviteType.POD && input.podId
+        ? `/pods/${input.podId}`
+        : input.type === InviteType.SESSION && input.sessionId
+        ? `/sessions/${input.sessionId}`
+        : `/invite/${code}`;
+      await query(
+        `INSERT INTO notifications (user_id, type, title, body, link) VALUES ($1, $2, $3, $4, $5)`,
+        [inviteeUser.rows[0].id, notifType, notifTitle, `You have a new invite from ${inviterName}`, notifLink]
+      ).catch(err => logger.warn({ err }, 'Failed to create notification (non-fatal)'));
+    }
   }
 
   return result.rows[0];

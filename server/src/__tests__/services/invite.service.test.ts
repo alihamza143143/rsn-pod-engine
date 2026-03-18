@@ -94,6 +94,8 @@ describe('Invite Service', () => {
       mockQuery.mockResolvedValueOnce({ rows: [{ displayName: 'Host User' }], rowCount: 1 });
       // 11. Pod name lookup (for email)
       mockQuery.mockResolvedValueOnce({ rows: [{ name: 'Test Pod' }], rowCount: 1 });
+      // 12. Notification: look up invitee user id
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
       const invite = await inviteService.createInvite('user-host', {
         type: InviteType.POD,
