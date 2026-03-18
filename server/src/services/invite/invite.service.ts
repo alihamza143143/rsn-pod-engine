@@ -320,12 +320,23 @@ export async function acceptInvite(code: string, userId: string): Promise<Invite
     if (invite.inviteeEmail && invite.maxUses === 1) {
       // Only enforce email check for single-use targeted invites;
       // multi-use / shared links can be accepted by anyone.
+      // Use case-insensitive comparison — emails are case-insensitive per RFC 5321.
+      // Also check if this user received the in-app notification for this invite
+      // (notification was delivered based on email match at creation time).
       const userResult = await client.query(
         `SELECT email FROM users WHERE id = $1`,
         [userId]
       );
-      if (userResult.rows.length > 0 && userResult.rows[0].email !== invite.inviteeEmail) {
-        throw new AppError(403, 'AUTH_FORBIDDEN', 'This invite was sent to a different email address');
+      if (userResult.rows.length > 0 && userResult.rows[0].email.toLowerCase() !== invite.inviteeEmail.toLowerCase()) {
+        // Before rejecting, check if this user was the notification target —
+        // the system already validated the email match when creating the notification.
+        const wasNotified = await client.query(
+          `SELECT id FROM notifications WHERE user_id = $1 AND link = $2 LIMIT 1`,
+          [userId, `/invite/${code}`]
+        );
+        if (wasNotified.rows.length === 0) {
+          throw new AppError(403, 'AUTH_FORBIDDEN', 'This invite was sent to a different email address');
+        }
       }
     }
 
