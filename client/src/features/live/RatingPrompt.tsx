@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef } from 'react';
-import Card from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useToastStore } from '@/stores/toastStore';
@@ -45,12 +44,12 @@ function PartnerRatingForm({ partnerName, toUserId, matchId, onSubmitted, onSkip
   };
 
   return (
-    <Card className="max-w-md w-full text-center animate-fade-in-up">
+    <div className="max-w-md w-full text-center animate-fade-in-up bg-[#292a2d] rounded-2xl p-8">
       {totalPartners > 1 && (
-        <p className="text-xs text-gray-400 mb-2">Partner {partnerIndex + 1} of {totalPartners}</p>
+        <p className="text-xs text-gray-500 mb-2">Partner {partnerIndex + 1} of {totalPartners}</p>
       )}
-      <h2 className="text-xl font-bold text-[#1a1a2e] mb-2">Rate your conversation</h2>
-      <p className="text-gray-500 mb-6">
+      <h2 className="text-xl font-bold text-white mb-2">Rate your conversation</h2>
+      <p className="text-gray-400 mb-6">
         How was your chat with {partnerName}?
       </p>
 
@@ -62,7 +61,7 @@ function PartnerRatingForm({ partnerName, toUserId, matchId, onSubmitted, onSkip
             className="transition-transform hover:scale-110"
           >
             <Star
-              className={`h-10 w-10 ${n <= rating ? 'text-amber-400 fill-amber-400' : 'text-gray-300'}`}
+              className={`h-10 w-10 ${n <= rating ? 'text-amber-400 fill-amber-400' : 'text-gray-600'}`}
             />
           </button>
         ))}
@@ -71,7 +70,7 @@ function PartnerRatingForm({ partnerName, toUserId, matchId, onSubmitted, onSkip
       <button
         onClick={() => setMeetAgain(!meetAgain)}
         className={`flex items-center justify-center gap-2 w-full py-2 rounded-lg border transition-colors mb-4 ${
-          meetAgain ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-gray-200 text-gray-500 hover:border-gray-300'
+          meetAgain ? 'border-emerald-500 bg-emerald-500/10 text-emerald-400' : 'border-white/10 text-gray-400 hover:border-white/20'
         }`}
       >
         <UserCheck className="h-4 w-4" />
@@ -82,10 +81,10 @@ function PartnerRatingForm({ partnerName, toUserId, matchId, onSubmitted, onSkip
         Submit Rating
       </Button>
 
-      <button onClick={onSkip} className="text-sm text-gray-400 hover:text-gray-600 mt-4 transition-colors">
+      <button onClick={onSkip} className="text-sm text-gray-500 hover:text-gray-300 mt-4 transition-colors">
         Skip
       </button>
-    </Card>
+    </div>
   );
 }
 
@@ -101,26 +100,26 @@ function RatingConfirmation({ meetAgain, isLastPartner, isLastRound, onContinue 
   }, [onContinue, meetAgain]);
 
   return (
-    <Card className="max-w-md w-full text-center animate-fade-in-up">
+    <div className="max-w-md w-full text-center animate-fade-in-up bg-[#292a2d] rounded-2xl p-8">
       <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-emerald-500/20 text-emerald-400 mb-3">
         <CheckCircle className="h-7 w-7" />
       </div>
-      <h2 className="text-lg font-bold text-[#1a1a2e] mb-1">Rating submitted!</h2>
+      <h2 className="text-lg font-bold text-white mb-1">Rating submitted!</h2>
       {meetAgain && (
-        <div className="flex items-center justify-center gap-2 mt-2 px-4 py-2 rounded-lg bg-pink-50 border border-pink-200">
-          <Heart className="h-4 w-4 text-rsn-red" />
-          <p className="text-sm text-pink-600">
+        <div className="flex items-center justify-center gap-2 mt-2 px-4 py-2 rounded-lg bg-pink-500/10 border border-pink-500/20">
+          <Heart className="h-4 w-4 text-pink-400" />
+          <p className="text-sm text-pink-300">
             You want to meet again! We'll let you know if it's mutual.
           </p>
         </div>
       )}
       {isLastPartner && isLastRound && (
-        <div className="flex items-center justify-center gap-2 mt-3 text-sm text-gray-500">
+        <div className="flex items-center justify-center gap-2 mt-3 text-sm text-gray-400">
           <Loader2 className="h-4 w-4 animate-spin" />
           <span>Last round complete! Event wrapping up...</span>
         </div>
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -171,29 +170,29 @@ export default function RatingPrompt(_props: Props) {
 
   if (allDone) {
     return (
-      <div className="flex-1 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full text-center animate-fade-in-up">
+      <div className="flex-1 flex items-center justify-center p-4 bg-[#202124]">
+        <div className="max-w-md w-full text-center animate-fade-in-up bg-[#292a2d] rounded-2xl p-8">
           <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-500/20 text-emerald-400 mb-4">
             <CheckCircle className="h-8 w-8" />
           </div>
-          <h2 className="text-xl font-bold text-[#1a1a2e] mb-2">
+          <h2 className="text-xl font-bold text-white mb-2">
             {partners.length > 1 ? 'All Ratings Submitted!' : 'Rating Submitted!'}
           </h2>
           <div className="flex items-center justify-center gap-2">
-            <Loader2 className="h-4 w-4 text-gray-500 animate-spin" />
-            <p className="text-gray-500">
+            <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />
+            <p className="text-gray-400">
               {isLastRound
                 ? 'Event wrapping up — preparing your recap...'
                 : 'Waiting for the next round to begin...'}
             </p>
           </div>
           {timerSeconds > 0 && (
-            <div className="flex items-center justify-center gap-1.5 mt-3 text-sm text-gray-400">
+            <div className="flex items-center justify-center gap-1.5 mt-3 text-sm text-gray-500">
               <Clock className="h-3.5 w-3.5" />
               <span>{timerSeconds}s remaining</span>
             </div>
           )}
-        </Card>
+        </div>
       </div>
     );
   }
@@ -207,9 +206,9 @@ export default function RatingPrompt(_props: Props) {
   const advance = () => setCurrentPartnerIdx(prev => prev + 1);
 
   return (
-    <div className="flex-1 flex items-center justify-center p-4">
+    <div className="flex-1 flex items-center justify-center p-4 bg-[#202124]">
       {timerSeconds > 0 && (
-        <div className="absolute top-4 right-4 flex items-center gap-1.5 text-sm text-gray-400 bg-white/80 backdrop-blur-sm rounded-full px-3 py-1">
+        <div className="absolute top-4 right-4 flex items-center gap-1.5 text-sm text-gray-400 bg-[#292a2d]/80 backdrop-blur-sm rounded-full px-3 py-1">
           <Clock className="h-3.5 w-3.5" />
           <span>{timerSeconds}s</span>
         </div>

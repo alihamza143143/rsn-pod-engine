@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Card from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
 import { Spinner } from '@/components/ui/Spinner';
@@ -32,15 +31,15 @@ interface Props { sessionId: string; }
 function InterestBadge({ connection }: { connection: Connection }) {
   if (connection.mutualMeetAgain) {
     return (
-      <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-rsn-red/10 border border-rsn-red/20 text-rsn-red font-medium">
-        <Heart className="h-3 w-3 fill-rsn-red" />
+      <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-pink-500/10 border border-pink-500/20 text-pink-400 font-medium">
+        <Heart className="h-3 w-3 fill-pink-400" />
         <span>Mutual Match!</span>
       </div>
     );
   }
   if (connection.meetAgain && !connection.theirMeetAgain) {
     return (
-      <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-600">
+      <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400">
         <UserCheck className="h-3 w-3" />
         <span>You expressed interest</span>
       </div>
@@ -48,7 +47,7 @@ function InterestBadge({ connection }: { connection: Connection }) {
   }
   if (!connection.meetAgain && connection.theirMeetAgain) {
     return (
-      <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-600">
+      <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400">
         <UserCheck className="h-3 w-3" />
         <span>They expressed interest</span>
       </div>
@@ -99,32 +98,32 @@ export default function SessionComplete({ sessionId }: Props) {
   }, [sessionId]);
 
   return (
-    <div className="flex-1 overflow-y-auto p-4">
+    <div className="flex-1 overflow-y-auto p-4 bg-[#202124]">
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Header */}
-        <Card className="text-center">
+        <div className="text-center bg-[#292a2d] rounded-2xl p-8">
           <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-500/20 text-emerald-400 mb-4">
             <CheckCircle className="h-8 w-8" />
           </div>
-          <h2 className="text-xl font-bold text-[#1a1a2e] mb-2">Event Complete!</h2>
-          <p className="text-gray-500">Great networking! Here's your recap.</p>
-        </Card>
+          <h2 className="text-xl font-bold text-white mb-2">Event Complete!</h2>
+          <p className="text-gray-400">Great networking! Here's your recap.</p>
+        </div>
 
         {loading ? (
           <div className="flex justify-center py-8"><Spinner /></div>
         ) : fetchError ? (
-          <Card className="text-center">
-            <p className="text-gray-500 mb-3">Could not load your recap.</p>
+          <div className="text-center bg-[#292a2d] rounded-2xl p-8">
+            <p className="text-gray-400 mb-3">Could not load your recap.</p>
             <Button size="sm" variant="secondary" onClick={fetchRecap}>Retry</Button>
-          </Card>
+          </div>
         ) : (
           <>
             {/* Participation summary */}
             {totalRounds > 0 && (
-              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 border border-gray-200">
-                <CircleDot className="h-4 w-4 text-rsn-red shrink-0" />
-                <p className="text-sm text-gray-600">
-                  You attended <span className="font-semibold text-[#1a1a2e]">{roundsAttended}</span> round{roundsAttended !== 1 ? 's' : ''} out of <span className="font-semibold text-[#1a1a2e]">{totalRounds}</span> total
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5">
+                <CircleDot className="h-4 w-4 text-blue-400 shrink-0" />
+                <p className="text-sm text-gray-400">
+                  You attended <span className="font-semibold text-white">{roundsAttended}</span> round{roundsAttended !== 1 ? 's' : ''} out of <span className="font-semibold text-white">{totalRounds}</span> total
                 </p>
               </div>
             )}
@@ -132,52 +131,52 @@ export default function SessionComplete({ sessionId }: Props) {
             {/* Stats summary */}
             {stats && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <Card className="text-center py-3">
-                  <Users className="h-5 w-5 text-rsn-red mx-auto mb-1" />
-                  <p className="text-2xl font-bold text-[#1a1a2e]">{connections.length}</p>
-                  <p className="text-xs text-gray-400">People Met</p>
-                </Card>
-                <Card className="text-center py-3">
-                  <Heart className="h-5 w-5 text-rsn-red mx-auto mb-1" />
-                  <p className="text-2xl font-bold text-[#1a1a2e]">{stats.mutualMeetAgainCount}</p>
-                  <p className="text-xs text-gray-400">Mutual Matches</p>
-                </Card>
-                <Card className="text-center py-3">
+                <div className="text-center py-3 bg-[#292a2d] rounded-xl p-4">
+                  <Users className="h-5 w-5 text-blue-400 mx-auto mb-1" />
+                  <p className="text-2xl font-bold text-white">{connections.length}</p>
+                  <p className="text-xs text-gray-500">People Met</p>
+                </div>
+                <div className="text-center py-3 bg-[#292a2d] rounded-xl p-4">
+                  <Heart className="h-5 w-5 text-pink-400 mx-auto mb-1" />
+                  <p className="text-2xl font-bold text-white">{stats.mutualMeetAgainCount}</p>
+                  <p className="text-xs text-gray-500">Mutual Matches</p>
+                </div>
+                <div className="text-center py-3 bg-[#292a2d] rounded-xl p-4">
                   <Star className="h-5 w-5 text-amber-400 mx-auto mb-1" />
-                  <p className="text-2xl font-bold text-[#1a1a2e]">{stats.avgQualityScore.toFixed(1)}</p>
-                  <p className="text-xs text-gray-400">Avg Rating</p>
-                </Card>
-                <Card className="text-center py-3">
-                  <p className="text-2xl font-bold text-[#1a1a2e]">{Math.round(stats.meetAgainRate * 100)}%</p>
-                  <p className="text-xs text-gray-400">Meet Again Rate</p>
-                </Card>
+                  <p className="text-2xl font-bold text-white">{stats.avgQualityScore.toFixed(1)}</p>
+                  <p className="text-xs text-gray-500">Avg Rating</p>
+                </div>
+                <div className="text-center py-3 bg-[#292a2d] rounded-xl p-4">
+                  <p className="text-2xl font-bold text-white">{Math.round(stats.meetAgainRate * 100)}%</p>
+                  <p className="text-xs text-gray-500">Meet Again Rate</p>
+                </div>
               </div>
             )}
 
             {/* Mutual connections */}
             {mutualConnections.length > 0 && (
-              <Card>
-                <h3 className="text-sm font-semibold text-rsn-red uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <Heart className="h-4 w-4 fill-rsn-red" />
+              <div className="bg-[#292a2d] rounded-2xl p-6">
+                <h3 className="text-sm font-semibold text-pink-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <Heart className="h-4 w-4 fill-pink-400" />
                   Mutual Matches
                 </h3>
                 <div className="space-y-3">
                   {mutualConnections.map(c => (
-                    <a key={c.userId} href={`/profile/${c.userId}`} className="flex items-center gap-3 p-2 rounded-lg bg-rsn-red/5 border border-rsn-red/20 hover:bg-rsn-red/10 transition-colors">
+                    <a key={c.userId} href={`/profile/${c.userId}`} className="flex items-center gap-3 p-2 rounded-lg bg-pink-500/10 border border-pink-500/20 hover:bg-pink-500/15 transition-colors">
                       <Avatar src={c.avatarUrl} name={c.displayName || 'User'} size="sm" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-gray-800 font-medium truncate">{c.displayName}</p>
+                        <p className="text-gray-200 font-medium truncate">{c.displayName}</p>
                         {(c.jobTitle || c.company) && (
-                          <p className="text-xs text-gray-400 truncate">
+                          <p className="text-xs text-gray-500 truncate">
                             {[c.jobTitle, c.company].filter(Boolean).join(' · ')}
                           </p>
                         )}
                       </div>
-                      <Heart className="h-4 w-4 text-rsn-red fill-rsn-red shrink-0" />
+                      <Heart className="h-4 w-4 text-pink-400 fill-pink-400 shrink-0" />
                     </a>
                   ))}
                 </div>
-              </Card>
+              </div>
             )}
 
             {/* All people met — grouped by round */}
@@ -188,18 +187,18 @@ export default function SessionComplete({ sessionId }: Props) {
               }, {});
               const rounds = Object.keys(byRound).map(Number).sort((a, b) => a - b);
               return rounds.map(round => (
-                <Card key={round}>
+                <div key={round} className="bg-[#292a2d] rounded-2xl p-6">
                   <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-rsn-red/10 text-rsn-red text-[10px] font-bold">{round}</span>
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-500/10 text-blue-400 text-[10px] font-bold">{round}</span>
                     Round {round}
                   </h3>
                   <div className="space-y-2">
                     {byRound[round].map(c => (
-                      <a key={`${c.userId}-${c.roundNumber}`} href={`/profile/${c.userId}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50">
+                      <a key={`${c.userId}-${c.roundNumber}`} href={`/profile/${c.userId}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5">
                         <Avatar src={c.avatarUrl} name={c.displayName || 'User'} size="sm" />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-gray-800 font-medium truncate">{c.displayName}</p>
+                            <p className="text-gray-200 font-medium truncate">{c.displayName}</p>
                             <InterestBadge connection={c} />
                           </div>
                         </div>
@@ -212,7 +211,7 @@ export default function SessionComplete({ sessionId }: Props) {
                       </a>
                     ))}
                   </div>
-                </Card>
+                </div>
               ));
             })()}
           </>
@@ -257,30 +256,31 @@ function FeedbackPrompt({ sessionId }: { sessionId: string }) {
 
   if (submitted) {
     return (
-      <Card className="text-center py-4">
+      <div className="text-center py-4 bg-[#292a2d] rounded-2xl p-6">
         <CheckCircle className="h-5 w-5 text-emerald-500 mx-auto mb-1" />
-        <p className="text-sm text-gray-600">Thanks for your feedback!</p>
-      </Card>
+        <p className="text-sm text-gray-400">Thanks for your feedback!</p>
+      </div>
     );
   }
 
   return (
-    <Card>
-      <h3 className="text-sm font-semibold text-gray-700 mb-2">Is there anything you want to add?</h3>
-      <p className="text-xs text-gray-400 mb-3">Share your thoughts about this event — what worked, what could be better.</p>
+    <div className="bg-[#292a2d] rounded-2xl p-6">
+      <h3 className="text-sm font-semibold text-gray-200 mb-2">Is there anything you want to add?</h3>
+      <p className="text-xs text-gray-500 mb-3">Share your thoughts about this event — what worked, what could be better.</p>
       <textarea
         value={text}
         onChange={e => setText(e.target.value)}
         placeholder="Your feedback..."
         maxLength={2000}
         rows={3}
-        className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-rsn-red/30 resize-none"
+        style={{ color: '#000000' }}
+        className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/30 resize-none placeholder-gray-400"
       />
       <div className="flex justify-end mt-2">
         <Button size="sm" onClick={handleSubmit} disabled={!text.trim() || submitting}>
           {submitting ? 'Sending...' : 'Submit Feedback'}
         </Button>
       </div>
-    </Card>
+    </div>
   );
 }

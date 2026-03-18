@@ -238,11 +238,7 @@ export async function createInvite(userId: string, input: CreateInviteInput, use
       const notifTitle = input.type === InviteType.POD
         ? `${inviterName} invited you to ${targetName || 'a pod'}`
         : `${inviterName} invited you to ${targetName || 'an event'}`;
-      const notifLink = input.type === InviteType.POD && input.podId
-        ? `/pods/${input.podId}`
-        : input.type === InviteType.SESSION && input.sessionId
-        ? `/sessions/${input.sessionId}`
-        : `/invite/${code}`;
+      const notifLink = `/invite/${code}`;
       await query(
         `INSERT INTO notifications (user_id, type, title, body, link) VALUES ($1, $2, $3, $4, $5)`,
         [inviteeUser.rows[0].id, notifType, notifTitle, `You have a new invite from ${inviterName}`, notifLink]

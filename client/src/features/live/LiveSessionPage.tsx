@@ -72,20 +72,20 @@ export default function LiveSessionPage() {
   if (!sessionId) return <PageLoader />;
 
   return (
-    <div className="h-screen bg-white flex flex-col">
-      {/* Top bar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-gray-50/60">
-        <h2 className="text-sm font-medium text-gray-600 truncate">{session?.title || 'Live Event'}</h2>
-        <div className="flex items-center gap-2">
+    <div className="h-screen bg-[#202124] flex flex-col">
+      {/* Top bar — Google Meet style: minimal, dark */}
+      <div className="flex items-center justify-between px-4 py-2 bg-[#202124] border-b border-white/10">
+        <h2 className="text-sm font-medium text-gray-300 truncate">{session?.title || 'Live Event'}</h2>
+        <div className="flex items-center gap-1">
           <button
             onClick={() => setParticipantListOpen(!participantListOpen)}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors px-2 py-1 rounded-lg hover:bg-gray-100"
+            className={`p-2 rounded-full transition-colors ${participantListOpen ? 'bg-white/20 text-white' : 'text-gray-400 hover:text-white hover:bg-white/10'}`}
           >
             <Users className="h-4 w-4" />
           </button>
           <button
             onClick={handleLeave}
-            className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-red-400 transition-colors px-2 py-1 rounded-lg hover:bg-gray-100"
+            className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-red-400 transition-colors px-3 py-1.5 rounded-full hover:bg-white/10"
           >
             <LogOut className="h-4 w-4" /> Leave
           </button>
@@ -99,42 +99,42 @@ export default function LiveSessionPage() {
 
       {/* Broadcast banner */}
       {broadcasts.length > 0 && (
-        <div className="bg-rsn-red-light border-b border-rsn-red/30 px-4 py-2 text-center">
-          <p className="text-sm font-medium text-rsn-red"><LinkifyText text={broadcasts[broadcasts.length - 1]} /></p>
+        <div className="bg-blue-600/90 px-4 py-2 text-center">
+          <p className="text-sm font-medium text-white"><LinkifyText text={broadcasts[broadcasts.length - 1]} /></p>
         </div>
       )}
 
       {/* Connection status banner */}
       {connectionStatus === 'connecting' && (
-        <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 flex items-center justify-center gap-2">
-          <Loader2 className="h-4 w-4 text-amber-400 animate-spin" />
-          <p className="text-sm text-amber-300">Connecting to event...</p>
+        <div className="bg-white/5 px-4 py-2 flex items-center justify-center gap-2">
+          <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />
+          <p className="text-sm text-gray-400">Connecting to event...</p>
         </div>
       )}
       {connectionStatus === 'reconnecting' && (
-        <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-2 flex items-center justify-center gap-2">
+        <div className="bg-amber-500/10 px-4 py-2 flex items-center justify-center gap-2">
           <WifiOff className="h-4 w-4 text-amber-400" />
-          <p className="text-sm text-amber-300">Connection lost — reconnecting...</p>
+          <p className="text-sm text-amber-400">Connection lost — reconnecting...</p>
         </div>
       )}
       {connectionStatus === 'disconnected' && (
-        <div className="bg-red-500/20 border-b border-red-500/30 px-4 py-2 flex items-center justify-center gap-2">
+        <div className="bg-red-500/10 px-4 py-2 flex items-center justify-center gap-2">
           <WifiOff className="h-4 w-4 text-red-400" />
-          <p className="text-sm text-red-300">Disconnected from server.</p>
+          <p className="text-sm text-red-400">Disconnected from server.</p>
           <button
             onClick={() => connectSocket()}
-            className="ml-2 flex items-center gap-1 text-sm text-red-300 hover:text-red-100 underline"
+            className="ml-2 flex items-center gap-1 text-sm text-red-400 hover:text-red-300 underline"
           >
             <RefreshCw className="h-3 w-3" /> Reconnect
           </button>
         </div>
       )}
 
-      {/* Transition status overlay — host sees host-specific messages */}
+      {/* Transition status overlay */}
       {transitionStatus && (
-        <div className="bg-[#1a1a2e]/10 border-b border-brand-500/20 px-4 py-2 flex items-center justify-center gap-2">
-          <Loader2 className="h-4 w-4 text-rsn-red animate-spin" />
-          <p className="text-sm text-rsn-red">
+        <div className="bg-white/5 px-4 py-2 flex items-center justify-center gap-2">
+          <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />
+          <p className="text-sm text-gray-300">
             {transitionStatus === 'starting_session' && (isHost ? 'Starting event — generating matches...' : 'Event is starting — preparing your first match...')}
             {transitionStatus === 'preparing_match' && (isHost ? 'Sending participants to breakout rooms...' : "You've been matched! Connecting to your partner...")}
             {transitionStatus === 'round_ending' && (isHost ? 'Ending round — collecting participants...' : 'Round ending — wrapping up...')}
@@ -146,10 +146,10 @@ export default function LiveSessionPage() {
 
       {/* Error banner — dismissable */}
       {sessionError && (
-        <div className="bg-red-500/20 border-b border-red-500/30 px-4 py-2 flex items-center justify-center gap-2">
+        <div className="bg-red-500/15 px-4 py-2 flex items-center justify-center gap-2">
           <AlertCircle className="h-4 w-4 text-red-400" />
-          <p className="text-sm text-red-300">{sessionError}</p>
-          <button onClick={() => setError(null)} className="ml-2 text-red-400 hover:text-red-200">
+          <p className="text-sm text-red-400">{sessionError}</p>
+          <button onClick={() => setError(null)} className="ml-2 text-red-400 hover:text-red-300">
             <X className="h-3 w-3" />
           </button>
         </div>
@@ -172,7 +172,7 @@ export default function LiveSessionPage() {
 
         {/* Participant list panel */}
         {participantListOpen && !chatOpen && (
-          <div className="w-full sm:w-72 sm:min-w-[288px] flex-shrink-0 h-full">
+          <div className="w-full sm:w-72 sm:min-w-[288px] flex-shrink-0 h-full border-l border-white/10">
             <ParticipantList onClose={() => setParticipantListOpen(false)} sessionId={sessionId} />
           </div>
         )}
@@ -191,15 +191,15 @@ export default function LiveSessionPage() {
           </div>
         )}
 
-        {/* Chat toggle button -- positioned above host controls bar */}
+        {/* Chat toggle button */}
         {!chatOpen && phase !== 'complete' && (
           <button
             onClick={() => setChatOpen(true)}
-            className="absolute bottom-20 right-4 z-20 p-3 bg-rsn-red text-white rounded-full shadow-lg hover:bg-rsn-red/90 transition-all hover:scale-105"
+            className="absolute bottom-20 right-4 z-20 p-3 bg-[#3c4043] text-white rounded-full shadow-lg hover:bg-[#4a4e51] transition-all"
           >
             <MessageCircle className="h-5 w-5" />
             {unreadChatCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[20px] h-5 flex items-center justify-center bg-amber-500 text-white text-[11px] font-bold rounded-full px-1">
+              <span className="absolute -top-1 -right-1 min-w-[20px] h-5 flex items-center justify-center bg-blue-500 text-white text-[11px] font-bold rounded-full px-1">
                 {unreadChatCount > 9 ? '9+' : unreadChatCount}
               </span>
             )}
@@ -216,13 +216,13 @@ export default function LiveSessionPage() {
 /* ─── Persistent Event State Banner ─────────────────────────────────────── */
 
 const STATE_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  scheduled:        { label: 'Waiting for participants', icon: <Users className="h-3.5 w-3.5" />, color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  lobby_open:       { label: 'Lobby — waiting for host to start round', icon: <Mic className="h-3.5 w-3.5" />, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  round_active:     { label: 'Round {round} Live', icon: <Radio className="h-3.5 w-3.5 animate-pulse" />, color: 'bg-rsn-red/10 text-rsn-red border-rsn-red/20' },
-  round_rating:     { label: 'Rating — Round {round}', icon: <ArrowLeftRight className="h-3.5 w-3.5" />, color: 'bg-amber-50 text-amber-700 border-amber-200' },
-  round_transition: { label: 'Back in lobby', icon: <Shuffle className="h-3.5 w-3.5" />, color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  closing_lobby:    { label: 'Event wrapping up', icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />, color: 'bg-gray-100 text-gray-600 border-gray-200' },
-  completed:        { label: 'Event completed', icon: <CheckCircle2 className="h-3.5 w-3.5" />, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+  scheduled:        { label: 'Waiting for participants', icon: <Users className="h-3.5 w-3.5" />, color: 'bg-white/5 text-gray-400' },
+  lobby_open:       { label: 'Lobby — waiting for host to start round', icon: <Mic className="h-3.5 w-3.5" />, color: 'bg-white/5 text-gray-300' },
+  round_active:     { label: 'Round {round} Live', icon: <Radio className="h-3.5 w-3.5 animate-pulse" />, color: 'bg-red-500/10 text-red-400' },
+  round_rating:     { label: 'Rating — Round {round}', icon: <ArrowLeftRight className="h-3.5 w-3.5" />, color: 'bg-amber-500/10 text-amber-400' },
+  round_transition: { label: 'Back in lobby', icon: <Shuffle className="h-3.5 w-3.5" />, color: 'bg-white/5 text-gray-300' },
+  closing_lobby:    { label: 'Event wrapping up', icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />, color: 'bg-white/5 text-gray-400' },
+  completed:        { label: 'Event completed', icon: <CheckCircle2 className="h-3.5 w-3.5" />, color: 'bg-emerald-500/10 text-emerald-400' },
 };
 
 function EventStateBanner({ sessionStatus, currentRound, totalRounds }: { sessionStatus: string; currentRound: number; totalRounds: number; phase?: string }) {
@@ -237,7 +237,7 @@ function EventStateBanner({ sessionStatus, currentRound, totalRounds }: { sessio
   const showRoundInfo = roundInfo && !label.includes(`Round ${currentRound || 1}`);
 
   return (
-    <div className={`px-4 py-1.5 border-b flex items-center justify-center gap-2 text-xs font-medium ${config.color}`}>
+    <div className={`px-4 py-1.5 flex items-center justify-center gap-2 text-xs font-medium ${config.color}`}>
       {config.icon}
       <span>{label}{showRoundInfo ? roundInfo : ''}</span>
     </div>

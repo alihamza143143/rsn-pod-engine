@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSessionStore } from '@/stores/sessionStore';
-import Card from '@/components/ui/Card';
 import { formatTime } from '@/lib/utils';
 import { Video, Clock, Mic, MicOff, VideoOff, Wifi, UserX, Loader2, ArrowLeft, Sparkles } from 'lucide-react';
 import { getSocket } from '@/lib/socket';
@@ -29,13 +28,13 @@ function ConnectionIndicator() {
 function VideoTile({ trackRef, label, isWaiting }: { trackRef?: any; label: string; isWaiting?: boolean }) {
   const hasVideo = trackRef?.publication?.track;
   return (
-    <div className="relative rounded-xl overflow-hidden bg-gray-50 aspect-video flex items-center justify-center border border-gray-200">
+    <div className="relative rounded-xl overflow-hidden bg-[#3c4043] aspect-video flex items-center justify-center">
       {hasVideo ? (
         <VideoTrack trackRef={trackRef} className="h-full w-full object-cover" />
       ) : (
         <div className="flex flex-col items-center gap-2">
-          <div className={`h-20 w-20 rounded-full bg-gray-100 flex items-center justify-center ${isWaiting ? 'animate-pulse' : ''}`}>
-            <Video className={`h-8 w-8 ${isWaiting ? 'text-gray-300' : 'text-gray-400'}`} />
+          <div className={`h-20 w-20 rounded-full bg-[#5f6368] flex items-center justify-center ${isWaiting ? 'animate-pulse' : ''}`}>
+            <Video className={`h-8 w-8 ${isWaiting ? 'text-gray-500' : 'text-gray-400'}`} />
           </div>
           <p className="text-gray-400 text-sm">
             {isWaiting ? 'Waiting for partner...' : `${label} — camera off`}
@@ -147,13 +146,13 @@ function MediaControls() {
     <div className="flex items-center gap-3">
       <button
         onClick={toggleMic}
-        className={`p-2 rounded-full transition-colors ${micEnabled ? 'bg-gray-200 hover:bg-surface-600 text-gray-800' : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'}`}
+        className={`p-2 rounded-full transition-colors ${micEnabled ? 'bg-[#3c4043] hover:bg-[#4a4e51] text-white' : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'}`}
       >
         {micEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}
       </button>
       <button
         onClick={toggleCam}
-        className={`p-2 rounded-full transition-colors ${camEnabled ? 'bg-gray-200 hover:bg-surface-600 text-gray-800' : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'}`}
+        className={`p-2 rounded-full transition-colors ${camEnabled ? 'bg-[#3c4043] hover:bg-[#4a4e51] text-white' : 'bg-red-500/20 text-red-400 hover:bg-red-500/30'}`}
       >
         {camEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
       </button>
@@ -177,7 +176,7 @@ function MediaControls() {
           }
         }}
         title="Background blur"
-        className={`p-2 rounded-full transition-colors ${bgBlur ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-200 hover:bg-surface-600 text-gray-800'}`}
+        className={`p-2 rounded-full transition-colors ${bgBlur ? 'bg-indigo-500/20 text-indigo-400' : 'bg-[#3c4043] hover:bg-[#4a4e51] text-white'}`}
       >
         <Sparkles className="h-5 w-5" />
       </button>
@@ -203,48 +202,48 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
 
   if (isByeRound) {
     return (
-      <div className="flex-1 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full text-center">
-          <div className="h-20 w-20 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
+      <div className="flex-1 flex items-center justify-center p-4 bg-[#202124]">
+        <div className="max-w-md w-full text-center bg-[#292a2d] rounded-2xl p-8">
+          <div className="h-20 w-20 rounded-full bg-[#3c4043] flex items-center justify-center mx-auto mb-4">
             <Video className="h-8 w-8 text-gray-400" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">Bye Round</h3>
-          <p className="text-gray-500 text-sm">
+          <h3 className="text-lg font-semibold text-white mb-2">Bye Round</h3>
+          <p className="text-gray-400 text-sm">
             You have a bye this round — sit tight, you'll be matched in the next round!
           </p>
-          <p className="text-gray-400 text-xs mt-3">Round {currentRound} of {totalRounds}</p>
-        </Card>
+          <p className="text-gray-500 text-xs mt-3">Round {currentRound} of {totalRounds}</p>
+        </div>
       </div>
     );
   }
 
   if (connectionError) {
     return (
-      <div className="flex-1 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full text-center">
+      <div className="flex-1 flex items-center justify-center p-4 bg-[#202124]">
+        <div className="max-w-md w-full text-center bg-[#292a2d] rounded-2xl p-8">
           <div className="h-20 w-20 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
             <VideoOff className="h-8 w-8 text-red-400" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-800 mb-2">Video Error</h3>
-          <p className="text-gray-500 text-sm mb-3">{connectionError}</p>
+          <h3 className="text-lg font-semibold text-white mb-2">Video Error</h3>
+          <p className="text-gray-400 text-sm mb-3">{connectionError}</p>
           <button
             onClick={() => { setConnectionError(null); setLiveKitToken('', ''); }}
-            className="text-sm text-rsn-red hover:text-rsn-red-hover underline"
+            className="text-sm text-blue-400 hover:text-blue-300 underline"
           >Retry</button>
-        </Card>
+        </div>
       </div>
     );
   }
 
   if (!liveKitToken || !livekitUrl) {
     return (
-      <div className="flex-1 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full text-center">
-          <div className="h-16 w-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4 animate-pulse">
+      <div className="flex-1 flex items-center justify-center p-4 bg-[#202124]">
+        <div className="max-w-md w-full text-center bg-[#292a2d] rounded-2xl p-8">
+          <div className="h-16 w-16 rounded-full bg-[#3c4043] flex items-center justify-center mx-auto mb-4 animate-pulse">
             <Video className="h-6 w-6 text-gray-400" />
           </div>
-          <p className="text-gray-500 text-sm">Connecting to video room — please wait...</p>
-        </Card>
+          <p className="text-gray-400 text-sm">Connecting to video room — please wait...</p>
+        </div>
       </div>
     );
   }
@@ -287,32 +286,32 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
     >
       {/* Connecting to partner overlay */}
       {transitionStatus === 'preparing_match' && (
-        <div className="bg-[#1a1a2e]/10 border-b border-brand-500/20 px-4 py-2 flex items-center justify-center gap-2">
-          <div className="h-4 w-4 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
-          <p className="text-sm text-rsn-red">Connecting to your partner...</p>
+        <div className="bg-white/5 px-4 py-2 flex items-center justify-center gap-2">
+          <div className="h-4 w-4 border-2 border-blue-400 border-t-transparent rounded-full animate-spin" />
+          <p className="text-sm text-gray-300">Connecting to your partner...</p>
         </div>
       )}
 
       {/* Partner disconnected overlay */}
       {partnerDisconnected && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-center justify-center gap-2">
-          <UserX className="h-4 w-4 text-amber-500" />
-          <p className="text-sm text-amber-700 font-medium">Your partner left the room.</p>
+        <div className="bg-amber-500/10 px-4 py-3 flex items-center justify-center gap-2">
+          <UserX className="h-4 w-4 text-amber-400" />
+          <p className="text-sm text-amber-400 font-medium">Your partner left the room.</p>
           <button
             onClick={() => { if (sessionId) getSocket()?.emit('participant:leave_conversation', { sessionId }); }}
-            className="ml-2 px-3 py-1 text-xs font-medium bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-full transition-colors"
+            className="ml-2 px-3 py-1 text-xs font-medium bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-full transition-colors"
           >
             Back to Lobby
           </button>
-          <Loader2 className="h-4 w-4 text-amber-500 animate-spin" />
+          <Loader2 className="h-4 w-4 text-amber-400 animate-spin" />
         </div>
       )}
 
-      <div className="flex-1 flex flex-col p-4 gap-4">
+      <div className="flex-1 flex flex-col p-4 gap-4 bg-[#202124]">
         {/* Timer bar */}
-        <div className="flex items-center justify-between bg-gray-50/60 rounded-xl px-4 py-3 border border-gray-200">
+        <div className="flex items-center justify-between bg-[#292a2d] rounded-xl px-4 py-3">
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500">Round {currentRound} of {totalRounds}</span>
+            <span className="text-sm text-gray-400">Round {currentRound} of {totalRounds}</span>
             <ConnectionIndicator />
             <MediaControls />
             {!isHost && (
@@ -322,7 +321,7 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
                     if (sessionId) getSocket()?.emit('participant:leave_conversation', { sessionId });
                   }
                 }}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs text-gray-500 hover:text-rsn-red hover:bg-red-50 rounded-lg transition-colors border border-gray-200"
+                className="flex items-center gap-1 px-2.5 py-1 text-xs text-gray-400 hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors"
               >
                 <ArrowLeft className="h-3 w-3" /> Back to Lobby
               </button>
@@ -338,13 +337,13 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
               (timerVisibility === 'last_120s' && timerSeconds <= 120);
             if (timerVisibility === 'hidden' && !isHost) return null;
             if (!showTimer) return (
-              <div className="flex items-center gap-2 text-gray-400">
+              <div className="flex items-center gap-2 text-gray-500">
                 <Clock className="h-4 w-4" />
                 <span className="text-sm">Timer hidden until final stretch</span>
               </div>
             );
             return (
-              <div className="flex items-center gap-2 text-gray-800">
+              <div className="flex items-center gap-2 text-gray-300">
                 <Clock className="h-4 w-4" />
                 <span className={`font-mono text-lg ${timerSeconds <= 30 ? 'text-amber-400' : ''} ${timerSeconds <= 10 ? 'text-red-400 animate-pulse' : ''}`}>
                   {formatTime(timerSeconds)}

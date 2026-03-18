@@ -59,18 +59,18 @@ export default function ChatPanel({ sessionId, onClose }: ChatPanelProps) {
   const visibleMessages = chatMessages;
 
   return (
-    <div className="flex flex-col h-full bg-white border-l border-gray-200">
+    <div className="flex flex-col h-full bg-[#292a2d] border-l border-white/10">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 bg-gray-50/80">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
         <div className="flex items-center gap-2">
-          <h3 className="text-sm font-semibold text-gray-700">Chat</h3>
-          <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">
+          <h3 className="text-sm font-semibold text-gray-200">Chat</h3>
+          <span className="text-xs text-gray-400 bg-white/10 px-2 py-0.5 rounded-full">
             {scope === 'room' ? 'Room' : 'Everyone'}
           </span>
         </div>
         <button
           onClick={onClose}
-          className="p-1 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+          className="p-1 text-gray-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
         >
           <X className="h-4 w-4" />
         </button>
@@ -80,7 +80,7 @@ export default function ChatPanel({ sessionId, onClose }: ChatPanelProps) {
       <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
         {visibleMessages.length === 0 && (
           <div className="flex items-center justify-center h-full">
-            <p className="text-sm text-gray-400">No messages yet. Say hello!</p>
+            <p className="text-sm text-gray-500">No messages yet. Say hello!</p>
           </div>
         )}
         {visibleMessages.map((msg) => (
@@ -95,7 +95,7 @@ export default function ChatPanel({ sessionId, onClose }: ChatPanelProps) {
 
       {/* Input */}
       {phase !== 'complete' && (
-        <div className="px-4 py-3 border-t border-gray-200 bg-gray-50/50">
+        <div className="px-4 py-3 border-t border-white/10">
           <div className="flex items-center gap-2">
             <input
               ref={inputRef}
@@ -106,12 +106,12 @@ export default function ChatPanel({ sessionId, onClose }: ChatPanelProps) {
               placeholder={scope === 'room' ? 'Message your room...' : 'Message everyone...'}
               maxLength={500}
               style={{ color: '#000000' }}
-              className="flex-1 px-3 py-2 text-sm bg-white border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-rsn-red/30 focus:border-rsn-red/50 placeholder-gray-400"
+              className="flex-1 px-3 py-2 text-sm bg-white border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 placeholder-gray-400"
             />
             <button
               onClick={handleSend}
               disabled={!input.trim()}
-              className="p-2 rounded-full bg-rsn-red text-white hover:bg-rsn-red/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              className="p-2 rounded-full bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               <Send className="h-4 w-4" />
             </button>
@@ -133,21 +133,21 @@ function MessageBubble({ msg, isOwn }: { msg: ChatMessage; isOwn: boolean }) {
       <div
         className={`max-w-[85%] rounded-2xl px-3.5 py-2 ${
           isOwn
-            ? 'bg-rsn-red/10 text-gray-800'
+            ? 'bg-blue-600/20 text-gray-200'
             : msg.isHost
-            ? 'bg-amber-50 border-l-2 border-amber-400 text-gray-800'
-            : 'bg-gray-100 text-gray-800'
+            ? 'bg-amber-500/10 border-l-2 border-amber-500 text-gray-200'
+            : 'bg-white/10 text-gray-200'
         }`}
       >
         {!isOwn && (
           <div className="flex items-center gap-1.5 mb-0.5">
-            <a href={`/profile/${msg.userId}`} className={`text-xs font-semibold hover:underline ${msg.isHost ? 'text-amber-600' : 'text-gray-500'}`}>
+            <a href={`/profile/${msg.userId}`} className={`text-xs font-semibold hover:underline ${msg.isHost ? 'text-amber-400' : 'text-gray-400'}`}>
               {msg.displayName}
-              {msg.isHost && <span className="ml-1 text-[10px] font-medium text-amber-500">HOST</span>}
+              {msg.isHost && <span className="ml-1 text-[10px] font-medium text-amber-400">HOST</span>}
             </a>
           </div>
         )}
-        <p className="text-sm leading-relaxed break-words"><Linkify text={msg.message} /></p>
+        <p className="text-sm leading-relaxed break-words text-gray-200"><Linkify text={msg.message} /></p>
         <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mt-0.5`}>
           <span className="text-[10px] text-gray-400">
             {msg.scope === 'room' && <span className="mr-1">Room</span>}

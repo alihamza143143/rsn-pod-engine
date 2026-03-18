@@ -65,20 +65,20 @@ export default function ReactionBar({ sessionId }: { sessionId: string }) {
             style={{ left: `${r.x}%` }}
           >
             <span className="text-3xl">{r.emoji}</span>
-            <span className="block text-[10px] text-gray-500 font-medium mt-0.5">{r.displayName}</span>
+            <span className="block text-[10px] text-gray-300 font-medium mt-0.5">{r.displayName}</span>
           </div>
         ))}
       </div>
 
       {/* Reaction buttons */}
-      <div className="flex items-center gap-1 bg-white/90 backdrop-blur-sm rounded-full border border-gray-200 px-2 py-1 shadow-sm">
+      <div className="flex items-center gap-1 bg-[#3c4043]/90 backdrop-blur-sm rounded-full px-2 py-1">
         {REACTIONS.map(({ type, emoji, label }) => (
           <button
             key={type}
             onClick={() => sendReaction(type)}
             disabled={cooldown}
             title={label}
-            className="p-1.5 rounded-full hover:bg-gray-100 active:scale-90 transition-all disabled:opacity-40 text-lg leading-none"
+            className="p-1.5 rounded-full hover:bg-white/10 active:scale-90 transition-all disabled:opacity-40 text-lg leading-none"
           >
             {emoji}
           </button>

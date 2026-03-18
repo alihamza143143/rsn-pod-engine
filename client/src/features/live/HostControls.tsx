@@ -1,13 +1,15 @@
 import { useSessionStore } from '@/stores/sessionStore';
 import { Button } from '@/components/ui/Button';
-import { Play, Square, Loader2, Users, Radio, Shuffle, Check, X, Pause, SkipForward, MessageSquare, UserMinus, RefreshCw, UserPlus } from 'lucide-react';
+import { Play, Square, Loader2, Users, Radio, Shuffle, Check, X, Pause, SkipForward, MessageSquare, UserMinus, RefreshCw, Link2 } from 'lucide-react';
 import { getSocket } from '@/lib/socket';
 import { useState } from 'react';
+import { useToastStore } from '@/stores/toastStore';
 
 interface Props { sessionId: string; }
 
 export default function HostControls({ sessionId }: Props) {
   const { participants, phase, currentRound, totalRounds, transitionStatus, sessionStatus, matchPreview, setMatchPreview, roundDashboard } = useSessionStore();
+  const { addToast } = useToastStore();
   const socket = getSocket();
   const [generating, setGenerating] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -96,11 +98,11 @@ export default function HostControls({ sessionId }: Props) {
 
   if (isSessionEnding) {
     return (
-      <div className="border-t border-gray-200 bg-gray-50/60 backdrop-blur-sm p-4">
+      <div className="border-t border-white/10 bg-[#292a2d] p-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <Loader2 className="h-4 w-4 text-rsn-red animate-spin" />
-            <p className="text-sm text-gray-600 font-medium">Event ending — preparing recap...</p>
+            <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />
+            <p className="text-sm text-gray-300 font-medium">Event ending — preparing recap...</p>
           </div>
           <div className="flex gap-2">
             <Button size="sm" variant="ghost" onClick={() => setShowBroadcast(!showBroadcast)} title="Send announcement to all">
@@ -116,25 +118,25 @@ export default function HostControls({ sessionId }: Props) {
   }
 
   return (
-    <div className="border-t border-gray-200 bg-gray-50/60 backdrop-blur-sm">
+    <div className="border-t border-white/10 bg-[#292a2d]">
       {/* Match preview panel with interactive controls */}
       {matchPreview && (
-        <div className="border-b border-gray-200 bg-white px-4 py-3 max-h-72 overflow-y-auto">
+        <div className="border-b border-white/10 bg-[#1e1f22] px-4 py-3 max-h-72 overflow-y-auto">
           <div className="max-w-4xl mx-auto">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-sm font-semibold text-gray-700">
+              <h3 className="text-sm font-semibold text-gray-300">
                 Round {matchPreview.roundNumber} Preview — {matchPreview.matches.length} match{matchPreview.matches.length !== 1 ? 'es' : ''}
               </h3>
               <div className="flex items-center gap-1.5">
                 {swapMode && (
-                  <span className="text-xs text-rsn-red bg-rsn-red-light px-2 py-0.5 rounded-full">
+                  <span className="text-xs text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full">
                     Select second person to swap
                   </span>
                 )}
                 <button
                   onClick={regenerateMatches}
                   disabled={generating}
-                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-rsn-red transition-colors px-2 py-1 rounded hover:bg-gray-100"
+                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors px-2 py-1 rounded hover:bg-white/10"
                   title="Re-run matching algorithm"
                 >
                   {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
@@ -144,25 +146,25 @@ export default function HostControls({ sessionId }: Props) {
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               {matchPreview.matches.map((m, i) => (
-                <div key={i} className="flex items-center gap-1 text-xs bg-gray-50 rounded-lg px-2 py-1.5">
+                <div key={i} className="flex items-center gap-1 text-xs bg-white/5 rounded-lg px-2 py-1.5">
                   <button
                     onClick={() => handleParticipantClick(m.participantA.userId)}
                     className={`font-medium truncate px-1.5 py-0.5 rounded transition-colors ${
                       swapMode === m.participantA.userId
-                        ? 'bg-rsn-red-100 text-rsn-red ring-1 ring-rsn-red-300'
-                        : 'text-gray-700 hover:bg-rsn-red-light hover:text-rsn-red'
+                        ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30'
+                        : 'text-gray-300 hover:bg-white/10 hover:text-white'
                     }`}
                     title="Click to swap this person"
                   >
                     {m.participantA.displayName}
                   </button>
-                  <span className="text-gray-400 shrink-0">×</span>
+                  <span className="text-gray-500 shrink-0">×</span>
                   <button
                     onClick={() => handleParticipantClick(m.participantB.userId)}
                     className={`font-medium truncate px-1.5 py-0.5 rounded transition-colors ${
                       swapMode === m.participantB.userId
-                        ? 'bg-rsn-red-100 text-rsn-red ring-1 ring-rsn-red-300'
-                        : 'text-gray-700 hover:bg-rsn-red-light hover:text-rsn-red'
+                        ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30'
+                        : 'text-gray-300 hover:bg-white/10 hover:text-white'
                     }`}
                     title="Click to swap this person"
                   >
@@ -175,8 +177,8 @@ export default function HostControls({ sessionId }: Props) {
                         onClick={() => handleParticipantClick(m.participantC!.userId)}
                         className={`font-medium truncate px-1.5 py-0.5 rounded transition-colors ${
                           swapMode === m.participantC!.userId
-                            ? 'bg-rsn-red-100 text-rsn-red ring-1 ring-rsn-red-300'
-                            : 'text-gray-700 hover:bg-rsn-red-light hover:text-rsn-red'
+                            ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30'
+                            : 'text-gray-300 hover:bg-white/10 hover:text-white'
                         }`}
                         title="Click to swap this person"
                       >
@@ -185,12 +187,12 @@ export default function HostControls({ sessionId }: Props) {
                     </>
                   )}
                   {m.isTrio && (
-                    <span className="text-[10px] text-rsn-red bg-rsn-red-light px-1.5 py-0.5 rounded-full shrink-0">
+                    <span className="text-[10px] text-blue-400 bg-blue-500/10 px-1.5 py-0.5 rounded-full shrink-0">
                       Trio
                     </span>
                   )}
                   {m.metBefore && (
-                    <span className="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full shrink-0" title={`Met ${m.timesMet} time${m.timesMet !== 1 ? 's' : ''} before`}>
+                    <span className="text-[10px] text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-full shrink-0" title={`Met ${m.timesMet} time${m.timesMet !== 1 ? 's' : ''} before`}>
                       Met {m.timesMet}x
                     </span>
                   )}
@@ -223,11 +225,11 @@ export default function HostControls({ sessionId }: Props) {
               ))}
             </div>
             {matchPreview.byeParticipants.length > 0 && (
-              <p className="text-xs text-amber-600 mt-2">
+              <p className="text-xs text-amber-400 mt-2">
                 Bye: {matchPreview.byeParticipants.map(p => p.displayName).join(', ')}
               </p>
             )}
-            <p className="text-[10px] text-gray-400 mt-1.5">
+            <p className="text-[10px] text-gray-500 mt-1.5">
               Click names to swap between matches. Use <UserMinus className="h-2.5 w-2.5 inline" /> to exclude from round.
             </p>
           </div>
@@ -236,8 +238,8 @@ export default function HostControls({ sessionId }: Props) {
 
       {/* Announcement input */}
       {showBroadcast && (
-        <div className="border-b border-gray-200 bg-amber-50 px-4 py-3">
-          <p className="text-xs font-semibold text-amber-600 mb-2 max-w-4xl mx-auto">Announcement — visible as a banner to all participants</p>
+        <div className="border-b border-white/10 bg-amber-500/10 px-4 py-3">
+          <p className="text-xs font-semibold text-amber-400 mb-2 max-w-4xl mx-auto">Announcement — visible as a banner to all participants</p>
           <div className="max-w-4xl mx-auto flex gap-2">
             <input
               type="text"
@@ -246,7 +248,7 @@ export default function HostControls({ sessionId }: Props) {
               onKeyDown={e => e.key === 'Enter' && sendBroadcast()}
               placeholder="Type an announcement..."
               style={{ color: '#000000' }}
-              className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+              className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
               autoFocus
             />
             <Button size="sm" onClick={sendBroadcast} disabled={!broadcastMsg.trim()}>Send</Button>
@@ -261,7 +263,7 @@ export default function HostControls({ sessionId }: Props) {
       <div className="p-4">
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="flex items-center gap-2 text-xs text-gray-400">
               <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {Math.max(0, participants.length - 1)}</span>
               {roundDashboard && isInRound ? (() => {
                 const inRooms = roundDashboard.rooms.reduce((n, r) => n + r.participants.length, 0);
@@ -270,24 +272,24 @@ export default function HostControls({ sessionId }: Props) {
                 const inLobby = Math.max(0, participants.length - 1 - inRooms - byeCount);
                 return (
                   <>
-                    <span className="text-gray-300">|</span>
-                    <span className="text-green-600">{inRooms} in rooms</span>
-                    {inLobby > 0 && <span className="text-blue-500">{inLobby} in lobby</span>}
-                    {byeCount > 0 && <span className="text-amber-500">{byeCount} bye</span>}
+                    <span className="text-gray-600">|</span>
+                    <span className="text-green-400">{inRooms} in rooms</span>
+                    {inLobby > 0 && <span className="text-blue-400">{inLobby} in lobby</span>}
+                    {byeCount > 0 && <span className="text-amber-400">{byeCount} bye</span>}
                     {disconnected > 0 && <span className="text-red-400">{disconnected} disconnected</span>}
                   </>
                 );
               })() : sessionStarted && (
                 <>
-                  <span className="text-gray-300">|</span>
-                  <span className="text-blue-500">{Math.max(0, participants.length - 1)} in lobby</span>
+                  <span className="text-gray-600">|</span>
+                  <span className="text-blue-400">{Math.max(0, participants.length - 1)} in lobby</span>
                 </>
               )}
             </div>
             {isInRound && (
               <div className="flex items-center gap-1.5">
                 <Radio className="h-3.5 w-3.5 text-red-500 animate-pulse" />
-                <span className="text-sm text-gray-600 font-medium">
+                <span className="text-sm text-gray-300 font-medium">
                   Round {currentRound}/{totalRounds}
                   {phase === 'rating' && ' — Rating'}
                   {isPaused && ' — Paused'}
@@ -295,7 +297,7 @@ export default function HostControls({ sessionId }: Props) {
               </div>
             )}
             {!isInRound && sessionStarted && !allRoundsDone && (
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-gray-500">
                 {currentRound > 0 ? `After Round ${currentRound}/${totalRounds}` : 'Lobby'}
               </span>
             )}
@@ -319,7 +321,7 @@ export default function HostControls({ sessionId }: Props) {
                   )}
                 </Button>
               ) : (
-                <span className="text-xs text-gray-400 px-2 py-1.5 border border-gray-200 rounded-lg">
+                <span className="text-xs text-gray-500 px-2 py-1.5 border border-white/10 rounded-lg">
                   Need {2 - eligibleCount} more participant{eligibleCount === 1 ? '' : 's'} to match
                 </span>
               )
@@ -358,10 +360,13 @@ export default function HostControls({ sessionId }: Props) {
               </Button>
             )}
 
-            {/* Invite people during lobby/transition */}
+            {/* Copy event link for inviting people */}
             {(sessionStatus === 'lobby_open' || sessionStatus === 'round_transition') && (
-              <Button size="sm" variant="secondary" onClick={() => window.open(`/sessions/${sessionId}`, '_blank')}>
-                <UserPlus className="h-4 w-4 mr-1" /> Invite
+              <Button size="sm" variant="secondary" onClick={() => {
+                const link = `${window.location.origin}/sessions/${sessionId}`;
+                navigator.clipboard.writeText(link).then(() => addToast('Event link copied to clipboard!', 'success'));
+              }}>
+                <Link2 className="h-4 w-4 mr-1" /> Copy Link
               </Button>
             )}
 

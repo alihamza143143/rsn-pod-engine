@@ -9,21 +9,21 @@ import { Users, Calendar, LogIn, UserPlus, Clock, User, AlertCircle } from 'luci
 import api from '@/lib/api';
 
 /** Map accept-invite error codes to user-friendly messages */
-function getAcceptErrorMessage(err: any): string {
+function getAcceptErrorMessage(err: any): { message: string; code?: string } {
   const code = err?.response?.data?.error?.code;
   const message = err?.response?.data?.error?.message;
 
   switch (code) {
     case 'INVITE_REVOKED':
-      return 'This invite has been revoked by the sender';
+      return { message: 'This invite has been revoked by the sender', code };
     case 'INVITE_EXPIRED':
-      return 'This invite has expired and is no longer valid';
+      return { message: 'This invite has expired and is no longer valid', code };
     case 'INVITE_ALREADY_USED':
-      return 'This invite has already been used the maximum number of times';
+      return { message: 'This invite has already been used the maximum number of times', code };
     case 'AUTH_FORBIDDEN':
-      return 'This invite was sent to a different email address';
+      return { message: 'This invite was sent to a different email address. Log out and sign in with the correct email to accept it.', code };
     default:
-      return message || 'Failed to accept invite';
+      return { message: message || 'Failed to accept invite', code };
   }
 }
 
@@ -52,6 +52,7 @@ export default function InviteAcceptPage() {
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const autoAcceptedRef = useRef(false);
 
   useEffect(() => {
@@ -70,6 +71,7 @@ export default function InviteAcceptPage() {
   const accept = useCallback(async () => {
     setAccepting(true);
     setError(null);
+    setErrorCode(null);
     try {
       const res = await api.post(`/invites/${code}/accept`);
       addToast('Invite accepted!', 'success');
@@ -84,9 +86,10 @@ export default function InviteAcceptPage() {
         navigate(destination, { replace: true });
       }
     } catch (err: any) {
-      const msg = getAcceptErrorMessage(err);
-      setError(msg);
-      addToast(msg, 'error');
+      const { message, code: errCode } = getAcceptErrorMessage(err);
+      setError(message);
+      setErrorCode(errCode || null);
+      addToast(message, 'error');
     } finally {
       setAccepting(false);
     }
@@ -161,13 +164,32 @@ export default function InviteAcceptPage() {
             {error && (
               <div className="flex items-start gap-2 rounded-lg bg-red-50 border border-red-100 p-3 mb-4 text-left">
                 <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
-                <p className="text-red-600 text-sm">{error}</p>
+                <div className="flex-1">
+                  <p className="text-red-600 text-sm">{error}</p>
+                  {errorCode === 'AUTH_FORBIDDEN' && user && (
+                    <p className="text-xs text-gray-500 mt-1">
+                      You're signed in as <span className="font-medium">{user.email}</span>
+                    </p>
+                  )}
+                </div>
               </div>
             )}
             {user ? (
-              <Button onClick={accept} isLoading={accepting} className="w-full">
-                {error ? 'Try Again' : 'Accept Invite'}
-              </Button>
+              errorCode === 'AUTH_FORBIDDEN' ? (
+                <Button
+                  onClick={async () => {
+                    await useAuthStore.getState().logout();
+                    navigate(`/login?redirect=/invite/${code}&inviteCode=${code}`, { replace: true });
+                  }}
+                  className="w-full"
+                >
+                  <LogIn className="h-4 w-4 mr-2" /> Log Out & Sign In with Correct Email
+                </Button>
+              ) : (
+                <Button onClick={accept} isLoading={accepting} className="w-full">
+                  {error ? 'Try Again' : 'Accept Invite'}
+                </Button>
+              )
             ) : (
               <div className="space-y-3">
                 <p className="text-xs text-gray-400 mb-2">
