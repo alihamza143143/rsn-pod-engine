@@ -360,9 +360,11 @@ export default function HostControls({ sessionId }: Props) {
               </Button>
             )}
 
-            {/* Invite people — opens session page in new tab */}
+            {/* Invite people — opens session page in popup window (host stays in event) */}
             {(sessionStatus === 'lobby_open' || sessionStatus === 'round_transition') && (
-              <Button size="sm" variant="secondary" onClick={() => window.open(`/sessions/${sessionId}`, '_blank')}>
+              <Button size="sm" variant="secondary" onClick={() => {
+                window.open(`/sessions/${sessionId}`, 'rsn-invite', 'width=700,height=700,scrollbars=yes,resizable=yes');
+              }}>
                 <UserPlus className="h-4 w-4 mr-1" /> Invite
               </Button>
             )}

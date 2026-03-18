@@ -315,16 +315,31 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
             <ConnectionIndicator />
             <MediaControls />
             {!isHost && (
-              <button
-                onClick={() => {
-                  if (confirm('Leave this conversation and return to the lobby? You can be rematched in the next round.')) {
-                    if (sessionId) getSocket()?.emit('participant:leave_conversation', { sessionId });
-                  }
-                }}
-                className="flex items-center gap-1 px-2.5 py-1 text-xs text-gray-400 hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors"
-              >
-                <ArrowLeft className="h-3 w-3" /> Back to Lobby
-              </button>
+              <>
+                <button
+                  onClick={() => {
+                    if (confirm('Leave this conversation and return to the lobby? You can be rematched in the next round.')) {
+                      if (sessionId) getSocket()?.emit('participant:leave_conversation', { sessionId });
+                    }
+                  }}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs text-gray-400 hover:text-amber-400 hover:bg-white/5 rounded-lg transition-colors"
+                >
+                  <ArrowLeft className="h-3 w-3" /> Leave Round
+                </button>
+                <button
+                  onClick={() => {
+                    if (confirm('Leave this event entirely? You will not be able to rejoin.')) {
+                      if (sessionId) getSocket()?.emit('session:leave', { sessionId });
+                      import('@/lib/socket').then(m => m.disconnectSocket());
+                      import('@/stores/sessionStore').then(m => m.useSessionStore.getState().reset());
+                      window.location.href = '/sessions';
+                    }
+                  }}
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs text-gray-400 hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors"
+                >
+                  <ArrowLeft className="h-3 w-3" /> Leave Event
+                </button>
+              </>
             )}
           </div>
           {(() => {

@@ -80,6 +80,9 @@ export interface ServerToClientEvents {
   // Timer sync
   'timer:sync': (data: { segmentType: string; secondsRemaining: number; totalSeconds: number }) => void;
 
+  // Notifications (real-time push)
+  'notification:new': (data: { id: string; type: string; title: string; body?: string; link?: string; isRead: boolean; createdAt: string; inviteStatus?: string }) => void;
+
   // Errors
   'error': (data: { code: string; message: string }) => void;
 }

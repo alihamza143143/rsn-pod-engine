@@ -3,6 +3,7 @@ import { Bell, Check, CheckCircle, X, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useToastStore } from '@/stores/toastStore';
+import { getSocket } from '@/lib/socket';
 import api from '@/lib/api';
 
 interface Notification {
@@ -58,6 +59,18 @@ export default function NotificationBell() {
   };
 
   useEffect(() => { fetchNotifications(); }, []);
+
+  // Listen for real-time notifications via socket
+  useEffect(() => {
+    const socket = getSocket();
+    if (!socket) return;
+    const handler = (data: Notification) => {
+      setNotifications(prev => [data, ...prev].slice(0, 20));
+      setUnreadCount(prev => prev + 1);
+    };
+    socket.on('notification:new', handler);
+    return () => { socket.off('notification:new', handler); };
+  }, []);
 
   const handleOpen = () => {
     if (!open && btnRef.current) {

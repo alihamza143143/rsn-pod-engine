@@ -114,15 +114,14 @@ export default function useSessionSocket(sessionId: string) {
           store.setPhase('rating');
         }
       }
-      // Handle round_transition — ensure all clients return to lobby
+      // Handle round_transition — ensure all clients return to lobby immediately
       if (data.status === 'round_transition') {
         clearTimer();
         store.setLiveKitToken(null, null);
         setTimeout(() => { store.setMatch(null); store.setRoomId(null); }, 500);
         store.setByeRound(false);
-        store.setTransitionStatus('between_rounds');
+        store.setTransitionStatus(null);
         store.setPhase('lobby');
-        setTimeout(() => store.setTransitionStatus(null), 3000);
       }
       if (data.currentRound) store.setRound(data.currentRound);
     });
@@ -257,17 +256,19 @@ export default function useSessionSocket(sessionId: string) {
       clearTimer();
       store.setLiveKitToken(null, null);
       // Don't clear match data immediately — let RatingPrompt finish if user is mid-submit.
-      // Delay cleanup slightly so any in-flight rating POST can complete.
       setTimeout(() => {
         store.setMatch(null);
         store.setRoomId(null);
       }, 500);
-      // If this was the last round, show session ending; otherwise between rounds
+      // Return to lobby immediately — no transition delay
       const state = useSessionStore.getState();
       const isLastRound = state.currentRound >= state.totalRounds && state.totalRounds > 0;
-      store.setTransitionStatus(isLastRound ? 'session_ending' : 'between_rounds');
+      if (isLastRound) {
+        store.setTransitionStatus('session_ending');
+      } else {
+        store.setTransitionStatus(null);
+      }
       store.setPhase('lobby');
-      if (!isLastRound) setTimeout(() => store.setTransitionStatus(null), 3000);
     });
 
     // ── Host broadcasts ──

@@ -239,10 +239,29 @@ export async function createInvite(userId: string, input: CreateInviteInput, use
         ? `${inviterName} invited you to ${targetName || 'a pod'}`
         : `${inviterName} invited you to ${targetName || 'an event'}`;
       const notifLink = `/invite/${code}`;
-      await query(
-        `INSERT INTO notifications (user_id, type, title, body, link) VALUES ($1, $2, $3, $4, $5)`,
-        [inviteeUser.rows[0].id, notifType, notifTitle, `You have a new invite from ${inviterName}`, notifLink]
-      ).catch(err => logger.warn({ err }, 'Failed to create notification (non-fatal)'));
+      const notifBody = `You have a new invite from ${inviterName}`;
+      const notifResult = await query<{ id: string; created_at: string }>(
+        `INSERT INTO notifications (user_id, type, title, body, link) VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, created_at`,
+        [inviteeUser.rows[0].id, notifType, notifTitle, notifBody, notifLink]
+      ).catch(err => { logger.warn({ err }, 'Failed to create notification (non-fatal)'); return null; });
+
+      // Push real-time notification via socket so bell icon updates instantly
+      if (notifResult && notifResult.rows.length > 0) {
+        try {
+          const { io } = await import('../../index');
+          io.to(`user:${inviteeUser.rows[0].id}`).emit('notification:new', {
+            id: notifResult.rows[0].id,
+            type: notifType,
+            title: notifTitle,
+            body: notifBody,
+            link: notifLink,
+            isRead: false,
+            createdAt: notifResult.rows[0].created_at,
+            inviteStatus: 'pending',
+          });
+        } catch { /* socket push is non-fatal */ }
+      }
     }
   }
 
