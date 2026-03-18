@@ -226,7 +226,9 @@ describe('Rating Service', () => {
   describe('getPeopleMet', () => {
     it('should return people met data for a session', async () => {
       // Session lookup
-      mockQuery.mockResolvedValueOnce({ rows: [{ title: 'Test Session', scheduledAt: new Date() }], rowCount: 1 });
+      mockQuery.mockResolvedValueOnce({ rows: [{ title: 'Test Session', scheduledAt: new Date(), config: { numberOfRounds: 3 }, currentRound: 3 }], rowCount: 1 });
+      // Rounds attended count
+      mockQuery.mockResolvedValueOnce({ rows: [{ count: '2' }], rowCount: 1 });
       // Connections query
       mockQuery.mockResolvedValueOnce({
         rows: [

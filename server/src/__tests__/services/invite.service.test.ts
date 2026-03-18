@@ -72,21 +72,27 @@ describe('Invite Service', () => {
 
   describe('createInvite', () => {
     it('should create a pod invite', async () => {
-      // Self-invite check — SELECT email FROM users
+      // 1. Rate limit: get user entitlements
+      mockQuery.mockResolvedValueOnce({ rows: [{ max_invites_per_day: 50 }], rowCount: 1 });
+      // 2. Rate limit: count invites in past 24h
+      mockQuery.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 });
+      // 3. Role-based restriction: look up invitee by email
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+      // 4. Self-invite check — SELECT email FROM users
       mockQuery.mockResolvedValueOnce({ rows: [{ email: 'host@example.com' }], rowCount: 1 });
-      // Duplicate pending invite check — SELECT id FROM invites
-      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-      // podService.getPodById — SELECT pods (validates pod exists + archived check)
+      // 5. podService.getPodById — SELECT pods (validates pod exists + archived check)
       mockQuery.mockResolvedValueOnce({ rows: [{ id: 'pod-123', name: 'Test', status: 'active' }], rowCount: 1 });
-      // podService.getMemberRole — SELECT role FROM pod_members (role check)
+      // 6. podService.getMemberRole — SELECT role FROM pod_members (role check)
       mockQuery.mockResolvedValueOnce({ rows: [{ role: 'director' }], rowCount: 1 });
-      // Check existing member — SELECT u.id FROM users JOIN pod_members
+      // 7. Check existing member — SELECT u.id FROM users JOIN pod_members
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-      // INSERT invite RETURNING
+      // 8. Duplicate pending invite check — SELECT id FROM invites
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+      // 9. INSERT invite RETURNING
       mockQuery.mockResolvedValueOnce({ rows: [mockInvite], rowCount: 1 });
-      // Inviter display name lookup (for email)
+      // 10. Inviter display name lookup (for email)
       mockQuery.mockResolvedValueOnce({ rows: [{ displayName: 'Host User' }], rowCount: 1 });
-      // Pod name lookup (for email)
+      // 11. Pod name lookup (for email)
       mockQuery.mockResolvedValueOnce({ rows: [{ name: 'Test Pod' }], rowCount: 1 });
 
       const invite = await inviteService.createInvite('user-host', {
@@ -99,7 +105,13 @@ describe('Invite Service', () => {
     });
 
     it('should reject self-invites', async () => {
-      // Self-invite check — email matches caller
+      // 1. Rate limit: get user entitlements
+      mockQuery.mockResolvedValueOnce({ rows: [{ max_invites_per_day: 50 }], rowCount: 1 });
+      // 2. Rate limit: count invites in past 24h
+      mockQuery.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 });
+      // 3. Role-based restriction: look up invitee by email
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+      // 4. Self-invite check — email matches caller
       mockQuery.mockResolvedValueOnce({ rows: [{ email: 'guest@example.com' }], rowCount: 1 });
 
       await expect(inviteService.createInvite('user-host', {
@@ -110,9 +122,21 @@ describe('Invite Service', () => {
     });
 
     it('should reject duplicate pending invites', async () => {
-      // Self-invite check — different email
+      // 1. Rate limit: get user entitlements
+      mockQuery.mockResolvedValueOnce({ rows: [{ max_invites_per_day: 50 }], rowCount: 1 });
+      // 2. Rate limit: count invites in past 24h
+      mockQuery.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 });
+      // 3. Role-based restriction: look up invitee by email
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+      // 4. Self-invite check — different email
       mockQuery.mockResolvedValueOnce({ rows: [{ email: 'host@example.com' }], rowCount: 1 });
-      // Duplicate check — found existing pending invite
+      // 5. podService.getPodById
+      mockQuery.mockResolvedValueOnce({ rows: [{ id: 'pod-123', name: 'Test', status: 'active' }], rowCount: 1 });
+      // 6. podService.getMemberRole
+      mockQuery.mockResolvedValueOnce({ rows: [{ role: 'director' }], rowCount: 1 });
+      // 7. Check existing member
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+      // 8. Duplicate check — found existing pending invite
       mockQuery.mockResolvedValueOnce({ rows: [{ id: 'existing-invite' }], rowCount: 1 });
 
       await expect(inviteService.createInvite('user-host', {
@@ -123,11 +147,15 @@ describe('Invite Service', () => {
     });
 
     it('should reject invites to archived pods', async () => {
-      // Self-invite check
-      mockQuery.mockResolvedValueOnce({ rows: [{ email: 'host@example.com' }], rowCount: 1 });
-      // Duplicate check
+      // 1. Rate limit: get user entitlements
+      mockQuery.mockResolvedValueOnce({ rows: [{ max_invites_per_day: 50 }], rowCount: 1 });
+      // 2. Rate limit: count invites in past 24h
+      mockQuery.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 });
+      // 3. Role-based restriction: look up invitee by email
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-      // getPodById returns archived pod
+      // 4. Self-invite check
+      mockQuery.mockResolvedValueOnce({ rows: [{ email: 'host@example.com' }], rowCount: 1 });
+      // 5. getPodById returns archived pod
       mockQuery.mockResolvedValueOnce({ rows: [{ id: 'pod-123', name: 'Test', status: 'archived' }], rowCount: 1 });
 
       await expect(inviteService.createInvite('user-host', {
@@ -271,10 +299,20 @@ describe('Invite Service', () => {
   describe('createInvite - session type', () => {
     it('should create a session invite', async () => {
       const sessionInvite = { ...mockInvite, type: InviteType.SESSION, sessionId: 'session-123', podId: null };
-      // sessionService.getSessionById — returns session with hostUserId matching caller
+      // 1. Rate limit: get user entitlements
+      mockQuery.mockResolvedValueOnce({ rows: [{ max_invites_per_day: 50 }], rowCount: 1 });
+      // 2. Rate limit: count invites in past 24h
+      mockQuery.mockResolvedValueOnce({ rows: [{ count: '0' }], rowCount: 1 });
+      // (no inviteeEmail → skips role-based restriction + self-invite + platform check)
+      // 3. sessionService.getSessionById — returns session
       mockQuery.mockResolvedValueOnce({ rows: [{ id: 'session-123', status: 'scheduled', hostUserId: 'user-host' }], rowCount: 1 });
-      // INSERT invite
+      // (no inviteeEmail → skips existing participant check + duplicate invite check)
+      // 4. INSERT invite
       mockQuery.mockResolvedValueOnce({ rows: [sessionInvite], rowCount: 1 });
+      // 6. Inviter display name lookup
+      mockQuery.mockResolvedValueOnce({ rows: [{ displayName: 'Host User' }], rowCount: 1 });
+      // 7. Session title lookup
+      mockQuery.mockResolvedValueOnce({ rows: [{ title: 'Test Session' }], rowCount: 1 });
 
       const invite = await inviteService.createInvite('user-host', {
         type: InviteType.SESSION,

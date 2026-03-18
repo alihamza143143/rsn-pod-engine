@@ -54,6 +54,7 @@ import * as podService from '../../services/pod/pod.service';
 import * as sessionService from '../../services/session/session.service';
 import * as inviteService from '../../services/invite/invite.service';
 import * as ratingService from '../../services/rating/rating.service';
+import { query as dbQuery } from '../../db';
 
 import authRoutes from '../../routes/auth';
 import userRoutes from '../../routes/users';
@@ -494,6 +495,10 @@ describe('Invite Routes', () => {
   describe('GET /invites/:code', () => {
     it('should return invite by code', async () => {
       (inviteService.getInviteByCode as jest.Mock).mockResolvedValue(mockInvite);
+      // Route does direct query() calls for enrichment (inviter name, pod details)
+      (dbQuery as jest.Mock)
+        .mockResolvedValueOnce({ rows: [{ displayName: 'Host User' }], rowCount: 1 })  // inviter name
+        .mockResolvedValueOnce({ rows: [{ name: 'Test Pod', description: null }], rowCount: 1 }); // pod details
 
       const token = makeToken();
       const res = await request(app)
