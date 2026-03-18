@@ -116,27 +116,33 @@ Hi! We've shipped Change 1.5 — a major live event UX overhaul. Please test on 
     - All collected feedback
     - Formatted export (not raw JSON)
 
-  18. Virtual Background
-  - In video room → background toggle button in controls bar
-  - Options: None, Blur, or image backgrounds
-  - Applies to your video feed only
-  - Persists throughout the event
+  18. Virtual Background (Blur)
+  - In a breakout room → sparkles icon button in the video controls bar
+  - Click it → your background blurs
+  - Click again → blur turns off
+  - Note: requires a package install on deploy — button may not work yet on production
 
   19. Notifications Center
-  - Bell icon in the top navigation bar
-  - Click → dropdown showing: event invites, updates, reminders
-  - Mark as read/unread
-  - Persists across pages (not just toasts)
+  - Bell icon in the left sidebar (desktop) and top bar (mobile)
+  - Red badge shows how many unread notifications you have
+  - Click the bell → dropdown shows your recent notifications (last 20)
+  - Right now only invite notifications appear (when someone invites you to a pod or event)
+  - Click a notification → goes to that pod/event page and marks it as read
+  - "Mark all read" button at the top of the dropdown
 
   20. Pin / Highlight Speaker
-  - In video room → click a participant's tile to pin them as the main speaker
-  - Pinned tile expands to be larger
-  - Unpin to return to normal grid
+  - In a breakout room → click any participant's video tile to pin them
+  - Pinned tile expands larger (takes up most of the screen)
+  - Other participants show as small tiles at the bottom
+  - Click the pinned tile again to unpin and return to normal grid
+  - Only one person can be pinned at a time
 
   21. Layout Density Toggle
-  - In lobby → toggle for: Compact, Medium, Spacious grid layout
-  - Matters most when 10+ participants are in lobby
-  - Host preference, not global
+  - In the lobby → small toggle appears with 3 options: Compact / Normal / Spacious
+  - Compact: smaller video tiles, fits more people per row (good for 15+ people)
+  - Normal: the default layout (what you see today)
+  - Spacious: bigger video tiles, fewer per row (good for small groups under 10)
+  - Preference resets when you leave the event
 
   ---
 
