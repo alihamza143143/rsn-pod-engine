@@ -39,7 +39,7 @@ export default function ParticipantList({ onClose }: Props) {
       {/* List */}
       <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
         {sorted.map(p => (
-          <div key={p.userId} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-gray-50">
+          <a key={p.userId} href={`/profile/${p.userId}`} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-gray-50">
             <Avatar name={p.displayName || 'User'} size="sm" />
             <span className="text-sm text-gray-700 truncate flex-1">{p.displayName || 'User'}</span>
             {p.userId === hostUserId && (
@@ -47,7 +47,7 @@ export default function ParticipantList({ onClose }: Props) {
                 <Crown className="h-2.5 w-2.5" /> Host
               </span>
             )}
-          </div>
+          </a>
         ))}
         {participants.length === 0 && (
           <p className="text-sm text-gray-400 text-center py-4">No participants yet</p>

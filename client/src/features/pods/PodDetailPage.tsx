@@ -712,13 +712,13 @@ export default function PodDetailPage() {
             {pendingMembers.map((m: any) => (
               <Card key={m.userId || m.id} className="!p-4 border-amber-500/20">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
+                  <a href={`/profile/${m.userId || m.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                     <Avatar src={m.avatarUrl} name={m.displayName || m.email || 'User'} size="sm" />
                     <div>
                       <p className="text-sm font-medium text-gray-800">{m.displayName || m.email || 'User'}</p>
                       <p className="text-xs text-amber-400">Pending approval</p>
                     </div>
-                  </div>
+                  </a>
                   <div className="flex items-center gap-2">
                     <button onClick={() => approveMutation.mutate(m.userId)} className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-500/10 transition-all" title="Approve">
                       <UserCheck className="h-4 w-4" />
@@ -743,24 +743,24 @@ export default function PodDetailPage() {
           <div className="grid gap-2">
             {declinedMembers.map((m: any) => (
               <Card key={m.userId || m.id} className="!p-3 bg-gray-50 border-gray-200">
-                <div className="flex items-center gap-3">
+                <a href={`/profile/${m.userId || m.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                   <Avatar src={m.avatarUrl} name={m.displayName || m.email || 'User'} size="sm" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-700">{m.displayName || m.email || 'User'}</p>
                     <p className="text-xs text-gray-400">Declined</p>
                   </div>
-                </div>
+                </a>
               </Card>
             ))}
             {noResponseMembers.map((m: any) => (
               <Card key={m.userId || m.id} className="!p-3 bg-gray-50 border-gray-200">
-                <div className="flex items-center gap-3">
+                <a href={`/profile/${m.userId || m.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                   <Avatar src={m.avatarUrl} name={m.displayName || m.email || 'User'} size="sm" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-700">{m.displayName || m.email || 'User'}</p>
                     <p className="text-xs text-gray-400">No response</p>
                   </div>
-                </div>
+                </a>
               </Card>
             ))}
           </div>
@@ -847,7 +847,7 @@ export default function PodDetailPage() {
           {activeMembers.map((m: any) => (
             <Card key={m.userId || m.id} className="!p-3">
               <div className="flex items-center justify-between">
-                <div className="flex-1 min-w-0">
+                <a href={`/profile/${m.userId || m.id}`} className="flex-1 min-w-0 hover:opacity-80 transition-opacity">
                   <ProfileCard
                     compact
                     user={{
@@ -861,7 +861,7 @@ export default function PodDetailPage() {
                     badge={m.role === 'director' ? 'director' : m.role === 'host' ? 'host' : undefined}
                     badgeVariant={m.role === 'director' ? 'brand' : 'info'}
                   />
-                </div>
+                </a>
                 <div className="flex items-center gap-2 shrink-0">
                   {isDirector && m.userId !== user?.id && m.role !== 'director' && (
                     <button

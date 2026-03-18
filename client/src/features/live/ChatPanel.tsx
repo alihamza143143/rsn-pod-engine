@@ -141,10 +141,10 @@ function MessageBubble({ msg, isOwn }: { msg: ChatMessage; isOwn: boolean }) {
       >
         {!isOwn && (
           <div className="flex items-center gap-1.5 mb-0.5">
-            <span className={`text-xs font-semibold ${msg.isHost ? 'text-amber-600' : 'text-gray-500'}`}>
+            <a href={`/profile/${msg.userId}`} className={`text-xs font-semibold hover:underline ${msg.isHost ? 'text-amber-600' : 'text-gray-500'}`}>
               {msg.displayName}
               {msg.isHost && <span className="ml-1 text-[10px] font-medium text-amber-500">HOST</span>}
-            </span>
+            </a>
           </div>
         )}
         <p className="text-sm leading-relaxed break-words"><Linkify text={msg.message} /></p>

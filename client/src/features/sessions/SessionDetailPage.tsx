@@ -400,13 +400,13 @@ export default function SessionDetailPage() {
               return (
                 <Card key={p.userId || p.id} className="!p-4">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
+                    <a href={`/profile/${p.userId || p.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
                       <Avatar src={p.avatarUrl} name={p.displayName || p.email || 'User'} size="sm" />
                       <div>
                         <p className="text-sm font-medium text-gray-800">{p.displayName || p.email || 'Participant'}</p>
                         <p className="text-xs text-gray-400">{statusLabel}</p>
                       </div>
-                    </div>
+                    </a>
                     {pIsHost && (
                       <Badge variant="brand" className="text-xs">Host</Badge>
                     )}

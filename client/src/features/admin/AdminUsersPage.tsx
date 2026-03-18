@@ -240,11 +240,13 @@ export default function AdminUsersPage() {
                       className="h-4 w-4 rounded border-gray-300 text-rsn-red focus:ring-rsn-red shrink-0"
                     />
                   )}
-                  <Avatar src={u.avatarUrl} name={u.displayName || u.email} size="sm" />
-                  <div>
-                    <p className="text-sm font-medium text-gray-800">{u.displayName || 'No name'}</p>
-                    <p className="text-xs text-gray-400">{u.email}</p>
-                  </div>
+                  <a href={`/profile/${u.id}`} className="flex items-center gap-3 hover:opacity-80 transition-opacity">
+                    <Avatar src={u.avatarUrl} name={u.displayName || u.email} size="sm" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{u.displayName || 'No name'}</p>
+                      <p className="text-xs text-gray-400">{u.email}</p>
+                    </div>
+                  </a>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant={u.role === 'admin' || u.role === 'super_admin' ? 'brand' : u.role === 'host' ? 'info' : u.role === 'founding_member' ? 'success' : u.role === 'pro' ? 'warning' : 'default'}>
