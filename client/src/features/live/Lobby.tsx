@@ -274,6 +274,14 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
             {isHost ? 'Lobby is open — use Match People below when ready.' : 'Preparing your first match...'}
           </p>
         </div>
+      ) : (sessionStatus === 'round_active' || sessionStatus === 'round_rating') ? (
+        <div className="flex flex-col items-center gap-2">
+          <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
+          <h2 className="text-xl font-bold text-white">Round in Progress</h2>
+          <p className="text-gray-400 text-sm">
+            {isHost ? 'Monitoring breakout rooms...' : 'You have a bye this round — hang tight!'}
+          </p>
+        </div>
       ) : isScheduled ? (
         <>
           <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-white/10 text-gray-300 mx-auto">
@@ -462,10 +470,10 @@ function PreLobbyWaitingRoom() {
 }
 
 export default function Lobby({ isHost = false, sessionId }: { isHost?: boolean; sessionId?: string }) {
-  const { participants, lobbyToken, lobbyUrl, sessionStatus, roundDashboard, hostUserId } = useSessionStore();
+  const { participants, lobbyToken, lobbyUrl, sessionStatus, hostUserId } = useSessionStore();
 
-  // During an active round, the host sees the breakout room dashboard instead of lobby
-  if (isHost && sessionStatus === 'round_active' && roundDashboard) {
+  // During an active round or rating, the host sees the breakout room dashboard instead of lobby
+  if (isHost && (sessionStatus === 'round_active' || sessionStatus === 'round_rating')) {
     return <HostRoundDashboard sessionId={sessionId!} />;
   }
 

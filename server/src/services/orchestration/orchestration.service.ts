@@ -790,6 +790,19 @@ async function handleDisconnect(socket: Socket): Promise<void> {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+// HOST HELPERS
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** Get all user IDs that should be excluded from matching: original host + co-hosts */
+async function getAllHostIds(sessionId: string, hostUserId: string): Promise<string[]> {
+  const cohostResult = await query<{ user_id: string }>(
+    `SELECT user_id FROM session_cohosts WHERE session_id = $1`,
+    [sessionId]
+  );
+  return [hostUserId, ...cohostResult.rows.map(r => r.user_id)];
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // HOST CONTROLS
 // ═════════════════════════════════════════════════════════════════════════════
 
@@ -937,12 +950,13 @@ async function handleHostStartRound(
       return;
     }
 
-    // Need at least 2 non-host participants with eligible status
+    // Need at least 2 non-host/co-host participants with eligible status
+    const allHostIds = await getAllHostIds(data.sessionId, activeSession.hostUserId);
     const countResult = await query<{ count: string }>(
       `SELECT COUNT(*) as count FROM session_participants
        WHERE session_id = $1 AND status IN ('in_lobby', 'checked_in', 'registered')
-         AND user_id != $2`,
-      [data.sessionId, activeSession.hostUserId]
+         AND user_id != ALL($2)`,
+      [data.sessionId, allHostIds]
     );
     const participantCount = parseInt(countResult.rows[0].count, 10);
     if (participantCount < 2) {
@@ -1250,12 +1264,13 @@ async function handleHostGenerateMatches(
       return;
     }
 
-    // Need at least 2 non-host participants for matching
+    // Need at least 2 non-host/co-host participants for matching
+    const allHostIds = await getAllHostIds(data.sessionId, activeSession.hostUserId);
     const countResult = await query<{ count: string }>(
       `SELECT COUNT(*) as count FROM session_participants
        WHERE session_id = $1 AND status IN ('in_lobby', 'checked_in', 'registered')
-         AND user_id != $2`,
-      [data.sessionId, activeSession.hostUserId]
+         AND user_id != ALL($2)`,
+      [data.sessionId, allHostIds]
     );
     const participantCount = parseInt(countResult.rows[0].count, 10);
     if (participantCount < 2) {
@@ -1270,9 +1285,8 @@ async function handleHostGenerateMatches(
       ? 1
       : activeSession.currentRound + 1;
 
-    // Generate matches for preview (store them in DB but don't activate yet)
-    // Exclude host from matching — host stays in lobby to manage the event
-    await matchingService.generateSingleRound(data.sessionId, nextRound, [activeSession.hostUserId]);
+    // Generate matches for preview — exclude host + co-hosts from matching
+    await matchingService.generateSingleRound(data.sessionId, nextRound, allHostIds);
 
     // Store pending round number so confirm_round knows what to start
     activeSession.pendingRoundNumber = nextRound;
@@ -1465,8 +1479,9 @@ async function handleHostRegenerateMatches(
       [data.sessionId, roundNumber]
     );
 
-    // Re-generate (exclude host from matching)
-    await matchingService.generateSingleRound(data.sessionId, roundNumber, [activeSession.hostUserId]);
+    // Re-generate (exclude host + co-hosts from matching)
+    const allHostIds = await getAllHostIds(data.sessionId, activeSession.hostUserId);
+    await matchingService.generateSingleRound(data.sessionId, roundNumber, allHostIds);
 
     // Re-send preview
     await sendMatchPreview(socket, data.sessionId, roundNumber, activeSession.hostUserId);

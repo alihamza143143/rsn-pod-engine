@@ -29,8 +29,10 @@ export default function HostControls({ sessionId }: Props) {
     socket?.emit('host:end_session', { sessionId });
   };
 
-  // Count non-host participants for matching eligibility
-  const eligibleCount = Math.max(0, participants.length - 1); // exclude host
+  // Count non-host/co-host participants for matching eligibility
+  const cohosts = useSessionStore(s => s.cohosts);
+  const hostUserId = useSessionStore(s => s.hostUserId);
+  const eligibleCount = participants.filter(p => p.userId !== hostUserId && !cohosts.has(p.userId)).length;
 
   const generateMatches = () => {
     setGenerating(true);

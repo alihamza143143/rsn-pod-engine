@@ -307,7 +307,7 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
         </div>
       )}
 
-      <div className="flex-1 flex flex-col p-4 gap-4 bg-[#202124]">
+      <div className="flex-1 flex flex-col p-4 gap-4 bg-[#202124] overflow-auto min-h-0">
         {/* Timer bar */}
         <div className="flex items-center justify-between bg-[#292a2d] rounded-xl px-4 py-3">
           <div className="flex items-center gap-3">
