@@ -3826,3 +3826,23 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - Only added HIGH and MEDIUM priority indexes; skipped low-ROI `matches(session_id, status)` composite.
 - Next immediate action:
   - Deploy and let migration auto-run on next server startup.
+
+### 2026-03-18 23:45 — Phase 4 Gap Fixes (Select All + Host Status Bar)
+- Task ID: T-1.5-P4-GAPS
+- Task Title: Close Phase 4 gaps — Select All on pod invites + unified host status bar
+- Status: Completed
+- What changed:
+  - **Select All in pod invites**: Added "Select All (N)" checkbox to PodDetailPage platform user search — same pattern as event invites. Filters out self and existing members. Toggle on/off with bulk send.
+  - **Unified host status bar**: Upgraded HostControls status bar to show full breakdown in ALL phases:
+    - During rounds: `X in rooms | X in lobby | X bye | X disconnected` (color-coded green/blue/amber/red)
+    - During lobby: `X in lobby` (was just "Lobby" text)
+    - Disconnected count derived from room participant `isConnected` flags
+- Files touched:
+  - client/src/features/pods/PodDetailPage.tsx (Select All checkbox added)
+  - client/src/features/live/HostControls.tsx (status bar upgraded)
+  - progress.md
+- Decisions made:
+  - Matched exact same Select All UX pattern from SessionDetailPage for consistency
+  - Computed lobby/disconnected counts from existing store data (no new server events needed)
+- Next immediate action:
+  - Phase 5: Post-Event + Visual Polish

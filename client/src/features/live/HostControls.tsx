@@ -263,13 +263,24 @@ export default function HostControls({ sessionId }: Props) {
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 text-xs text-gray-500">
               <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {Math.max(0, participants.length - 1)}</span>
-              {roundDashboard && isInRound && (
+              {roundDashboard && isInRound ? (() => {
+                const inRooms = roundDashboard.rooms.reduce((n, r) => n + r.participants.length, 0);
+                const byeCount = roundDashboard.byeParticipants.length;
+                const disconnected = roundDashboard.rooms.reduce((n, r) => n + r.participants.filter(p => !p.isConnected).length, 0);
+                const inLobby = Math.max(0, participants.length - 1 - inRooms - byeCount);
+                return (
+                  <>
+                    <span className="text-gray-300">|</span>
+                    <span className="text-green-600">{inRooms} in rooms</span>
+                    {inLobby > 0 && <span className="text-blue-500">{inLobby} in lobby</span>}
+                    {byeCount > 0 && <span className="text-amber-500">{byeCount} bye</span>}
+                    {disconnected > 0 && <span className="text-red-400">{disconnected} disconnected</span>}
+                  </>
+                );
+              })() : sessionStarted && (
                 <>
                   <span className="text-gray-300">|</span>
-                  <span>{roundDashboard.rooms.length} room{roundDashboard.rooms.length !== 1 ? 's' : ''}</span>
-                  {roundDashboard.byeParticipants.length > 0 && (
-                    <span className="text-amber-500">{roundDashboard.byeParticipants.length} bye</span>
-                  )}
+                  <span className="text-blue-500">{Math.max(0, participants.length - 1)} in lobby</span>
                 </>
               )}
             </div>
