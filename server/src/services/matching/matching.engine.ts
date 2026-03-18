@@ -268,6 +268,17 @@ export class MatchingEngineV1 implements IMatchingEngine {
       byeParticipant = stillUnmatched[0].userId;
     }
 
+    // ─── Duplicate user guard (belt-and-suspenders) ─────────────────────
+    const seenUsers = new Set<string>();
+    for (const pair of pairs) {
+      for (const uid of [pair.participantAId, pair.participantBId, pair.participantCId].filter(Boolean) as string[]) {
+        if (seenUsers.has(uid)) {
+          logger.error({ userId: uid, roundNumber, pairCount: pairs.length }, 'DUPLICATE USER IN MATCHES — same user assigned to multiple rooms');
+        }
+        seenUsers.add(uid);
+      }
+    }
+
     return {
       roundNumber,
       pairs,

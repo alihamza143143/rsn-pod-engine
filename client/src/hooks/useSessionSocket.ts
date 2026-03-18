@@ -9,7 +9,7 @@ const SOCKET_EVENTS = [
   'session:state', 'session:status_changed', 'session:round_started',
   'session:round_ended', 'session:completed',
   'match:assigned', 'match:reassigned', 'match:bye_round',
-  'match:partner_disconnected', 'match:partner_reconnected',
+  'match:partner_disconnected', 'match:partner_reconnected', 'match:return_to_lobby',
   'rating:window_open', 'rating:window_closed',
   'host:broadcast', 'lobby:token', 'host:participant_removed',
   'host:match_preview', 'lobby:mute_command',
@@ -195,6 +195,17 @@ export default function useSessionSocket(sessionId: string) {
 
     socket.on('match:partner_reconnected', () => {
       store.setPartnerDisconnected(false);
+    });
+
+    socket.on('match:return_to_lobby', () => {
+      // Returned to lobby from breakout room (left conversation or partner left)
+      store.setLiveKitToken(null, null);
+      store.setMatch(null);
+      store.setRoomId(null);
+      store.setByeRound(false);
+      store.setPartnerDisconnected(false);
+      store.setTransitionStatus(null);
+      store.setPhase('lobby');
     });
 
     socket.on('match:bye_round', () => {

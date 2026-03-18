@@ -56,6 +56,9 @@ export interface ServerToClientEvents {
     participants: { userId: string; displayName: string; isConnected: boolean }[];
   }) => void;
 
+  // Breakout room
+  'match:return_to_lobby': (data: { reason: 'partner_left' | 'you_left' | 'auto_return' }) => void;
+
   // Lobby video
   'lobby:token': (data: { token: string; livekitUrl: string; roomId: string }) => void;
   'lobby:mute_command': (data: { muted: boolean; byHost: boolean }) => void;
@@ -101,6 +104,9 @@ export interface ClientToServerEvents {
   'host:mute_participant': (data: { sessionId: string; targetUserId: string; muted: boolean }) => void;
   'host:mute_all': (data: { sessionId: string; muted: boolean }) => void;
   'host:remove_from_room': (data: { sessionId: string; matchId: string; userId: string }) => void;
+
+  // Breakout room
+  'participant:leave_conversation': (data: { sessionId: string }) => void;
 
   // Chat
   'chat:send': (data: { sessionId: string; message: string; scope: 'lobby' | 'room' }) => void;

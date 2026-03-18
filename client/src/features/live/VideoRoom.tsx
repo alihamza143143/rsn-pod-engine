@@ -3,7 +3,8 @@ import { useParams } from 'react-router-dom';
 import { useSessionStore } from '@/stores/sessionStore';
 import Card from '@/components/ui/Card';
 import { formatTime } from '@/lib/utils';
-import { Video, Clock, Mic, MicOff, VideoOff, Wifi, UserX, Loader2 } from 'lucide-react';
+import { Video, Clock, Mic, MicOff, VideoOff, Wifi, UserX, Loader2, ArrowLeft } from 'lucide-react';
+import { getSocket } from '@/lib/socket';
 import {
   LiveKitRoom,
   VideoTrack,
@@ -233,7 +234,13 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
       {partnerDisconnected && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-3 flex items-center justify-center gap-2">
           <UserX className="h-4 w-4 text-amber-500" />
-          <p className="text-sm text-amber-700 font-medium">Your partner left the room. Waiting for reassignment...</p>
+          <p className="text-sm text-amber-700 font-medium">Your partner left the room.</p>
+          <button
+            onClick={() => { if (sessionId) getSocket()?.emit('participant:leave_conversation', { sessionId }); }}
+            className="ml-2 px-3 py-1 text-xs font-medium bg-amber-100 hover:bg-amber-200 text-amber-800 rounded-full transition-colors"
+          >
+            Back to Lobby
+          </button>
           <Loader2 className="h-4 w-4 text-amber-500 animate-spin" />
         </div>
       )}
@@ -245,6 +252,18 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
             <span className="text-sm text-gray-500">Round {currentRound} of {totalRounds}</span>
             <ConnectionIndicator />
             <MediaControls />
+            {!isHost && (
+              <button
+                onClick={() => {
+                  if (confirm('Leave this conversation and return to the lobby? You can be rematched in the next round.')) {
+                    if (sessionId) getSocket()?.emit('participant:leave_conversation', { sessionId });
+                  }
+                }}
+                className="flex items-center gap-1 px-2.5 py-1 text-xs text-gray-500 hover:text-rsn-red hover:bg-red-50 rounded-lg transition-colors border border-gray-200"
+              >
+                <ArrowLeft className="h-3 w-3" /> Back to Lobby
+              </button>
+            )}
           </div>
           {(() => {
             // Host always sees the timer regardless of visibility setting

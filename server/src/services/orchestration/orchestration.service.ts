@@ -76,6 +76,7 @@ export function initOrchestration(
     socket.on('presence:heartbeat', (data) => handleHeartbeat(socket, data));
     socket.on('presence:ready', (data) => handleReady(socket, data));
     socket.on('rating:submit', (data) => handleRatingSubmit(socket, data));
+    socket.on('participant:leave_conversation', (data) => handleLeaveConversation(socket, data));
 
     // Host controls
     socket.on('host:start_session', (data) => handleHostStart(socket, data));
@@ -431,8 +432,186 @@ async function handleRatingSubmit(
       meetAgain: data.meetAgain,
       feedback: data.feedback,
     });
+
+    // ─── Early exit: if ALL participants in this round have rated, skip remaining timer ───
+    await checkAllRatingsComplete(socket);
   } catch (err: any) {
     socket.emit('error', { code: 'RATING_FAILED', message: err.message });
+  }
+}
+
+/**
+ * After each rating submission, check if all participants in the current round
+ * have finished rating. If so, cancel the rating window timer and advance immediately.
+ */
+async function checkAllRatingsComplete(socket: Socket): Promise<void> {
+  try {
+    const userId = getUserIdFromSocket(socket);
+    if (!userId) return;
+
+    // Find which session this user is in
+    let sessionId: string | null = null;
+    let activeSession: ActiveSession | null = null;
+    for (const [sid, s] of activeSessions) {
+      if (s.presenceMap.has(userId) && s.status === SessionStatus.ROUND_RATING) {
+        sessionId = sid;
+        activeSession = s;
+        break;
+      }
+    }
+    if (!sessionId || !activeSession) return;
+
+    const roundNumber = activeSession.currentRound;
+
+    // Get all matches for this round
+    const matches = await matchingService.getMatchesByRound(sessionId, roundNumber);
+    const completedMatches = matches.filter(m => m.status === 'completed' || m.status === 'no_show');
+
+    // Collect all participant IDs who need to rate
+    const participantIds = new Set<string>();
+    for (const m of completedMatches) {
+      participantIds.add(m.participantAId);
+      participantIds.add(m.participantBId);
+      if (m.participantCId) participantIds.add(m.participantCId);
+    }
+
+    // Count how many ratings exist for this round
+    const ratingCountResult = await query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM ratings r
+       JOIN matches m ON r.match_id = m.id
+       WHERE m.session_id = $1 AND m.round_number = $2`,
+      [sessionId, roundNumber]
+    );
+    const totalRatings = parseInt(ratingCountResult.rows[0]?.count || '0', 10);
+
+    // Each participant rates each partner: pairs = 2 ratings, trios = 6 ratings
+    let expectedRatings = 0;
+    for (const m of completedMatches) {
+      const pCount = m.participantCId ? 3 : 2;
+      expectedRatings += pCount * (pCount - 1); // each rates each other
+    }
+
+    if (totalRatings >= expectedRatings && expectedRatings > 0) {
+      logger.info({ sessionId, roundNumber, totalRatings, expectedRatings }, 'All ratings submitted — ending rating window early');
+
+      // Cancel the existing timer
+      if (activeSession.timer) {
+        clearTimeout(activeSession.timer);
+        activeSession.timer = null;
+        activeSession.timerEndsAt = null;
+      }
+
+      // Advance immediately
+      endRatingWindow(sessionId, roundNumber);
+    }
+  } catch (err) {
+    logger.error({ err }, 'Error in checkAllRatingsComplete');
+  }
+}
+
+// ─── Leave Conversation (return to lobby, stay in event) ────────────────────
+
+async function handleLeaveConversation(
+  socket: Socket,
+  data: { sessionId: string }
+): Promise<void> {
+  try {
+    const userId = getUserIdFromSocket(socket);
+    if (!userId) return;
+
+    const { sessionId } = data;
+    const activeSession = activeSessions.get(sessionId);
+    if (!activeSession || activeSession.status !== SessionStatus.ROUND_ACTIVE) return;
+
+    // Find the user's active match
+    const matches = await matchingService.getMatchesByRound(sessionId, activeSession.currentRound);
+    const userMatch = matches.find(
+      m => (m.participantAId === userId || m.participantBId === userId || m.participantCId === userId) && m.status === 'active'
+    );
+    if (!userMatch) return;
+
+    // Mark match as ended early
+    await query(
+      `UPDATE matches SET status = 'completed', ended_at = NOW() WHERE id = $1 AND status = 'active'`,
+      [userMatch.id]
+    );
+
+    // Move user back to lobby status
+    await sessionService.updateParticipantStatus(sessionId, userId, ParticipantStatus.IN_LOBBY);
+
+    // Tell the user to return to lobby
+    socket.emit('match:return_to_lobby', { reason: 'you_left' });
+
+    // Notify remaining partners
+    const partnerIds = [userMatch.participantAId, userMatch.participantBId, userMatch.participantCId]
+      .filter((id): id is string => !!id && id !== userId);
+
+    for (const partnerId of partnerIds) {
+      io.to(userRoom(partnerId)).emit('match:partner_disconnected', { matchId: userMatch.id });
+    }
+
+    // Re-issue lobby token so user can rejoin lobby video
+    const session = await sessionService.getSessionById(sessionId);
+    if (session.lobbyRoomId) {
+      try {
+        const { config: appConfig } = await import('../../config');
+        const dName = (socket.data as any)?.displayName || 'User';
+        const lobbyToken = await videoService.issueJoinToken(userId, session.lobbyRoomId, dName);
+        socket.emit('lobby:token', {
+          token: lobbyToken.token,
+          livekitUrl: appConfig.livekit.host,
+          roomId: session.lobbyRoomId,
+        });
+      } catch { /* skip */ }
+    }
+
+    logger.info({ sessionId, userId, matchId: userMatch.id }, 'Participant left conversation → returned to lobby');
+
+    // ─── 2.3: Auto-return solo partner after 5s ────────────────────
+    if (partnerIds.length === 1) {
+      const soloPartnerId = partnerIds[0];
+      setTimeout(async () => {
+        try {
+          const currentSession = activeSessions.get(sessionId);
+          if (!currentSession || currentSession.status !== SessionStatus.ROUND_ACTIVE) return;
+          if (currentSession.currentRound !== activeSession.currentRound) return;
+
+          // Check if the match is still marked completed (partner hasn't been reassigned)
+          const freshMatch = (await matchingService.getMatchesByRound(sessionId, currentSession.currentRound))
+            .find(m => m.id === userMatch.id);
+          if (!freshMatch || freshMatch.status !== 'completed') return;
+
+          // Move solo partner to lobby
+          await sessionService.updateParticipantStatus(sessionId, soloPartnerId, ParticipantStatus.IN_LOBBY);
+          io.to(userRoom(soloPartnerId)).emit('match:return_to_lobby', { reason: 'partner_left' });
+
+          // Re-issue lobby token for the solo partner
+          if (session.lobbyRoomId) {
+            const socketsInRoom = await io.in(userRoom(soloPartnerId)).fetchSockets();
+            const { config: appConfig } = await import('../../config');
+            for (const s of socketsInRoom) {
+              try {
+                const uid = (s.data as any)?.userId;
+                const dName = (s.data as any)?.displayName || 'User';
+                if (uid !== soloPartnerId) continue;
+                const lobbyToken = await videoService.issueJoinToken(uid, session.lobbyRoomId, dName);
+                s.emit('lobby:token', {
+                  token: lobbyToken.token,
+                  livekitUrl: appConfig.livekit.host,
+                  roomId: session.lobbyRoomId,
+                });
+              } catch { /* skip */ }
+            }
+          }
+
+          logger.info({ sessionId, soloPartnerId, matchId: userMatch.id }, 'Auto-returned solo partner to lobby after 5s');
+        } catch (err) {
+          logger.error({ err }, 'Error in auto-return solo partner');
+        }
+      }, 5000);
+    }
+  } catch (err) {
+    logger.error({ err }, 'Error in handleLeaveConversation');
   }
 }
 
