@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { useSessionStore } from '@/stores/sessionStore';
 import { formatTime } from '@/lib/utils';
 import { Video, Clock, Mic, MicOff, VideoOff, Wifi, UserX, Loader2, ArrowLeft, Sparkles } from 'lucide-react';
-import { getSocket } from '@/lib/socket';
+import { getSocket, disconnectSocket } from '@/lib/socket';
 import {
   LiveKitRoom,
   VideoTrack,
@@ -330,8 +330,8 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
                   onClick={() => {
                     if (confirm('Leave this event entirely? You will not be able to rejoin.')) {
                       if (sessionId) getSocket()?.emit('session:leave', { sessionId });
-                      import('@/lib/socket').then(m => m.disconnectSocket());
-                      import('@/stores/sessionStore').then(m => m.useSessionStore.getState().reset());
+                      disconnectSocket();
+                      useSessionStore.getState().reset();
                       window.location.href = '/sessions';
                     }
                   }}

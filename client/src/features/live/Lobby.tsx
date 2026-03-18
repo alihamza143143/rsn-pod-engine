@@ -332,7 +332,7 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
 }
 
 function HostParticipantPanel({ sessionId }: { sessionId?: string }) {
-  const { participants, hostUserId } = useSessionStore();
+  const { participants, hostUserId, cohosts } = useSessionStore();
   const [expanded, setExpanded] = useState(true);
 
   const handleKick = useCallback((userId: string, displayName: string) => {
@@ -350,7 +350,7 @@ function HostParticipantPanel({ sessionId }: { sessionId?: string }) {
       >
         <div className="flex items-center gap-2">
           <Users className="h-4 w-4 text-gray-400" />
-          <span>Participants ({Math.max(0, participants.length - 1)}) + Host</span>
+          <span>Participants ({participants.filter(p => p.userId !== hostUserId && !cohosts.has(p.userId)).length}) + Host{cohosts.size > 0 ? 's' : ''}</span>
         </div>
         {expanded ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
       </button>

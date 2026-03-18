@@ -264,7 +264,7 @@ export default function HostControls({ sessionId }: Props) {
         <div className="max-w-4xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 text-xs text-gray-400">
-              <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {Math.max(0, participants.length - 1)}</span>
+              <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {eligibleCount}</span>
               {roundDashboard && isInRound ? (() => {
                 const inRooms = roundDashboard.rooms.reduce((n, r) => n + r.participants.length, 0);
                 const byeCount = roundDashboard.byeParticipants.length;

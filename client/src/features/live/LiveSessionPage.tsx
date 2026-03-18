@@ -256,7 +256,7 @@ function LinkifyText({ text }: { text: string }) {
   return (
     <>
       {parts.map((part, i) =>
-        LINK_REGEX.test(part) ? (
+        /^https?:\/\//.test(part) ? (
           <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80 break-all">
             {part}
           </a>

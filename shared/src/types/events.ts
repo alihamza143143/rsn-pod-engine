@@ -24,9 +24,11 @@ export interface ServerToClientEvents {
     participants: { userId: string; displayName: string }[];
     sessionStatus?: string;
     hostInLobby?: boolean;
+    hostUserId?: string;
     currentRound?: number;
     totalRounds?: number;
     timerVisibility?: string;
+    cohosts?: string[];
   }) => void;
 
   // Rating window
@@ -81,7 +83,7 @@ export interface ServerToClientEvents {
   'timer:sync': (data: { segmentType: string; secondsRemaining: number; totalSeconds: number }) => void;
 
   // Notifications (real-time push)
-  'notification:new': (data: { id: string; type: string; title: string; body?: string; link?: string; isRead: boolean; createdAt: string; inviteStatus?: string }) => void;
+  'notification:new': (data: { id: string; type: string; title: string; body?: string; link?: string; isRead: boolean; createdAt: string; inviteStatus?: string; podId?: string | null; sessionId?: string | null }) => void;
 
   // Errors
   'error': (data: { code: string; message: string }) => void;
