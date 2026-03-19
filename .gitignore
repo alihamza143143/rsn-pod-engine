@@ -1,6 +1,16 @@
 # Exclude source reference text documents
 *.txt
 
+# Client-facing docs — local only, never pushed
+CHANGE_1.4_LOG.md
+CHANGE_1.5_LOG.md
+CHANGE_*.md
+
+# Assets — local reference files
+assets/
+dash1.png
+render logs*/
+
 # Claude Code local config
 .claude/
 
