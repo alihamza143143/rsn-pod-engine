@@ -92,11 +92,12 @@ export default function AdminUsersPage() {
     onSuccess: () => { invalidateUsers(); addToast('Role updated', 'success'); },
   });
   const bulkMutation = useMutation({
-    mutationFn: ({ action }: { action: string }) =>
-      api.post('/admin/users/bulk-action', { userIds: Array.from(selected), action }),
+    mutationFn: ({ action, value }: { action: string; value?: string }) =>
+      api.post('/admin/users/bulk-action', { userIds: Array.from(selected), action, value }),
     onSuccess: (_, { action }) => {
       invalidateUsers();
-      addToast(`${selected.size} user(s) ${action === 'activate' ? 'reactivated' : action + 'ned'}`, 'success');
+      const label = action === 'activate' ? 'reactivated' : action === 'change_role' ? 'role updated' : action + 'ned';
+      addToast(`${selected.size} user(s) ${label}`, 'success');
       setSelected(new Set());
     },
     onError: () => addToast('Bulk action failed', 'error'),
@@ -194,6 +195,22 @@ export default function AdminUsersPage() {
           <div className="flex-1" />
           {statusTab === 'active' && (
             <>
+              <select
+                className="bg-transparent border border-gray-500 rounded text-xs text-blue-300 px-2 py-1"
+                defaultValue=""
+                onChange={(e) => {
+                  const role = e.target.value;
+                  if (role && confirm(`Change ${selected.size} user(s) to ${role}?`)) {
+                    bulkMutation.mutate({ action: 'change_role', value: role });
+                  }
+                  e.target.value = '';
+                }}
+              >
+                <option value="" disabled>Bulk Change Role</option>
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+                <option value="super_admin">Super Admin</option>
+              </select>
               <Button size="sm" variant="ghost" className="!text-amber-300 !text-xs" onClick={() => { if (confirm(`Suspend ${selected.size} user(s)?`)) bulkMutation.mutate({ action: 'suspend' }); }}>
                 Bulk Suspend
               </Button>

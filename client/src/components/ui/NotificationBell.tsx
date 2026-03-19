@@ -69,7 +69,12 @@ export default function NotificationBell() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchNotifications(); }, []);
+  // Fetch on mount + poll every 30s for pages without socket
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Listen for real-time notifications via socket
   useEffect(() => {
@@ -281,12 +286,12 @@ export default function NotificationBell() {
                       {!n.isRead && <div className="mt-1.5 w-2 h-2 rounded-full bg-rsn-red shrink-0" />}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className={`text-sm truncate ${!n.isRead ? 'font-medium text-gray-800' : 'text-gray-600'}`}>{n.title}</p>
+                          <p className={`text-sm leading-snug ${!n.isRead ? 'font-medium text-gray-800' : 'text-gray-600'}`}>{n.title}</p>
                           {statusLabel && (
                             <span className={`text-[10px] font-medium shrink-0 ${statusLabel.color}`}>{statusLabel.text}</span>
                           )}
                         </div>
-                        {n.body && <p className="text-xs text-gray-400 truncate mt-0.5">{n.body}</p>}
+                        {n.body && <p className="text-xs text-gray-400 mt-0.5">{n.body}</p>}
                         <p className="text-[10px] text-gray-300 mt-1">{formatTime(n.createdAt)}</p>
                       </div>
                     </div>

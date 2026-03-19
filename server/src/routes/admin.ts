@@ -165,7 +165,8 @@ router.put(
 
 const bulkUserActionSchema = z.object({
   userIds: z.array(z.string().uuid()).min(1).max(100),
-  action: z.enum(['suspend', 'ban', 'activate', 'delete']),
+  action: z.enum(['suspend', 'ban', 'activate', 'delete', 'change_role']),
+  value: z.string().optional(),
 });
 
 router.post(
@@ -175,9 +176,21 @@ router.post(
   validate(bulkUserActionSchema),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
-      const { userIds, action } = req.body;
-      let statusUpdate: string;
+      const { userIds, action, value } = req.body;
 
+      if (action === 'change_role') {
+        if (!value || !['member', 'admin', 'super_admin'].includes(value)) {
+          return res.status(400).json({ success: false, error: { message: 'Invalid role' } });
+        }
+        const result = await query(
+          `UPDATE users SET role = $1, updated_at = NOW() WHERE id = ANY($2::uuid[]) RETURNING id`,
+          [value, userIds]
+        );
+        const response: ApiResponse = { success: true, data: { affected: result.rowCount } };
+        return res.json(response);
+      }
+
+      let statusUpdate: string;
       switch (action) {
         case 'suspend': statusUpdate = 'suspended'; break;
         case 'ban': statusUpdate = 'banned'; break;

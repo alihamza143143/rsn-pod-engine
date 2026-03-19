@@ -206,7 +206,17 @@ export async function createInvite(userId: string, input: CreateInviteInput, use
         ? `${inviterName} invited you to ${targetName || 'a pod'}`
         : `${inviterName} invited you to ${targetName || 'an event'}`;
       const notifLink = `/invite/${code}`;
-      const notifBody = `You have a new invite from ${inviterName}`;
+      // Build a richer body with event details when available
+      let notifBody = `Invite from ${inviterName}`;
+      if (input.type === InviteType.SESSION && input.sessionId) {
+        const detailResult = await query<{ scheduled_at: string }>(`SELECT scheduled_at FROM sessions WHERE id = $1`, [input.sessionId]);
+        if (detailResult.rows[0]?.scheduled_at) {
+          const d = new Date(detailResult.rows[0].scheduled_at);
+          notifBody = `${targetName || 'Event'} · ${d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at ${d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`;
+        }
+      } else if (input.type === InviteType.POD) {
+        notifBody = `Join ${targetName || 'this pod'} — invited by ${inviterName}`;
+      }
       const notifResult = await query<{ id: string; created_at: string }>(
         `INSERT INTO notifications (user_id, type, title, body, link) VALUES ($1, $2, $3, $4, $5)
          RETURNING id, created_at`,
@@ -332,6 +342,15 @@ export async function acceptInvite(code: string, userId: string): Promise<Invite
         await sessionService.registerParticipant(invite.sessionId, userId);
       } catch (err) {
         if (!(err instanceof ConflictError)) throw err;
+      }
+      // Auto-add to the session's pod so the user can access the pod too
+      const sessionRow = await query<{ podId: string }>(`SELECT pod_id AS "podId" FROM sessions WHERE id = $1`, [invite.sessionId]);
+      if (sessionRow.rows[0]?.podId) {
+        try {
+          await podService.addMember(sessionRow.rows[0].podId, userId);
+        } catch (err) {
+          if (!(err instanceof ConflictError)) throw err;
+        }
       }
     }
 

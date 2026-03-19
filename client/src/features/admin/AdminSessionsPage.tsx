@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Calendar, Trash2, XCircle } from 'lucide-react';
 import Card from '@/components/ui/Card';
@@ -25,6 +26,7 @@ export default function AdminSessionsPage() {
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<string>('all');
 
   const { data, isLoading } = useQuery({
@@ -78,7 +80,7 @@ export default function AdminSessionsPage() {
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-gray-800">{session.title}</h3>
+                  <h3 className="font-semibold text-gray-800 hover:text-rsn-red cursor-pointer" onClick={() => navigate(`/sessions/${session.id}`)}>{session.title}</h3>
                   <Badge variant={STATUS_VARIANT[session.status] || 'default'}>{session.status}</Badge>
                 </div>
                 <p className="text-xs text-gray-400 mt-1">

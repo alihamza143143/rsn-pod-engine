@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Hexagon, Trash2, Archive } from 'lucide-react';
 import Card from '@/components/ui/Card';
@@ -14,6 +15,7 @@ export default function AdminPodsPage() {
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
   const qc = useQueryClient();
+  const navigate = useNavigate();
   const [filter, setFilter] = useState<'all' | 'active' | 'archived'>('all');
 
   const { data, isLoading } = useQuery({
@@ -67,7 +69,7 @@ export default function AdminPodsPage() {
             <div className="flex items-center justify-between">
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <h3 className="font-semibold text-gray-800">{pod.name}</h3>
+                  <h3 className="font-semibold text-gray-800 hover:text-rsn-red cursor-pointer" onClick={() => navigate(`/pods/${pod.id}`)}>{pod.name}</h3>
                   <Badge variant={pod.status === 'active' ? 'success' : 'default'}>{pod.status}</Badge>
                   <Badge variant="info">{pod.visibility}</Badge>
                 </div>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Users, Calendar, Mail, User, LogOut, Menu, X, Shield, Settings, HelpCircle, Heart } from 'lucide-react';
 import { cn, isAdmin } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
@@ -12,6 +12,8 @@ import NotificationBell from '@/components/ui/NotificationBell';
 export default function AppLayout() {
   const { user, logout } = useAuthStore();
   const navigate = useNavigate();
+  const location = useLocation();
+  const isOnAdmin = location.pathname.startsWith('/admin');
   const [mobileOpen, setMobileOpen] = useState(false);
   const [logoutModalOpen, setLogoutModalOpen] = useState(false);
   useScrollReveal();
@@ -31,6 +33,16 @@ export default function AppLayout() {
     ...(isAdmin(user?.role) ? [
       { to: '/admin', icon: Shield, label: 'Admin' },
     ] : []),
+  ];
+
+  const adminSubLinks = [
+    { to: '/admin/users', label: 'Users' },
+    { to: '/admin/pods', label: 'Pods' },
+    { to: '/admin/sessions', label: 'Events' },
+    { to: '/admin/join-requests', label: 'Join Requests' },
+    { to: '/admin/moderation', label: 'Moderation' },
+    { to: '/admin/templates', label: 'Templates' },
+    { to: '/admin/email', label: 'Email' },
   ];
 
   const bottomLinks = [
@@ -59,6 +71,20 @@ export default function AppLayout() {
     <>
       <nav className="flex flex-col gap-0.5 px-3 flex-1">
         {mainLinks.map(l => renderLink(l, closeMobile))}
+        {isOnAdmin && isAdmin(user?.role) && (
+          <div className="ml-6 mt-1 flex flex-col gap-0.5 border-l border-gray-200 pl-2">
+            {adminSubLinks.map(l => (
+              <NavLink
+                key={l.to} to={l.to}
+                onClick={() => closeMobile && setMobileOpen(false)}
+                className={({ isActive }) => cn(
+                  'text-xs px-2 py-1.5 rounded-md transition-colors',
+                  isActive ? 'text-rsn-red font-semibold bg-rsn-red-light' : 'text-gray-400 hover:text-gray-700 hover:bg-gray-100',
+                )}
+              >{l.label}</NavLink>
+            ))}
+          </div>
+        )}
       </nav>
       <div className="px-3 mt-auto">
         <div className="border-t border-gray-200 pt-3 mb-2 flex flex-col gap-0.5">
@@ -124,7 +150,7 @@ export default function AppLayout() {
           </div>
         )}
 
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-white">
           <Outlet />
         </main>
 
