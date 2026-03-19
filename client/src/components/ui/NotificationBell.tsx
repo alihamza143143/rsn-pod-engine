@@ -136,6 +136,17 @@ export default function NotificationBell() {
       if (dest) navigate(dest);
     } catch (err: any) {
       const errCode = err?.response?.data?.error?.code;
+      // Already registered/member = treat as success, navigate to event
+      if (errCode === 'SESSION_ALREADY_REGISTERED' || errCode === 'POD_MEMBER_EXISTS') {
+        addToast('You\'re already in! Navigating...', 'success');
+        if (!n.isRead) markRead(n.id);
+        setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, inviteStatus: 'accepted', isRead: true } : x));
+        invalidateInviteCaches();
+        setOpen(false);
+        const dest = getDestination(n);
+        if (dest) navigate(dest);
+        return;
+      }
       const msg = errCode === 'INVITE_REVOKED' ? 'This invite has been revoked'
         : errCode === 'INVITE_EXPIRED' ? 'This invite has expired'
         : errCode === 'INVITE_ALREADY_USED' ? 'This invite has been fully used'
