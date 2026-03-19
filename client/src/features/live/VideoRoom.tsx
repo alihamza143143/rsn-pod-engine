@@ -30,7 +30,7 @@ function VideoTile({ trackRef, label, isWaiting }: { trackRef?: any; label: stri
   return (
     <div className="relative rounded-xl overflow-hidden bg-[#3c4043] aspect-video flex items-center justify-center">
       {hasVideo ? (
-        <VideoTrack trackRef={trackRef} className="h-full w-full object-cover [&>video]:!transform-none" />
+        <VideoTrack trackRef={trackRef} className="h-full w-full object-cover" />
       ) : (
         <div className="flex flex-col items-center gap-2">
           <div className={`h-20 w-20 rounded-full bg-[#5f6368] flex items-center justify-center ${isWaiting ? 'animate-pulse' : ''}`}>

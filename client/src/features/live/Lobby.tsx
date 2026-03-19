@@ -68,7 +68,7 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
         return (
           <div key={trackRef.participant.sid} className="relative rounded-xl overflow-hidden bg-[#3c4043] aspect-video flex items-center justify-center group">
             {hasVideo && isTrackReference(trackRef) ? (
-              <VideoTrack trackRef={trackRef} className="h-full w-full object-cover [&>video]:!transform-none" />
+              <VideoTrack trackRef={trackRef} className="h-full w-full object-cover" />
             ) : (
               <div className="flex flex-col items-center gap-2">
                 <div className="h-14 w-14 rounded-full bg-[#5f6368] flex items-center justify-center text-white font-semibold text-xl">

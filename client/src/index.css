@@ -114,3 +114,11 @@
     box-shadow: 0 8px 25px -5px rgba(0, 0, 0, 0.08);
   }
 }
+
+/* Un-mirror all LiveKit video tracks — override inline scaleX(-1) */
+.lk-video-track video,
+.lk-participant-media-video video,
+[data-lk-source="camera"] video,
+video[style*="scaleX"] {
+  transform: none !important;
+}
