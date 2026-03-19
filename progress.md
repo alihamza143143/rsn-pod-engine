@@ -3888,3 +3888,45 @@ All Milestones complete. System validated end-to-end. Ready for final GitHub pus
   - Clean slate DB for fresh invite testing
 - Next immediate action:
   - Fresh test of full invite flow: create invite → send email → recipient clicks link → accepts
+
+---
+
+## Change 1.5 Feedback Fixes (2026-03-19 / 2026-03-20)
+
+Applied fixes based on client (Stefan/Shradha) feedback on Change 1.5.
+
+### Invite System Fixes
+- Removed email mismatch restriction — anyone with invite link can accept
+- Removed role-based invite restriction — anyone can invite anyone (growth phase)
+- Rate limit raised from 10 to 100/day, only counts pending invites
+- Auto-add to pod when accepting event invite (no more "must be pod member first")
+- Already-registered handled gracefully — shows "You're already in!" instead of error
+
+### Notification Improvements
+- Full event name in title (no more CSS truncation)
+- Event date/time in notification body (e.g. "Speed Networking · Thu, Mar 20 at 3:00 PM")
+- Real-time notifications on ALL pages — socket connects globally in AppLayout, server joins user to `user:{userId}` room on connect
+- 30s polling as fallback for pages where socket drops
+- Notification body wraps instead of truncating
+
+### Auth & UX Fixes
+- Google OAuth: changed prompt from 'consent' to 'select_account' — single click login
+- Profile page dark flash fixed — white bg on ProtectedRoute loading + PageLoader
+- Main content area explicit bg-white
+
+### Admin Improvements
+- Admin sidebar navigation — sub-page links (Users, Pods, Events, Join Requests, Moderation, Templates, Email) show when on /admin/* routes
+- Bulk Change Role dropdown added to admin user action bar (Member / Admin / Super Admin)
+- Server bulk-action endpoint accepts 'change_role' action
+- Admin Pods page — pod names clickable to /pods/:id
+- Admin Sessions page — event titles clickable to /sessions/:id
+
+### Video Quality
+- Camera capture set to 1280×720 @ 30fps (HD) for both lobby and breakout rooms
+- Self-view un-mirrored — shows exactly what others see
+- Applies to both Lobby and VideoRoom LiveKitRoom instances
+
+### .gitignore Cleanup
+- CHANGE_1.4_LOG.md, CHANGE_1.5_LOG.md removed from repo — local docs only
+- assets/ directory gitignored
+- dash1.png, render logs gitignored
