@@ -40,9 +40,37 @@ Purpose: Persistent execution history and current state, independent of chat mem
 
 ## Current Phase Snapshot
 
-- Active Phase: Change 1.4 — Shradha call fixes + platform broadening
-- Active Milestone: **Phase 1 & 2 complete, Phase 3 next**
-- Source Document: `assets/Changes 1.4 RSN System Architecture.pdf` (16-page doc from Shradha call March 15)
+- Active Phase: Change 1.7 — Event Flow Bug Report + Matching Fix
+- Active Milestone: **All 5 phases complete (7 commits)**
+- Source Document: Tommy's live walkthrough bug report (March 20, 2026)
+- Last Updated: March 22, 2026
+
+### What's Done (Change 1.7)
+
+**Phase 1 — CRITICAL: Matching No-Repeat Enforcement** ✅
+- 1.1: Removed fallback_repeat logic from matching engine — no repeat matches allowed
+- 1.2: Added warnings[] + byeParticipants[] to RoundAssignment type
+- 1.3: Host sees amber warning banner in match preview when unique pairs exhausted
+- 1.4: Belt-and-suspenders validation in matching.service.ts
+
+**Phase 2 — State Machine Fixes (Bugs 1, 2, 7, 8)** ✅
+- 2.1: manuallyLeftRound tracking (server Set + client flag) prevents re-entry
+- 2.2: lastRatedRound prevents late round_rating from overriding lobby
+- 2.3: State guards on match:assigned, match:reassigned, rating:window_open
+- 2.4: Explicit cleanup on round_transition, round_started, completed
+
+**Phase 3 — Closing Lobby (Bug 3)** ✅
+- 3.1: closing_lobby phase with 30s countdown, lobby video mosaic, goodbye overlay
+
+**Phase 4 — Past Event Invite Guard (Bug 5)** ✅
+- 4.1: Server rejects invites for completed/cancelled events (EVENT_ENDED)
+- 4.2: Client shows error pre-emptively + handles EVENT_ENDED code
+
+**Phase 5 — UX Polish (Bugs 4, 6)** ✅
+- 5.1: Larger stars, bigger submit, instruction text, heart icon, progress dots
+- 5.2: Copy audit — "session" → "event" in user-facing text
+
+### Previous Phase
 - Reference Spec: "Dr Prompt" — RSN Matching Engine spec (in Claude memory)
 - Overall Build Status: Client + Server + Shared all compile with zero TypeScript errors
 - Architecture: Landing page (Stefan/Lovable) at rsn.network | App (our codebase) at app.rsn.network
