@@ -34,7 +34,7 @@ export class MatchingEngineV1 implements IMatchingEngine {
         participants: input.participants.length,
         rounds: input.config.numberOfRounds,
         maxUniquePairs,
-      }, 'More rounds requested than available unique pairings — duplicates may occur');
+      }, 'More rounds requested than available unique pairings — some participants will have bye rounds');
     }
   }
 
@@ -204,31 +204,8 @@ export class MatchingEngineV1 implements IMatchingEngine {
       }
     }
 
-    // Handle unmatched participants (fallback: allow previously-used pairs)
-    const unmatched = participants
-      .map((_, idx) => idx)
-      .filter((idx) => !matched.has(idx));
-
-    // Try to pair remaining unmatched even if violating session uniqueness
-    for (let i = 0; i < unmatched.length - 1; i += 2) {
-      const aIdx = unmatched[i];
-      const bIdx = unmatched[i + 1];
-      const key = pairKey(participants[aIdx].userId, participants[bIdx].userId);
-
-      if (!hardExclusions.has(key)) {
-        const { score, reasonTags } = this.computePairScore(
-          participants[aIdx], participants[bIdx], config.weights, encounterMap
-        );
-        pairs.push({
-          participantAId: participants[aIdx].userId,
-          participantBId: participants[bIdx].userId,
-          score,
-          reasonTags: [...reasonTags, 'fallback_repeat'],
-        });
-        matched.add(aIdx);
-        matched.add(bIdx);
-      }
-    }
+    // No fallback repeat logic — Dr Prompt hard rule: no repeat matches within same event.
+    // Unmatched participants go directly to bye handling.
 
     // Handle unmatched — form trio instead of bye when exactly 1 leftover
     const stillUnmatched = participants
@@ -236,6 +213,8 @@ export class MatchingEngineV1 implements IMatchingEngine {
       .filter((p) => !matched.has(p.idx));
 
     let byeParticipant: string | null = null;
+    const byeParticipants: string[] = [];
+    const warnings: string[] = [];
 
     if (stillUnmatched.length === 1 && pairs.length > 0) {
       // Exactly one leftover — add to the best-fit existing pair to form a trio
@@ -264,8 +243,14 @@ export class MatchingEngineV1 implements IMatchingEngine {
         reasonTags: [...pairs[bestPairIdx].reasonTags, 'trio'],
       };
     } else if (stillUnmatched.length > 1) {
-      // Multiple unmatched (rare edge) — fall back to bye for first
-      byeParticipant = stillUnmatched[0].userId;
+      // Multiple unmatched — all unique pairs exhausted, everyone gets bye
+      for (const u of stillUnmatched) {
+        byeParticipants.push(u.userId);
+      }
+      byeParticipant = stillUnmatched[0].userId; // backwards compat
+      warnings.push(`All unique pairs exhausted — ${stillUnmatched.length} participants have bye rounds`);
+      logger.warn({ roundNumber, byeCount: stillUnmatched.length, byeParticipants },
+        'Multiple bye participants: unique pairs exhausted');
     }
 
     // ─── Duplicate user guard (belt-and-suspenders) ─────────────────────
@@ -283,6 +268,8 @@ export class MatchingEngineV1 implements IMatchingEngine {
       roundNumber,
       pairs,
       byeParticipant,
+      ...(byeParticipants.length > 0 && { byeParticipants }),
+      ...(warnings.length > 0 && { warnings }),
     };
   }
 

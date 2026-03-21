@@ -158,6 +158,28 @@ export async function generateSingleRound(
     roundNumber
   );
 
+  // Belt-and-suspenders: verify no returned pair exists in excludedPairs
+  const violatingPairs: typeof round.pairs = [];
+  for (const pair of round.pairs) {
+    const key = pairKey(pair.participantAId, pair.participantBId);
+    if (excludedPairs.has(key)) {
+      logger.error({ sessionId, roundNumber, pairKey: key },
+        'MATCHING VIOLATION: generated pair exists in excludedPairs — removing pair');
+      violatingPairs.push(pair);
+    }
+  }
+  if (violatingPairs.length > 0) {
+    const byeList = round.byeParticipants ?? [];
+    const warnList = round.warnings ?? [];
+    for (const vp of violatingPairs) {
+      round.pairs = round.pairs.filter(p => p !== vp);
+      byeList.push(vp.participantAId, vp.participantBId);
+      warnList.push(`Pair ${vp.participantAId}/${vp.participantBId} violated no-repeat rule and was removed`);
+    }
+    round.byeParticipants = byeList;
+    round.warnings = warnList;
+  }
+
   // Persist this round's matches
   await persistMatches(sessionId, [round]);
 

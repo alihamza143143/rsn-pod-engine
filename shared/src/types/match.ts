@@ -136,6 +136,8 @@ export interface RoundAssignment {
   roundNumber: number;
   pairs: MatchPair[];
   byeParticipant: string | null;  // odd count handling
+  byeParticipants?: string[];     // multiple bye participants when unique pairs exhausted
+  warnings?: string[];            // matching warnings (e.g. all unique pairs exhausted)
 }
 
 export interface MatchPair {

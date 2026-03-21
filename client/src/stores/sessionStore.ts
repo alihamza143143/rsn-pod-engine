@@ -60,6 +60,7 @@ interface SessionLiveState {
     roundNumber: number;
     matches: { participantA: { userId: string; displayName: string }; participantB: { userId: string; displayName: string }; participantC?: { userId: string; displayName: string }; isTrio?: boolean; metBefore?: boolean; timesMet?: number }[];
     byeParticipants: { userId: string; displayName: string }[];
+    warnings?: string[];
   } | null;
   hostMuteCommand: boolean | null; // null=no command, true=muted by host, false=unmuted by host
   partnerDisconnected: boolean;

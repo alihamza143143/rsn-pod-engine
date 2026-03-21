@@ -1,6 +1,6 @@
 import { useSessionStore } from '@/stores/sessionStore';
 import { Button } from '@/components/ui/Button';
-import { Play, Square, Loader2, Users, Radio, Shuffle, Check, X, Pause, SkipForward, MessageSquare, UserMinus, RefreshCw, UserPlus } from 'lucide-react';
+import { Play, Square, Loader2, Users, Radio, Shuffle, Check, X, Pause, SkipForward, MessageSquare, UserMinus, RefreshCw, UserPlus, AlertTriangle } from 'lucide-react';
 import { getSocket } from '@/lib/socket';
 import { useState } from 'react';
 
@@ -144,6 +144,14 @@ export default function HostControls({ sessionId }: Props) {
                 </button>
               </div>
             </div>
+            {matchPreview.warnings && matchPreview.warnings.length > 0 && (
+              <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2 mb-2">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-400 mt-0.5 shrink-0" />
+                <div className="text-xs text-amber-300">
+                  {matchPreview.warnings.map((w, i) => <p key={i}>{w}</p>)}
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               {matchPreview.matches.map((m, i) => (
                 <div key={i} className="flex items-center gap-1 text-xs bg-white/5 rounded-lg px-2 py-1.5">

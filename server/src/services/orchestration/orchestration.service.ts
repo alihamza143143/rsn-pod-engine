@@ -1715,10 +1715,17 @@ async function sendMatchPreview(
     .filter(p => !matchedIds.has(p.user_id))
     .map(p => ({ userId: p.user_id, displayName: nameMap.get(p.user_id) || 'User' }));
 
+  // Generate warnings when multiple participants have byes (unique pairs likely exhausted)
+  const roundWarnings: string[] = [];
+  if (byeParticipants.length > 1) {
+    roundWarnings.push(`All unique pairs exhausted — ${byeParticipants.length} participants have bye rounds`);
+  }
+
   socket.emit('host:match_preview', {
     roundNumber,
     matches: matchPreview,
     byeParticipants,
+    ...(roundWarnings.length > 0 && { warnings: roundWarnings }),
   });
 }
 
