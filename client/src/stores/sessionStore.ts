@@ -83,6 +83,7 @@ interface SessionLiveState {
   lobbyDensity: 'compact' | 'normal' | 'spacious';
   cohosts: Set<string>;
   leftCurrentRound: boolean;
+  lastRatedRound: number;
 
   setPhase: (phase: SessionPhase) => void;
   setConnectionStatus: (status: ConnectionStatus) => void;
@@ -122,6 +123,7 @@ interface SessionLiveState {
   addCohost: (userId: string) => void;
   removeCohost: (userId: string) => void;
   setLeftCurrentRound: (v: boolean) => void;
+  setLastRatedRound: (r: number) => void;
 
   reset: () => void;
 }
@@ -161,6 +163,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   lobbyDensity: 'normal' as const,
   cohosts: new Set<string>(),
   leftCurrentRound: false,
+  lastRatedRound: 0,
 
   setPhase: (phase) => set({ phase }),
   setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
@@ -206,6 +209,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   addCohost: (userId) => set((s) => { const c = new Set(s.cohosts); c.add(userId); return { cohosts: c }; }),
   removeCohost: (userId) => set((s) => { const c = new Set(s.cohosts); c.delete(userId); return { cohosts: c }; }),
   setLeftCurrentRound: (leftCurrentRound) => set({ leftCurrentRound }),
+  setLastRatedRound: (lastRatedRound) => set({ lastRatedRound }),
   updateRoomStatus: (matchId, status, participants) => set((s) => {
     if (!s.roundDashboard) return {};
     return {
@@ -227,6 +231,6 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
     timerVisibility: 'always_visible', matchPreview: null,
     hostMuteCommand: null, partnerDisconnected: false, roundDashboard: null,
     chatMessages: [], unreadChatCount: 0, chatOpen: false, matchingOverlay: null, lobbyDensity: 'normal' as const,
-    cohosts: new Set<string>(), leftCurrentRound: false,
+    cohosts: new Set<string>(), leftCurrentRound: false, lastRatedRound: 0,
   }),
 }));

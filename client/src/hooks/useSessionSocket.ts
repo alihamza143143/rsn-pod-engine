@@ -97,13 +97,15 @@ export default function useSessionSocket(sessionId: string) {
     // ── Session lifecycle ──
     socket.on('session:status_changed', (data: any) => {
       store.setSessionStatus(data.status);
-      if (data.status === 'completed') { clearTimer(); store.setTransitionStatus('session_ending'); setTimeout(() => { store.setTransitionStatus(null); store.setPhase('complete'); }, 1500); }
+      if (data.status === 'completed') { clearTimer(); store.setLiveKitToken(null, null); store.setMatch(null); store.setRoomId(null); store.setMatchingOverlay(null); store.setRoundDashboard(null); store.setTransitionStatus('session_ending'); setTimeout(() => { store.setTransitionStatus(null); store.setPhase('complete'); }, 1500); }
       if (data.status === 'lobby_open') store.setTransitionStatus('starting_session');
       if (data.status === 'closing_lobby') store.setTransitionStatus('session_ending');
       // Handle round_rating — only transition matched participants to rating
       if (data.status === 'round_rating') {
         clearTimer();
         const state = useSessionStore.getState();
+        // Skip if we already rated this round (prevents late-arriving status from overriding lobby)
+        if (state.currentRound <= state.lastRatedRound) return;
         // Bye-round users stay in lobby — they have no match to rate
         if (state.isByeRound) {
           store.setTransitionStatus('between_rounds');
@@ -120,6 +122,9 @@ export default function useSessionSocket(sessionId: string) {
         store.setLiveKitToken(null, null);
         setTimeout(() => { store.setMatch(null); store.setRoomId(null); }, 500);
         store.setByeRound(false);
+        store.setPartnerDisconnected(false);
+        store.setMatchingOverlay(null);
+        store.setLeftCurrentRound(false);
         store.setTransitionStatus(null);
         store.setPhase('lobby');
       }
@@ -156,6 +161,15 @@ export default function useSessionSocket(sessionId: string) {
 
     socket.on('session:completed', () => {
       clearTimer();
+      // session:completed always wins — force complete phase, clear ALL transient state
+      store.setLiveKitToken(null, null);
+      store.setMatch(null);
+      store.setRoomId(null);
+      store.setByeRound(false);
+      store.setPartnerDisconnected(false);
+      store.setMatchingOverlay(null);
+      store.setLeftCurrentRound(false);
+      store.setRoundDashboard(null);
       store.setTransitionStatus('session_ending');
       // Small delay so in-progress rating submissions can finish
       setTimeout(() => { store.setTransitionStatus(null); store.setPhase('complete'); }, 1500);
@@ -193,6 +207,11 @@ export default function useSessionSocket(sessionId: string) {
     });
 
     socket.on('match:reassigned', (data: any) => {
+      // Same guards as match:assigned
+      const reassignState = useSessionStore.getState();
+      if (reassignState.sessionStatus === 'round_rating' || reassignState.sessionStatus === 'completed') return;
+      if (reassignState.sessionStatus === 'round_transition') return;
+      if (reassignState.leftCurrentRound) return;
       store.setPartnerDisconnected(false);
       store.setTransitionStatus('preparing_match');
       store.setMatch({ userId: data.newPartnerId, displayName: data.partnerDisplayName || data.newPartnerId }, data.matchId || null);
@@ -236,9 +255,9 @@ export default function useSessionSocket(sessionId: string) {
 
     // ── Ratings ──
     socket.on('rating:window_open', (data: any) => {
-      // On reconnect during rating phase, currentMatch/currentPartners may be empty.
-      // The server now sends partners with display names so we can restore them.
+      // Only process if we're actually in rating phase
       const currentState = useSessionStore.getState();
+      if (currentState.sessionStatus !== 'round_rating' && currentState.sessionStatus !== 'round_active') return;
       if (data.partners && data.partners.length > 0) {
         // Server sent full partner info (reconnect or trio) — use it
         const primaryPartner = data.partners[0];
@@ -260,13 +279,14 @@ export default function useSessionSocket(sessionId: string) {
     socket.on('rating:window_closed', () => {
       clearTimer();
       store.setLiveKitToken(null, null);
+      const state = useSessionStore.getState();
+      store.setLastRatedRound(state.currentRound); // Prevent re-entry to rating for this round
       // Don't clear match data immediately — let RatingPrompt finish if user is mid-submit.
       setTimeout(() => {
         store.setMatch(null);
         store.setRoomId(null);
       }, 500);
       // Return to lobby immediately — no transition delay
-      const state = useSessionStore.getState();
       const isLastRound = state.currentRound >= state.totalRounds && state.totalRounds > 0;
       if (isLastRound) {
         store.setTransitionStatus('session_ending');
