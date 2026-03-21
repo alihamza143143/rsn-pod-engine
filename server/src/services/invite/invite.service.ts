@@ -294,6 +294,18 @@ export async function acceptInvite(code: string, userId: string): Promise<Invite
       throw new AppError(400, 'INVITE_EXPIRED', 'This invite has expired');
     }
 
+    // Check if linked session has already ended
+    if (invite.type === InviteType.SESSION && invite.sessionId) {
+      const sessionResult = await client.query(
+        `SELECT status FROM sessions WHERE id = $1`,
+        [invite.sessionId]
+      );
+      const sessionStatus = sessionResult.rows[0]?.status;
+      if (sessionStatus === 'completed' || sessionStatus === 'cancelled') {
+        throw new AppError(400, 'EVENT_ENDED', 'This event has already ended');
+      }
+    }
+
     if (invite.useCount >= invite.maxUses) {
       // If the invite was already consumed by THIS user during registration (Google OAuth),
       // still apply the pod/session membership effect instead of rejecting.

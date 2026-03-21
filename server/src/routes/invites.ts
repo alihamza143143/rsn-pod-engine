@@ -123,6 +123,7 @@ router.get(
       let sessionTitle: string | undefined;
       let sessionScheduledAt: string | undefined;
       let sessionDescription: string | undefined;
+      let sessionStatus: string | undefined;
 
       // Fetch inviter display name
       const inviterResult = await query<{ displayName: string }>(
@@ -143,16 +144,17 @@ router.get(
 
       // Fetch session details
       if (invite.sessionId) {
-        const sessionResult = await query<{ title: string; scheduledAt: string; description: string }>(
-          `SELECT title, scheduled_at AS "scheduledAt", description FROM sessions WHERE id = $1`,
+        const sessionResult = await query<{ title: string; scheduledAt: string; description: string; status: string }>(
+          `SELECT title, scheduled_at AS "scheduledAt", description, status FROM sessions WHERE id = $1`,
           [invite.sessionId]
         );
         sessionTitle = sessionResult.rows[0]?.title;
         sessionScheduledAt = sessionResult.rows[0]?.scheduledAt;
         sessionDescription = sessionResult.rows[0]?.description;
+        sessionStatus = sessionResult.rows[0]?.status;
       }
 
-      const context = { inviterName, podName, podDescription, sessionTitle, sessionScheduledAt, sessionDescription };
+      const context = { inviterName, podName, podDescription, sessionTitle, sessionScheduledAt, sessionDescription, sessionStatus };
 
       // Non-authenticated users see limited invite fields but full context
       const data = req.user

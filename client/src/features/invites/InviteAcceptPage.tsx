@@ -20,6 +20,8 @@ function getAcceptErrorMessage(err: any): { message: string } {
       return { message: 'This invite has expired and is no longer valid' };
     case 'INVITE_ALREADY_USED':
       return { message: 'This invite has already been used the maximum number of times' };
+    case 'EVENT_ENDED':
+      return { message: 'This event has already ended' };
     default:
       return { message: message || 'Failed to accept invite' };
   }
@@ -90,16 +92,22 @@ export default function InviteAcceptPage() {
     }
   }, [code, invite, user, navigate, addToast, getDestination]);
 
-  // Auto-accept for logged-in users — seamless deep linking
+  // Pre-emptive check: if session has already ended, show error without attempting accept
+  const eventEnded = invite?.sessionStatus === 'completed' || invite?.sessionStatus === 'cancelled';
+
+  // Auto-accept for logged-in users — seamless deep linking (skip if event already ended)
   useEffect(() => {
-    if (user && invite && !autoAcceptedRef.current && !accepting) {
+    if (user && invite && !autoAcceptedRef.current && !accepting && !eventEnded) {
       autoAcceptedRef.current = true;
       accept();
     }
-  }, [user, invite, accepting, accept]);
+    if (eventEnded && !error) {
+      setError('This event has already ended');
+    }
+  }, [user, invite, accepting, accept, eventEnded, error]);
 
   // Show loader while auto-accepting or fetching invite
-  if (loading || (user && invite && !error)) return <PageLoader />;
+  if (loading || (user && invite && !error && !eventEnded)) return <PageLoader />;
 
   const InviteIcon = invite?.type === 'session' ? Calendar : Users;
   const inviteLabel = invite?.type === 'pod' ? 'a pod' : invite?.type === 'session' ? 'an event' : 'RSN';
