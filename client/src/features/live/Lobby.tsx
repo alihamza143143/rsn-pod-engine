@@ -241,7 +241,7 @@ function useHostPresence(gracePeriodMs = 5000): boolean | null {
 }
 
 function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
-  const { participants, isByeRound, currentRound, totalRounds, transitionStatus, sessionStatus, hostUserId } = useSessionStore();
+  const { participants, isByeRound, currentRound, totalRounds, transitionStatus, sessionStatus, hostUserId, timerSeconds } = useSessionStore();
   const hostOnline = useHostPresence();
 
   // Session hasn't been started yet by host
@@ -249,7 +249,21 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
 
   return (
     <div className="text-center space-y-3">
-      {isByeRound ? (
+      {sessionStatus === 'closing_lobby' ? (
+        <div className="flex flex-col items-center gap-3">
+          <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-emerald-500/20 text-emerald-400">
+            <Sparkles className="h-7 w-7" />
+          </div>
+          <h2 className="text-xl font-bold text-white">Event Complete!</h2>
+          <p className="text-gray-400 text-sm max-w-xs">Take a moment to say your goodbyes before we wrap up.</p>
+          {timerSeconds > 0 && (
+            <div className="inline-flex items-center gap-1.5 text-xs text-gray-400 bg-white/5 px-3 py-1.5 rounded-full">
+              <Clock className="h-3.5 w-3.5" />
+              <span>Closing in {timerSeconds}s</span>
+            </div>
+          )}
+        </div>
+      ) : isByeRound ? (
         <>
           <h2 className="text-xl font-bold text-white">Bye Round</h2>
           <p className="text-gray-400 text-sm">Odd one out this round — you'll be matched in the next round!</p>

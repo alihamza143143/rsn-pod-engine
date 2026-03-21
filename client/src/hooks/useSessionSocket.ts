@@ -99,7 +99,18 @@ export default function useSessionSocket(sessionId: string) {
       store.setSessionStatus(data.status);
       if (data.status === 'completed') { clearTimer(); store.setLiveKitToken(null, null); store.setMatch(null); store.setRoomId(null); store.setMatchingOverlay(null); store.setRoundDashboard(null); store.setTransitionStatus('session_ending'); setTimeout(() => { store.setTransitionStatus(null); store.setPhase('complete'); }, 1500); }
       if (data.status === 'lobby_open') store.setTransitionStatus('starting_session');
-      if (data.status === 'closing_lobby') store.setTransitionStatus('session_ending');
+      if (data.status === 'closing_lobby') {
+        // Closing lobby: clear match data, return to lobby with closing overlay
+        store.setLiveKitToken(null, null);
+        store.setMatch(null);
+        store.setRoomId(null);
+        store.setByeRound(false);
+        store.setPartnerDisconnected(false);
+        store.setMatchingOverlay(null);
+        store.setLeftCurrentRound(false);
+        store.setTransitionStatus('session_ending');
+        store.setPhase('lobby');
+      }
       // Handle round_rating — only transition matched participants to rating
       if (data.status === 'round_rating') {
         clearTimer();

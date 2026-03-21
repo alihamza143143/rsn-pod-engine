@@ -287,7 +287,7 @@ async function handleJoinSession(
     }
 
     // If in lobby/transition phase and session has a lobby room, send lobby token for video mosaic
-    const lobbyPhases = [SessionStatus.LOBBY_OPEN, SessionStatus.ROUND_TRANSITION, SessionStatus.ROUND_RATING];
+    const lobbyPhases = [SessionStatus.LOBBY_OPEN, SessionStatus.ROUND_TRANSITION, SessionStatus.ROUND_RATING, SessionStatus.CLOSING_LOBBY];
     const currentStatus = activeSession?.status || session.status;
     if (session.lobbyRoomId && lobbyPhases.includes(currentStatus as SessionStatus)) {
       try {
@@ -1130,6 +1130,12 @@ async function handleHostEnd(
       await endRound(data.sessionId, activeSession.currentRound);
       logger.info({ sessionId: data.sessionId }, 'Host ended active round — rating window started, normal flow continues');
       return;
+    }
+
+    // If in closing lobby, host can skip the 30s countdown
+    if (activeSession && activeSession.status === SessionStatus.CLOSING_LOBBY) {
+      if (activeSession.timer) { clearTimeout(activeSession.timer); activeSession.timer = null; }
+      logger.info({ sessionId: data.sessionId }, 'Host skipped closing lobby');
     }
 
     await completeSession(data.sessionId);
@@ -2116,9 +2122,42 @@ async function endRatingWindow(
       // Host-controlled: no auto-timer. Host must click "Start Round" for next round.
       logger.info({ sessionId, roundNumber }, 'Rating window closed → ROUND_TRANSITION (waiting for host)');
     } else {
-      // Last round done → complete session directly (no long closing lobby wait)
-      logger.info({ sessionId, roundNumber }, 'All rounds completed → completing session');
-      await completeSession(sessionId);
+      // Last round done → transition to closing lobby for goodbyes
+      activeSession.status = SessionStatus.CLOSING_LOBBY;
+      await sessionService.updateSessionStatus(sessionId, SessionStatus.CLOSING_LOBBY);
+
+      io.to(sessionRoom(sessionId)).emit('session:status_changed', {
+        sessionId,
+        status: SessionStatus.CLOSING_LOBBY,
+        currentRound: roundNumber,
+      });
+
+      // Re-issue lobby tokens so participants see each other for goodbyes
+      const session = await sessionService.getSessionById(sessionId);
+      if (session.lobbyRoomId) {
+        const socketsInRoom = await io.in(sessionRoom(sessionId)).fetchSockets();
+        const { config: appConfig } = await import('../../config');
+        for (const s of socketsInRoom) {
+          try {
+            const uid = (s.data as any)?.userId;
+            const dName = (s.data as any)?.displayName || 'User';
+            if (!uid) continue;
+            const lobbyToken = await videoService.issueJoinToken(uid, session.lobbyRoomId, dName);
+            s.emit('lobby:token', {
+              token: lobbyToken.token,
+              livekitUrl: appConfig.livekit.host,
+              roomId: session.lobbyRoomId,
+            });
+          } catch { /* skip */ }
+        }
+      }
+
+      // 30-second closing lobby timer, then auto-complete
+      startSegmentTimer(sessionId, 30, () => {
+        completeSession(sessionId);
+      });
+
+      logger.info({ sessionId, roundNumber }, 'All rounds completed → CLOSING_LOBBY (30s goodbye period)');
     }
   } catch (err) {
     logger.error({ err, sessionId, roundNumber }, 'Error ending rating window');
