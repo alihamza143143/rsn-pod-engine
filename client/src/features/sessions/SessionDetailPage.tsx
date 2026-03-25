@@ -51,8 +51,11 @@ export default function SessionDetailPage() {
     queryFn: () => api.get(`/sessions/${sessionId}`).then(r => r.data.data),
   });
 
-  // Pod query kept for potential future use but not gating registration
-  // Server handles invite-based pod auto-add
+  const { data: pod } = useQuery({
+    queryKey: ['pod', session?.podId],
+    queryFn: () => api.get(`/pods/${session.podId}`).then(r => r.data.data),
+    enabled: !!session?.podId,
+  });
 
   const { data: participants } = useQuery({
     queryKey: ['session-participants', sessionId],
@@ -69,7 +72,9 @@ export default function SessionDetailPage() {
     enabled: !!sessionId && (isHost || isAdmin),
   });
   const isRegistered = (participants || []).some((p: any) => p.userId === user?.id && p.status !== 'removed');
-  // Registration always allowed — server checks invite + auto-adds to pod if needed
+  const isMember = !!pod?.memberRole || isAdmin;
+  const isRestrictedPod = pod?.visibility === 'invite_only' || pod?.visibility === 'private';
+  const canRegister = isMember || !isRestrictedPod;
 
   const updateMutation = useMutation({
     mutationFn: (body: { title?: string; description?: string; scheduledAt?: string }) => api.put(`/sessions/${sessionId}`, body),
@@ -266,9 +271,16 @@ export default function SessionDetailPage() {
       {/* Actions */}
       <div className="flex flex-wrap gap-3 animate-fade-in-up stagger-1">
         {!isHost && (session.status === 'scheduled' || session.status === 'lobby_open' || session.status === 'round_active' || session.status === 'round_rating' || session.status === 'round_transition') && !isRegistered && (
+          canRegister ? (
             <Button onClick={() => registerMutation.mutate()} isLoading={registerMutation.isPending} className="btn-glow">
               <UserPlus className="h-4 w-4 mr-2" /> {session.status === 'scheduled' ? 'Register' : 'Join Late'}
             </Button>
+          ) : (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm">
+              <Mail className="h-4 w-4 flex-shrink-0" />
+              <span>You have a pending invite — accept it from your <button onClick={() => navigate('/invites')} className="underline font-medium hover:text-amber-900">Invites page</button> to join this event.</span>
+            </div>
+          )
         )}
         {!isHost && isRegistered && session.status !== 'completed' && session.status !== 'cancelled' && (
           <>

@@ -350,12 +350,7 @@ export async function acceptInvite(code: string, userId: string): Promise<Invite
     }
 
     if (invite.type === InviteType.SESSION && invite.sessionId) {
-      try {
-        await sessionService.registerParticipant(invite.sessionId, userId);
-      } catch (err) {
-        if (!(err instanceof ConflictError)) throw err;
-      }
-      // Auto-add to the session's pod so the user can access the pod too
+      // Add to pod FIRST so registerParticipant doesn't reject for private pods
       const sessionRow = await query<{ podId: string }>(`SELECT pod_id AS "podId" FROM sessions WHERE id = $1`, [invite.sessionId]);
       if (sessionRow.rows[0]?.podId) {
         try {
@@ -363,6 +358,12 @@ export async function acceptInvite(code: string, userId: string): Promise<Invite
         } catch (err) {
           if (!(err instanceof ConflictError)) throw err;
         }
+      }
+      // Now register for the session
+      try {
+        await sessionService.registerParticipant(invite.sessionId, userId);
+      } catch (err) {
+        if (!(err instanceof ConflictError)) throw err;
       }
     }
 
