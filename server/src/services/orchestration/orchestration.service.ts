@@ -2704,7 +2704,11 @@ async function handleReactionSend(
     // In lobby phase, block reactions when host is not present (host/co-hosts always allowed)
     const session = await sessionService.getSessionById(sessionId).catch(() => null);
     const isHost = session?.hostUserId === userId;
-    if (!isHost) {
+    const cohostCheck = isHost ? { rows: [] } : await query<{ user_id: string }>(
+      `SELECT user_id FROM session_cohosts WHERE session_id = $1 AND user_id = $2`, [sessionId, userId]
+    ).catch(() => ({ rows: [] }));
+    const isCohost = cohostCheck.rows.length > 0;
+    if (!isHost && !isCohost) {
       const activeSession = activeSessions.get(sessionId);
       const hostPresent = activeSession?.presenceMap.has(session?.hostUserId || '');
       if (!hostPresent && (!activeSession || activeSession.status === SessionStatus.LOBBY_OPEN || activeSession.status === SessionStatus.SCHEDULED)) {
