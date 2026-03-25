@@ -330,10 +330,10 @@ export async function acceptInvite(code: string, userId: string): Promise<Invite
     // No email restriction — anyone with the invite link can accept it.
     // The invite code itself is the authorization token.
 
-    // Update invite
+    // Update invite — always mark as accepted for this user
     const updatedResult = await client.query(
       `UPDATE invites SET use_count = use_count + 1, accepted_by_user_id = $1, accepted_at = NOW(),
-       status = CASE WHEN use_count + 1 >= max_uses THEN 'accepted'::invite_status ELSE status END
+       status = 'accepted'::invite_status
        WHERE id = $2
        RETURNING ${INVITE_COLUMNS}`,
       [userId, invite.id]
