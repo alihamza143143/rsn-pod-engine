@@ -72,7 +72,7 @@ export default function SessionDetailPage() {
     queryFn: () => api.get(`/sessions/${sessionId}/participant-counts`).then(r => r.data.data),
     enabled: !!sessionId && (isHost || isAdmin),
   });
-  const { data: pendingInvites, refetch: refetchPendingInvites } = useQuery({
+  const { data: pendingInvites } = useQuery({
     queryKey: ['session-pending-invites', sessionId],
     queryFn: () => api.get(`/invites/session/${sessionId}?status=pending`).then(r => r.data.data ?? []),
     enabled: !!sessionId && (isHost || isAdmin) && showPendingInvites,
