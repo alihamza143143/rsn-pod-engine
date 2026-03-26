@@ -41,9 +41,9 @@ Purpose: Persistent execution history and current state, independent of chat mem
 ## Current Phase Snapshot
 
 - Active Phase: Change 1.8 — Platform Feedback v1.8
-- Active Milestone: **Phases 1-4 complete (6 bug fixes + 2 UX fixes + 1 feature + 2 admin polish)**
+- Active Milestone: **Phases 1-5 complete + client feedback fixes**
 - Source Document: Changes 1.8.pdf (Stefan/Shradha call feedback, March 24, 2026)
-- Last Updated: March 26, 2026
+- Last Updated: March 27, 2026
 
 ### What's Done (Change 1.8 — Phase 1)
 
@@ -55,8 +55,26 @@ Purpose: Persistent execution history and current state, independent of chat mem
 - 1E: Remove confusing event settings → Lobby Duration removed, Transition renamed to "Break Between Rounds"
 - 1F: Pods default to "Browse All" + search → default changed, search input filters by name
 
+**Phase 4 — Admin Polish (2 items, ALL COMPLETE)**
+- 4A: Admin join request actions — Send Message + Add Note buttons, admin_notes column, email via sendGenericEmail
+- 4B: All 8 email templates now use consistent dark theme (#0a0a0f background)
+
+**Client Feedback Fixes (8 items, ALL COMPLETE — March 26, 2026)**
+- 1: "Lobby" renamed to "Main Room" everywhere user-facing
+- 2: Spacious layout now visually distinct (fewer cols, larger gaps, narrower max-width)
+- 3: Participant names hidden for non-host in waiting room (anonymous, count only)
+- 4: Pending invites badge fixed — server excludes already-joined sessions/pods
+- 5: Timer default changed from always_visible to last_10s (runtime fallback only, host still picks in form)
+- 6: Pin/spotlight uses object-contain to show full face instead of cropping
+- 7: Message/Note buttons now boxed (outline variant) matching Approve/Decline
+- 8: Purple pending invites banner added above participants for discoverability
+
+**Phase 5 — Onboarding & Matching Templates (2 items, ALL COMPLETE — March 27, 2026)**
+- 5A: 3-step onboarding redesign (About You → What You Want → Depth) with chip selectors for role, state, stage, goals, meeting prefs, interests, matching notes. 6 new DB columns + shared types + server validation + identity service
+- 5B: Matching engine loads template weights from session config or pod's matching_template_id. Template dropdown added to Create Event form. Falls back to DEFAULT_WEIGHTS when no template selected.
+
 **Phase 2 — Event Flow UX (2 items, ALL COMPLETE)**
-- 2A: Renamed "Leave Round" to "Return to Lobby" with tooltip + updated confirm dialog
+- 2A: Renamed "Leave Round" to "Return to Main Room" with tooltip + updated confirm dialog
 - 2B: Added camera/mic test to pre-lobby waiting room (self-preview, mic level bar, toggle controls)
 
 **Phase 3 — Invitation & Participant Visibility (1 item, COMPLETE)**
