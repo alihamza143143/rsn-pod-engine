@@ -445,9 +445,19 @@ export async function listReceivedInvites(userEmail: string, userId?: string): P
   `;
 
   // Exclude invites already accepted by this user (multi-use invites keep status='pending'
-  // after first accept, so we must also filter by accepted_by_user_id)
+  // after first accept, so we must also filter by accepted_by_user_id).
+  // Also exclude invites for sessions/pods the user already joined (covers edge cases
+  // where the invite status wasn't updated but the user is already participating).
   const userFilter = userId
-    ? `AND (i.accepted_by_user_id IS NULL OR i.accepted_by_user_id != $2)`
+    ? `AND (i.accepted_by_user_id IS NULL OR i.accepted_by_user_id != $2)
+       AND (i.session_id IS NULL OR NOT EXISTS (
+         SELECT 1 FROM session_participants sp
+         WHERE sp.session_id = i.session_id AND sp.user_id = $2 AND sp.status != 'removed'
+       ))
+       AND (i.pod_id IS NULL OR NOT EXISTS (
+         SELECT 1 FROM pod_members pm
+         WHERE pm.pod_id = i.pod_id AND pm.user_id = $2
+       ))`
     : '';
   const params = userId
     ? [userEmail.toLowerCase(), userId]

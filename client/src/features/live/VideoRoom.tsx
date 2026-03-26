@@ -25,12 +25,12 @@ function ConnectionIndicator() {
   );
 }
 
-function VideoTile({ trackRef, label, isWaiting }: { trackRef?: any; label: string; isWaiting?: boolean }) {
+function VideoTile({ trackRef, label, isWaiting, isPinned }: { trackRef?: any; label: string; isWaiting?: boolean; isPinned?: boolean }) {
   const hasVideo = trackRef?.publication?.track;
   return (
-    <div className="relative rounded-xl overflow-hidden bg-[#3c4043] aspect-video flex items-center justify-center">
+    <div className={`relative rounded-xl overflow-hidden bg-[#3c4043] ${isPinned ? 'h-full w-full' : 'aspect-video'} flex items-center justify-center`}>
       {hasVideo ? (
-        <VideoTrack trackRef={trackRef} className="h-full w-full object-cover" />
+        <VideoTrack trackRef={trackRef} className={`h-full w-full ${isPinned ? 'object-contain' : 'object-cover'}`} />
       ) : (
         <div className="flex flex-col items-center gap-2">
           <div className={`h-20 w-20 rounded-full bg-[#5f6368] flex items-center justify-center ${isWaiting ? 'animate-pulse' : ''}`}>
@@ -88,7 +88,7 @@ function VideoStage() {
         {/* Pinned tile — large */}
         <div className="flex-1 min-h-0 cursor-pointer" onClick={() => setPinnedSid(null)}>
           <div className="relative h-full">
-            <VideoTile trackRef={pinnedTile.trackRef} label={pinnedTile.label} />
+            <VideoTile trackRef={pinnedTile.trackRef} label={pinnedTile.label} isPinned />
             <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
               Pinned · click to unpin
             </div>
@@ -304,7 +304,7 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
             onClick={() => { if (sessionId) getSocket()?.emit('participant:leave_conversation', { sessionId }); }}
             className="ml-2 px-3 py-1 text-xs font-medium bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-full transition-colors"
           >
-            Back to Lobby
+            Back to Main Room
           </button>
           <Loader2 className="h-4 w-4 text-amber-400 animate-spin" />
         </div>
@@ -321,14 +321,14 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
               <>
                 <button
                   onClick={() => {
-                    if (confirm('Return to the lobby? Your round will continue for your partner.')) {
+                    if (confirm('Return to the main room? Your round will continue for your partner.')) {
                       if (sessionId) getSocket()?.emit('participant:leave_conversation', { sessionId });
                     }
                   }}
                   className="flex items-center gap-1 px-2.5 py-1 text-xs text-gray-400 hover:text-amber-400 hover:bg-white/5 rounded-lg transition-colors"
-                  title="You can return to the lobby at any time"
+                  title="You can return to the main room at any time"
                 >
-                  <ArrowLeft className="h-3 w-3" /> Return to Lobby
+                  <ArrowLeft className="h-3 w-3" /> Return to Main Room
                 </button>
                 <button
                   onClick={() => {

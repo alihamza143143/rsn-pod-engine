@@ -314,7 +314,7 @@ export default function SessionDetailPage() {
           >
             <Play className="h-4 w-4 mr-2" />
             {session.status === 'scheduled'
-              ? (isHost ? 'Go Live' : 'Enter Lobby')
+              ? (isHost ? 'Go Live' : 'Enter Event')
               : 'Join Live'}
           </Button>
         )}
@@ -350,6 +350,29 @@ export default function SessionDetailPage() {
         )}
       </div>
 
+      {/* Pending invites banner — prominent callout for host/admin */}
+      {(isHost || isAdmin) && participantCounts?.pendingInvites > 0 && !showPendingInvites && (
+        <div className="flex items-center gap-3 p-4 rounded-xl border border-purple-200 bg-purple-50 animate-fade-in-up">
+          <Send className="h-5 w-5 text-purple-600 shrink-0" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-purple-800">
+              {participantCounts.pendingInvites} Pending Invite{participantCounts.pendingInvites > 1 ? 's' : ''}
+            </p>
+            <p className="text-xs text-purple-600">
+              {participantCounts.pendingInvites} {participantCounts.pendingInvites > 1 ? 'people haven\'t' : 'person hasn\'t'} accepted their invite yet.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => { setShowPendingInvites(true); setStatusFilter(null); }}
+            className="!border-purple-300 !text-purple-700 hover:!bg-purple-100"
+          >
+            <Send className="h-3.5 w-3.5 mr-1" /> View & Remind
+          </Button>
+        </div>
+      )}
+
       {/* Participants */}
       <div className="animate-fade-in-up stagger-2">
         <h2 className="text-lg font-semibold text-[#1a1a2e] mb-3 flex items-center gap-2">
@@ -363,7 +386,7 @@ export default function SessionDetailPage() {
               { key: null, label: 'All', count: participantCounts.total, color: 'bg-gray-100 text-gray-700 border-gray-200' },
               ...(participantCounts.registered > 0 ? [{ key: 'registered', label: 'Registered', count: participantCounts.registered, color: 'bg-blue-50 text-blue-700 border-blue-200' }] : []),
               ...(participantCounts.checked_in > 0 ? [{ key: 'checked_in', label: 'Checked In', count: participantCounts.checked_in, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' }] : []),
-              ...(participantCounts.in_lobby > 0 ? [{ key: 'in_lobby', label: 'In Lobby', count: participantCounts.in_lobby, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' }] : []),
+              ...(participantCounts.in_lobby > 0 ? [{ key: 'in_lobby', label: 'In Main Room', count: participantCounts.in_lobby, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' }] : []),
               ...(participantCounts.in_round > 0 ? [{ key: 'in_round', label: 'In Round', count: participantCounts.in_round, color: 'bg-green-50 text-green-700 border-green-200' }] : []),
               ...(participantCounts.disconnected > 0 ? [{ key: 'disconnected', label: 'Disconnected', count: participantCounts.disconnected, color: 'bg-amber-50 text-amber-700 border-amber-200' }] : []),
               ...(participantCounts.left > 0 ? [{ key: 'left', label: 'Left', count: participantCounts.left, color: 'bg-gray-100 text-gray-500 border-gray-200' }] : []),
@@ -453,7 +476,7 @@ export default function SessionDetailPage() {
               const pIsHost = p.userId === session.hostUserId;
               const statusLabel = pIsHost ? 'Host'
                 : (p.status === 'registered' || p.status === 'left' || p.status === 'checked_in') ? 'Member'
-                : p.status === 'in_lobby' ? 'In Lobby'
+                : p.status === 'in_lobby' ? 'In Main Room'
                 : p.status === 'in_round' ? 'In Round'
                 : p.status === 'disconnected' ? 'Reconnecting...'
                 : p.status === 'no_show' ? 'No Show'

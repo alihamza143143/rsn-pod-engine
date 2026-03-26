@@ -244,7 +244,7 @@ async function handleJoinSession(
         hostUserId: session.hostUserId,
         currentRound: activeSession?.currentRound || 0,
         totalRounds: config.numberOfRounds || 5,
-        timerVisibility: config.timerVisibility || 'always_visible',
+        timerVisibility: config.timerVisibility || 'last_10s',
         cohosts,
       });
     } catch (stateErr) {

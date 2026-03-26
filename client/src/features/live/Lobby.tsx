@@ -38,12 +38,14 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
   const gridCols = lobbyDensity === 'compact'
     ? (n <= 4 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-6')
     : lobbyDensity === 'spacious'
-    ? (n <= 2 ? 'grid-cols-1' : n <= 4 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-2 sm:grid-cols-3')
+    ? (n <= 2 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2')
     : // normal (default)
       n <= 2 ? 'grid-cols-1 sm:grid-cols-2'
       : n <= 4 ? 'grid-cols-2 sm:grid-cols-2'
       : n <= 9 ? 'grid-cols-2 sm:grid-cols-3'
       : 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5';
+  const gapClass = lobbyDensity === 'compact' ? 'gap-2' : lobbyDensity === 'spacious' ? 'gap-6' : 'gap-3';
+  const maxWClass = lobbyDensity === 'compact' ? 'max-w-5xl' : lobbyDensity === 'spacious' ? 'max-w-2xl' : 'max-w-4xl';
 
   const handleHostMute = useCallback((targetIdentity: string, mute: boolean) => {
     if (!sessionId) return;
@@ -59,7 +61,7 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
   }, [sessionId]);
 
   return (
-    <div className={`grid ${gridCols} gap-3 w-full max-w-4xl mx-auto`}>
+    <div className={`grid ${gridCols} ${gapClass} w-full ${maxWClass} mx-auto`}>
       {cameraTracks.map(trackRef => {
         const name = trackRef.participant.name || trackRef.participant.identity || 'User';
         const hasVideo = !!trackRef.publication?.track;
@@ -285,7 +287,7 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
           <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
           <h2 className="text-xl font-bold text-white">Event Starting</h2>
           <p className="text-gray-400 text-sm">
-            {isHost ? 'Lobby is open — use Match People below when ready.' : 'Waiting for the host to begin matching...'}
+            {isHost ? 'Main room is open — use Match People below when ready.' : 'Waiting for the host to begin matching...'}
           </p>
         </div>
       ) : (sessionStatus === 'round_active' || sessionStatus === 'round_rating') ? (
@@ -315,13 +317,13 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
           <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-white/10 text-gray-300 mx-auto">
             <Sparkles className="h-6 w-6" />
           </div>
-          <h2 className="text-xl font-bold text-white">Lobby</h2>
+          <h2 className="text-xl font-bold text-white">Main Room</h2>
           <p className="text-gray-400 text-sm">
             {isHost
               ? 'You\'re the host — click Match People below when ready'
               : hostOnline
-                ? 'You\'re in the lobby — the host will start the next round soon!'
-                : 'You\'re in the lobby — waiting for the host to reconnect...'}
+                ? 'You\'re in the main room — waiting for the host to begin matching...'
+                : 'You\'re in the main room — waiting for the host to reconnect...'}
           </p>
           {!isHost && !hostOnline && (
             <div className="inline-flex items-center gap-1.5 text-xs text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full">
@@ -520,7 +522,7 @@ function DeviceTest() {
  * Participant-only waiting room shown before the host starts the event.
  * No video, no lobby controls — just a clean holding screen with participant list.
  */
-function PreLobbyWaitingRoom() {
+function PreLobbyWaitingRoom({ isHost = false }: { isHost?: boolean }) {
   const { participants, hostUserId } = useSessionStore();
   const hostOnline = useHostPresence();
 
@@ -536,7 +538,7 @@ function PreLobbyWaitingRoom() {
             {hostOnline === true
               ? 'The host is here! The event will begin shortly.'
               : hostOnline === false
-              ? 'The host hasn\'t joined yet. Once they start the event, you\'ll enter the lobby.'
+              ? 'The host hasn\'t joined yet. Once they start the event, you\'ll enter the main room.'
               : 'Connecting to the event...'}
           </p>
           {hostOnline === true ? (
@@ -557,7 +559,7 @@ function PreLobbyWaitingRoom() {
           )}
         </div>
 
-        {/* Connected participants */}
+        {/* Connected participants — host sees names, participants see only count */}
         {participants.length > 0 && (
           <div className="mt-8 pt-6 border-t border-white/10">
             <div className="flex items-center justify-center gap-2 text-gray-500 text-xs mb-3">
@@ -570,21 +572,23 @@ function PreLobbyWaitingRoom() {
                 })()}
               </span>
             </div>
-            <div className="flex flex-wrap gap-2 justify-center">
-              {participants.map(p => (
-                <span key={p.userId} className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${
-                  p.userId === hostUserId ? 'bg-amber-500/10 text-amber-400' : 'bg-white/10 text-gray-300'
-                }`}>
-                  <span className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                    p.userId === hostUserId ? 'bg-amber-500/20' : 'bg-white/10'
+            {isHost && (
+              <div className="flex flex-wrap gap-2 justify-center">
+                {participants.map(p => (
+                  <span key={p.userId} className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${
+                    p.userId === hostUserId ? 'bg-amber-500/10 text-amber-400' : 'bg-white/10 text-gray-300'
                   }`}>
-                    {(p.displayName || 'U').charAt(0).toUpperCase()}
+                    <span className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                      p.userId === hostUserId ? 'bg-amber-500/20' : 'bg-white/10'
+                    }`}>
+                      {(p.displayName || 'U').charAt(0).toUpperCase()}
+                    </span>
+                    {p.displayName || 'User'}
+                    {p.userId === hostUserId && <span className="text-[9px] text-amber-400 ml-0.5">(Host)</span>}
                   </span>
-                  {p.displayName || 'User'}
-                  {p.userId === hostUserId && <span className="text-[9px] text-amber-400 ml-0.5">(Host)</span>}
-                </span>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -609,7 +613,7 @@ export default function Lobby({ isHost = false, sessionId }: { isHost?: boolean;
   // LOBBY GATE: Participants cannot enter the lobby before the host starts the event.
   // Show a dedicated waiting room instead. Host still sees the normal lobby with controls.
   if (!isHost && sessionStatus === 'scheduled') {
-    return <PreLobbyWaitingRoom />;
+    return <PreLobbyWaitingRoom isHost={isHost} />;
   }
 
   // If we have a lobby token, render the video mosaic
@@ -647,21 +651,23 @@ export default function Lobby({ isHost = false, sessionId }: { isHost?: boolean;
             <HostParticipantPanel />
           </div>
         )}
-        <div className="mt-6 flex flex-wrap gap-2 justify-center">
-          {participants.map(p => (
-            <span key={p.userId} className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${
-              p.userId === hostUserId ? 'bg-amber-500/10 text-amber-400' : 'bg-white/10 text-gray-300'
-            }`}>
-              <span className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-                p.userId === hostUserId ? 'bg-amber-500/20' : 'bg-white/10'
+        {isHost && (
+          <div className="mt-6 flex flex-wrap gap-2 justify-center">
+            {participants.map(p => (
+              <span key={p.userId} className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ${
+                p.userId === hostUserId ? 'bg-amber-500/10 text-amber-400' : 'bg-white/10 text-gray-300'
               }`}>
-                {(p.displayName || 'U').charAt(0).toUpperCase()}
+                <span className={`h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                  p.userId === hostUserId ? 'bg-amber-500/20' : 'bg-white/10'
+                }`}>
+                  {(p.displayName || 'U').charAt(0).toUpperCase()}
+                </span>
+                {p.displayName || 'User'}
+                {p.userId === hostUserId && <span className="text-[9px] text-amber-400 ml-0.5">(Host)</span>}
               </span>
-              {p.displayName || 'User'}
-              {p.userId === hostUserId && <span className="text-[9px] text-amber-400 ml-0.5">(Host)</span>}
-            </span>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

@@ -52,7 +52,7 @@ export const DEFAULT_SESSION_CONFIG: SessionConfig = {
   closingLobbyDurationSeconds: 480,  // 8 minutes
   noShowTimeoutSeconds: 60,          // 60 seconds
   maxParticipants: 500,
-  timerVisibility: 'always_visible' as TimerVisibility,
+  timerVisibility: 'last_10s' as TimerVisibility,
 };
 
 export interface Session {

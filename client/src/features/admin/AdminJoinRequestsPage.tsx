@@ -273,14 +273,14 @@ export default function AdminJoinRequestsPage() {
                   <div className="flex items-center gap-2">
                     <Button
                       size="sm"
-                      variant="ghost"
+                      variant="outline"
                       onClick={() => setMessageModal(r)}
                     >
                       <MessageSquare className="h-3.5 w-3.5 mr-1" /> Message
                     </Button>
                     <Button
                       size="sm"
-                      variant="ghost"
+                      variant="outline"
                       onClick={() => { setNoteEdit(r.id); setNoteText(r.adminNotes || ''); }}
                     >
                       <StickyNote className="h-3.5 w-3.5 mr-1" /> Note
