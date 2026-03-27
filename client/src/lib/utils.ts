@@ -16,11 +16,14 @@ export function formatDate(iso: string): string {
 }
 
 export function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', {
-    month: 'short', day: 'numeric', year: 'numeric',
-    hour: 'numeric', minute: '2-digit',
-  });
+  const date = new Date(iso);
+  const day = date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  const time = date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const tz = date.toLocaleTimeString('en-US', { timeZoneName: 'short' }).split(' ').pop() || '';
+  return `${day}, ${time} hrs ${tz}`;
 }
+
+export const LOCAL_TIME_LABEL = '(your local time)';
 
 export function getInitials(name: string): string {
   return name.split(' ').filter(Boolean).map((w) => w[0]).slice(0, 2).join('').toUpperCase();

@@ -40,10 +40,30 @@ Purpose: Persistent execution history and current state, independent of chat mem
 
 ## Current Phase Snapshot
 
-- Active Phase: Change 1.8 — Platform Feedback v1.8
-- Active Milestone: **Phases 1-5 complete + client feedback fixes**
-- Source Document: Changes 1.8.pdf (Stefan/Shradha call feedback, March 24, 2026)
-- Last Updated: March 27, 2026
+- Active Phase: Change 1.9 — Beta Testing Group Feedback
+- Active Milestone: **All 3 phases complete**
+- Source Document: Beta Testing Group Feedback - 27th March.pdf
+- Last Updated: March 28, 2026
+
+### What's Done (Change 1.9 — Beta Testing Feedback, March 28, 2026)
+
+**Phase 1 — Event Tab Reorder + Hide Completed (ALL COMPLETE)**
+- 1A: Default filter changed from 'all' to 'upcoming'
+- 1B: Tab order changed to Upcoming → Cancelled → All
+- 1C: Removed standalone "Completed" tab — completed events still visible under "All"
+- 1D: Filter logic reordered to match new tab priority
+
+**Phase 2 — Time & Timezone Clarity (ALL COMPLETE)**
+- 2A: formatDateTime() rewritten for 24hr format + "hrs" suffix + TZ abbreviation (e.g., "27 Mar 2026, 14:00 hrs EST")
+- 2B: Added LOCAL_TIME_LABEL constant "(your local time)" for user-facing pages
+- 2C-2G: All 5 consumer files updated to use formatDateTime() — SessionsPage, SessionDetailPage, AdminSessionsPage, HostDashboardPage, PodDetailPage
+
+**Phase 3 — UX / Navigation Polish (ALL COMPLETE)**
+- 3A: Action bar on SessionDetailPage split into primary (Go Live/Register/Join) + secondary (Host Controls/Edit/Delete/Copy/Invite) rows with border divider
+- 3B: btn-glow added to Enter Event/Join Live/Go Live button for registered users + View Recap promoted to primary CTA
+- 3C: ChevronRight arrow added to event cards for clickability affordance
+- 3D: Active tab gets shadow-sm for depth cue
+- 3E: AdminSessionsPage raw <button> replaced with Button component for consistency
 
 ### What's Done (Change 1.8 — Phase 1)
 

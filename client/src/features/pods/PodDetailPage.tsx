@@ -17,6 +17,7 @@ import { PageLoader } from '@/components/ui/Spinner';
 import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
 import api from '@/lib/api';
+import { formatDateTime } from '@/lib/utils';
 import CreatePodModal from './CreatePodModal';
 
 /** Map invite API error codes to user-friendly messages */
@@ -810,7 +811,7 @@ export default function PodDetailPage() {
                   <div>
                     <p className="text-sm font-medium text-[#1a1a2e]">{s.title || 'Untitled Event'}</p>
                     <p className="text-xs text-gray-400">
-                      {s.scheduledAt ? new Date(s.scheduledAt).toLocaleString() : 'No date set'}
+                      {s.scheduledAt ? formatDateTime(s.scheduledAt) : 'No date set'}
                     </p>
                   </div>
                   <Badge variant={s.status === 'scheduled' ? 'info' : s.status === 'active' ? 'success' : 'default'}>

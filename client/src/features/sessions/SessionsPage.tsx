@@ -1,21 +1,22 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Calendar, Plus, Mic } from 'lucide-react';
+import { Calendar, Plus, Mic, ChevronRight } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import EmptyState from '@/components/ui/EmptyState';
 import { PageLoader } from '@/components/ui/Spinner';
 import { useAuthStore } from '@/stores/authStore';
+import { formatDateTime, LOCAL_TIME_LABEL } from '@/lib/utils';
 import api from '@/lib/api';
 
-type EventFilter = 'all' | 'upcoming' | 'completed' | 'cancelled';
+type EventFilter = 'upcoming' | 'cancelled' | 'all';
 
 export default function SessionsPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
-  const [filter, setFilter] = useState<EventFilter>('all');
+  const [filter, setFilter] = useState<EventFilter>('upcoming');
   const { data, isLoading } = useQuery({
     queryKey: ['my-sessions'],
     queryFn: () => api.get('/sessions').then(r => r.data.data ?? []),
@@ -40,10 +41,9 @@ export default function SessionsPage() {
 
   // Filter events
   const filtered = (data || []).filter((s: any) => {
-    if (filter === 'all') return s.status !== 'deleted';
     if (filter === 'upcoming') return s.status === 'scheduled' || s.status === 'lobby_open' || s.status === 'round_active' || s.status === 'round_rating' || s.status === 'round_transition';
-    if (filter === 'completed') return s.status === 'completed';
     if (filter === 'cancelled') return s.status === 'cancelled';
+    if (filter === 'all') return s.status !== 'deleted';
     return true;
   });
 
@@ -58,8 +58,8 @@ export default function SessionsPage() {
 
       {/* Filters */}
       <div className="flex gap-2 animate-fade-in-up">
-        {(['all', 'upcoming', 'completed', 'cancelled'] as EventFilter[]).map(f => (
-          <Button key={f} variant={filter === f ? 'primary' : 'ghost'} size="sm" onClick={() => setFilter(f)}>
+        {(['upcoming', 'cancelled', 'all'] as EventFilter[]).map(f => (
+          <Button key={f} variant={filter === f ? 'primary' : 'ghost'} size="sm" onClick={() => setFilter(f)} className={filter === f ? 'shadow-sm' : ''}>
             {f.charAt(0).toUpperCase() + f.slice(1)}
           </Button>
         ))}
@@ -91,14 +91,17 @@ export default function SessionsPage() {
                       )}
                     </div>
                     <p className="text-sm text-gray-500 mt-0.5">
-                      {s.scheduledAt ? new Date(s.scheduledAt).toLocaleString() : 'No date'}
+                      {s.scheduledAt ? `${formatDateTime(s.scheduledAt)} ${LOCAL_TIME_LABEL}` : 'No date'}
                       {s.podName && <span className="ml-2 text-gray-400">· {s.podName}</span>}
                       {s.hostDisplayName && !isHost && (
                         <span className="ml-2 text-gray-400">· Host: {s.hostDisplayName}</span>
                       )}
                     </p>
                   </div>
-                  <Badge variant={statusVariant(s.status)}>{s.status}</Badge>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Badge variant={statusVariant(s.status)}>{s.status}</Badge>
+                    <ChevronRight className="h-4 w-4 text-gray-300" />
+                  </div>
                 </div>
               </Card>
             );

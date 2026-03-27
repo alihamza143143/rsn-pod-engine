@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { PageLoader } from '@/components/ui/Spinner';
 import { useToastStore } from '@/stores/toastStore';
 import { useAuthStore } from '@/stores/authStore';
-import { isAdmin } from '@/lib/utils';
+import { isAdmin, formatDateTime } from '@/lib/utils';
 import api from '@/lib/api';
 
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'info' | 'default'> = {
@@ -60,13 +60,14 @@ export default function AdminSessionsPage() {
 
       <div className="flex gap-2 flex-wrap">
         {['all', 'scheduled', 'completed', 'cancelled'].map(f => (
-          <button
+          <Button
             key={f}
+            variant={filter === f ? 'primary' : 'ghost'}
+            size="sm"
             onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${filter === f ? 'bg-rsn-red text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
           >
             {f.charAt(0).toUpperCase() + f.slice(1)}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -84,7 +85,7 @@ export default function AdminSessionsPage() {
                   <Badge variant={STATUS_VARIANT[session.status] || 'default'}>{session.status}</Badge>
                 </div>
                 <p className="text-xs text-gray-400 mt-1">
-                  Scheduled: {new Date(session.scheduledAt).toLocaleString()} · Participants: {session.participantCount || '—'}
+                  Scheduled: {formatDateTime(session.scheduledAt)} · Participants: {session.participantCount || '—'}
                 </p>
               </div>
               <div className="flex items-center gap-2">

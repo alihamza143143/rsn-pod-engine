@@ -11,6 +11,7 @@ import Modal from '@/components/ui/Modal';
 import { PageLoader } from '@/components/ui/Spinner';
 import { useToastStore } from '@/stores/toastStore';
 import api from '@/lib/api';
+import { formatDateTime, LOCAL_TIME_LABEL } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 
 function getInviteErrorMessage(err: any): string {
@@ -229,7 +230,7 @@ export default function SessionDetailPage() {
             {session.description && <p className="text-gray-500 mt-1 text-sm">{session.description}</p>}
             <p className="text-gray-400 mt-2 text-sm flex items-center gap-1.5">
               <Calendar className="h-4 w-4" />
-              {session.scheduledAt ? new Date(session.scheduledAt).toLocaleString() : 'No date set'}
+              {session.scheduledAt ? `${formatDateTime(session.scheduledAt)} ${LOCAL_TIME_LABEL}` : 'No date set'}
             </p>
           </div>
           <Badge variant={statusVariant}>{session.status?.replace(/_/g, ' ')}</Badge>
@@ -282,71 +283,79 @@ export default function SessionDetailPage() {
       )}
 
       {/* Actions */}
-      <div className="flex flex-wrap gap-3 animate-fade-in-up stagger-1">
-        {!isHost && (session.status === 'scheduled' || session.status === 'lobby_open' || session.status === 'round_active' || session.status === 'round_rating' || session.status === 'round_transition') && !isRegistered && (
-          canRegister ? (
-            <Button onClick={() => registerMutation.mutate()} isLoading={registerMutation.isPending} className="btn-glow">
-              <UserPlus className="h-4 w-4 mr-2" /> {session.status === 'scheduled' ? 'Register' : 'Join Late'}
+      <div className="flex flex-col gap-3 animate-fade-in-up stagger-1">
+        {/* Primary Actions */}
+        <div className="flex flex-wrap gap-3">
+          {!isHost && (session.status === 'scheduled' || session.status === 'lobby_open' || session.status === 'round_active' || session.status === 'round_rating' || session.status === 'round_transition') && !isRegistered && (
+            canRegister ? (
+              <Button onClick={() => registerMutation.mutate()} isLoading={registerMutation.isPending} className="btn-glow">
+                <UserPlus className="h-4 w-4 mr-2" /> {session.status === 'scheduled' ? 'Register' : 'Join Late'}
+              </Button>
+            ) : (
+              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm">
+                <Mail className="h-4 w-4 flex-shrink-0" />
+                <span>You have a pending invite — accept it from your <button onClick={() => navigate('/invites')} className="underline font-medium hover:text-amber-900">Invites page</button> to join this event.</span>
+              </div>
+            )
+          )}
+          {!isHost && isRegistered && session.status !== 'completed' && session.status !== 'cancelled' && (
+            <>
+              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-sm">
+                <CheckCircle className="h-4 w-4" /> Registered
+              </div>
+              {session.status === 'scheduled' && (
+                <Button variant="ghost" onClick={() => unregisterMutation.mutate()} isLoading={unregisterMutation.isPending}>
+                  <UserMinus className="h-4 w-4 mr-2" /> Unregister
+                </Button>
+              )}
+            </>
+          )}
+          {(session.status === 'scheduled' || session.status === 'lobby_open' || session.status === 'round_active' || session.status === 'round_rating' || session.status === 'round_transition') && (
+            <Button
+              variant={isRegistered || isHost ? 'primary' : 'secondary'}
+              onClick={() => navigate(`/session/${sessionId}/live`)}
+              className={isRegistered || isHost ? 'btn-glow' : ''}
+            >
+              <Play className="h-4 w-4 mr-2" />
+              {session.status === 'scheduled'
+                ? (isHost ? 'Go Live' : 'Enter Event')
+                : 'Join Live'}
             </Button>
-          ) : (
-            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-sm">
-              <Mail className="h-4 w-4 flex-shrink-0" />
-              <span>You have a pending invite — accept it from your <button onClick={() => navigate('/invites')} className="underline font-medium hover:text-amber-900">Invites page</button> to join this event.</span>
-            </div>
-          )
-        )}
-        {!isHost && isRegistered && session.status !== 'completed' && session.status !== 'cancelled' && (
-          <>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-sm">
-              <CheckCircle className="h-4 w-4" /> Registered
-            </div>
-            {session.status === 'scheduled' && (
-              <Button variant="ghost" onClick={() => unregisterMutation.mutate()} isLoading={unregisterMutation.isPending}>
-                <UserMinus className="h-4 w-4 mr-2" /> Unregister
+          )}
+          {session.status === 'completed' && (
+            <Button variant="primary" className="btn-glow" onClick={() => navigate(`/sessions/${sessionId}/recap`)}>
+              View Recap
+            </Button>
+          )}
+        </div>
+
+        {/* Secondary Actions */}
+        {(isHost || isAdmin) && (
+          <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+            {isHost && (
+              <Button variant="secondary" onClick={() => navigate(`/session/${sessionId}/host`)}>
+                <Settings className="h-4 w-4 mr-2" /> Host Controls
               </Button>
             )}
-          </>
-        )}
-        {(session.status === 'scheduled' || session.status === 'lobby_open' || session.status === 'round_active' || session.status === 'round_rating' || session.status === 'round_transition') && (
-          <Button
-            variant={isRegistered || isHost ? 'primary' : 'secondary'}
-            onClick={() => navigate(`/session/${sessionId}/live`)}
-          >
-            <Play className="h-4 w-4 mr-2" />
-            {session.status === 'scheduled'
-              ? (isHost ? 'Go Live' : 'Enter Event')
-              : 'Join Live'}
-          </Button>
-        )}
-        {isHost && (
-          <Button variant="secondary" onClick={() => navigate(`/session/${sessionId}/host`)}>
-            <Settings className="h-4 w-4 mr-2" /> Host Controls
-          </Button>
-        )}
-        {(isHost || isAdmin) && session.status === 'scheduled' && (
-          <Button variant="secondary" onClick={openEdit}>
-            <Pencil className="h-4 w-4 mr-2" /> Edit
-          </Button>
-        )}
-        {(isHost || isAdmin) && (session.status === 'scheduled' || session.status === 'completed') && (
-          <Button variant="danger" onClick={() => { if (confirm('Delete this event? This cannot be undone.')) deleteMutation.mutate(); }} isLoading={deleteMutation.isPending}>
-            <Trash2 className="h-4 w-4 mr-2" /> Delete
-          </Button>
-        )}
-        {session.status === 'completed' && (
-          <Button variant="secondary" onClick={() => navigate(`/sessions/${sessionId}/recap`)}>
-            View Recap
-          </Button>
-        )}
-        {(isHost || isAdmin) && (
-          <Button variant="secondary" onClick={() => duplicateMutation.mutate()} isLoading={duplicateMutation.isPending}>
-            <CopyPlus className="h-4 w-4 mr-2" /> Copy Event
-          </Button>
-        )}
-        {(isHost || isAdmin) && session.status !== 'completed' && (
-          <Button variant="secondary" onClick={() => { setInviteLink(''); setInviteEmail(''); setInviteOpen(true); }}>
-            <Mail className="h-4 w-4 mr-2" /> Invite to Event
-          </Button>
+            {session.status === 'scheduled' && (
+              <Button variant="secondary" onClick={openEdit}>
+                <Pencil className="h-4 w-4 mr-2" /> Edit
+              </Button>
+            )}
+            {session.status !== 'completed' && (
+              <Button variant="secondary" onClick={() => { setInviteLink(''); setInviteEmail(''); setInviteOpen(true); }}>
+                <Mail className="h-4 w-4 mr-2" /> Invite to Event
+              </Button>
+            )}
+            <Button variant="secondary" onClick={() => duplicateMutation.mutate()} isLoading={duplicateMutation.isPending}>
+              <CopyPlus className="h-4 w-4 mr-2" /> Copy Event
+            </Button>
+            {(session.status === 'scheduled' || session.status === 'completed') && (
+              <Button variant="danger" onClick={() => { if (confirm('Delete this event? This cannot be undone.')) deleteMutation.mutate(); }} isLoading={deleteMutation.isPending}>
+                <Trash2 className="h-4 w-4 mr-2" /> Delete
+              </Button>
+            )}
+          </div>
         )}
       </div>
 
