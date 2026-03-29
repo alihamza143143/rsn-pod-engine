@@ -403,6 +403,37 @@ router.post(
   }
 );
 
+// ─── POST /invites/:code/mark-accepted ───────────────────────────────────────
+// Force-mark an invite as accepted for the current user.
+// Used when the normal accept flow fails (already used/expired) but the user
+// has been registered via a different path. Ensures notifications & dashboard
+// reflect the real state.
+
+router.post(
+  '/:code/mark-accepted',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const inviteResult = await query<{ id: string; status: string }>(
+        `SELECT id, status FROM invites WHERE code = $1`,
+        [req.params.code]
+      );
+      if (inviteResult.rows.length === 0) {
+        res.status(404).json({ success: false, error: { code: 'NOT_FOUND', message: 'Invite not found' } });
+        return;
+      }
+      // Update invite status to accepted and record accepting user
+      await query(
+        `UPDATE invites SET status = 'accepted', accepted_by_user_id = $1, accepted_at = COALESCE(accepted_at, NOW()) WHERE id = $2`,
+        [req.user!.userId, inviteResult.rows[0].id]
+      );
+      res.json({ success: true, data: { marked: true } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // ─── POST /invites/:code/decline ────────────────────────────────────────────
 
 router.post(

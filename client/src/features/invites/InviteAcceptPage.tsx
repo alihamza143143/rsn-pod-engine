@@ -90,27 +90,21 @@ export default function InviteAcceptPage() {
     } catch (err: any) {
       const errCode = err?.response?.data?.error?.code;
       // "Already a member" or "invite used/expired but user already has access"
-      // — ensure session registration, then redirect to the event
+      // — ensure session registration, mark invite accepted, then redirect
       if (errCode === 'SESSION_ALREADY_REGISTERED' || errCode === 'POD_MEMBER_EXISTS'
           || errCode === 'INVITE_ALREADY_USED' || errCode === 'INVITE_EXPIRED') {
         const sessionId = invite?.sessionId;
         const destination = getDestination(null);
         if (destination !== '/sessions') {
           // Ensure user is registered for the session before redirecting
-          // (they may be a pod member but not a session participant)
           if (sessionId) {
-            try {
-              await api.post(`/sessions/${sessionId}/register`);
-            } catch {
-              // Already registered or session not open — that's fine
-            }
+            try { await api.post(`/sessions/${sessionId}/register`); } catch { /* already registered */ }
           }
-          addToast(
-            errCode === 'INVITE_ALREADY_USED' || errCode === 'INVITE_EXPIRED'
-              ? 'This invite is no longer valid, but you may already have access'
-              : 'You\'re already a member — taking you there now',
-            'success'
-          );
+          // Mark invite as accepted in DB so notifications/dashboard reflect it
+          if (code) {
+            try { await api.post(`/invites/${code}/mark-accepted`); } catch { /* best effort */ }
+          }
+          addToast('You\'re already a member — taking you there now', 'success');
           navigate(destination, { replace: true });
           return;
         }
