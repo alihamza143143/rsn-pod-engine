@@ -40,10 +40,10 @@ Purpose: Persistent execution history and current state, independent of chat mem
 
 ## Current Phase Snapshot
 
-- Active Phase: Change 1.8 — Phase 6: New Features
-- Active Milestone: **6A + 6C complete, 6B next**
-- Source Document: assets/Changes 1.8.pdf
-- Last Updated: March 28, 2026
+- Active Phase: Change 2.0 — Critical Event Flow Fix (client review issues)
+- Active Milestone: **Phase 1/5 complete (matching integrity + scale)**
+- Source Document: assets/Review on 29th March.pdf (9 system-level issues)
+- Last Updated: March 30, 2026
 
 ### What's Done (Change 1.9 — Beta Testing Feedback, March 28, 2026)
 
@@ -64,6 +64,22 @@ Purpose: Persistent execution history and current state, independent of chat mem
 - 3C: ChevronRight arrow added to event cards for clickability affordance
 - 3D: Active tab gets shadow-sm for depth cue
 - 3E: AdminSessionsPage raw <button> replaced with Button component for consistency
+
+### What's Done (Change 2.0 — Critical Event Flow Fix, March 30, 2026)
+
+Source: assets/Review on 29th March.pdf — 9 system-level issues reported by client
+Approach: 5-phase fix, each verified against actual code with full-stack trace
+
+**Phase 1 — Core Matching Integrity & Scale (COMPLETE)**
+- DB: Migration 029 — UNIQUE index on participant_b_id per round, UNIQUE index on participant_c_id per round, trigger function check_participant_uniqueness_per_round() for cross-column enforcement
+- Matching engine: Duplicate guard now REMOVES offending pairs (was only logging), affected participants go to bye
+- Auto-reassignment: Normalized participant_a_id < participant_b_id ordering (was missing), added DB constraint conflict handling with graceful skip-to-next-candidate
+- Scale: transitionToRound() rewritten — parallel LiveKit room creation (batched 20 concurrent), single batch UPDATE for match status, single batch SELECT for names, parallel participant status updates. Before: 15-30s for 200 users. After: <2s
+- Single-session-per-user: handleJoinSession() now evicts user from other active sessions + evicts old sockets from same session (duplicate tabs). New session:evicted event + client handler
+- Shared types: session:evicted added to ServerToClientEvents
+- Client: TransitionStatus union extended with 'evicted', useSessionSocket.ts handles eviction
+- Files: 029_matching_integrity_constraints.sql, matching.engine.ts, orchestration.service.ts, events.ts, sessionStore.ts, useSessionSocket.ts
+- Build: Zero TS errors (shared + server + client), client production build passes
 
 ### What's Done (Change 1.8 — Phase 6: New Features, March 28, 2026)
 

@@ -254,15 +254,30 @@ export class MatchingEngineV1 implements IMatchingEngine {
     }
 
     // ─── Duplicate user guard (belt-and-suspenders) ─────────────────────
+    // HARD ENFORCEMENT: remove any pair containing a duplicate user.
+    // At 200+ participants, even rare edge cases become likely.
     const seenUsers = new Set<string>();
+    const cleanPairs: MatchPair[] = [];
     for (const pair of pairs) {
-      for (const uid of [pair.participantAId, pair.participantBId, pair.participantCId].filter(Boolean) as string[]) {
-        if (seenUsers.has(uid)) {
-          logger.error({ userId: uid, roundNumber, pairCount: pairs.length }, 'DUPLICATE USER IN MATCHES — same user assigned to multiple rooms');
+      const pairUsers = [pair.participantAId, pair.participantBId, pair.participantCId].filter(Boolean) as string[];
+      const hasDuplicate = pairUsers.some(uid => seenUsers.has(uid));
+      if (hasDuplicate) {
+        // Remove this pair — send participants to bye instead of double-booking
+        const duplicateUids = pairUsers.filter(uid => seenUsers.has(uid));
+        logger.error({ duplicateUids, roundNumber, pairCount: pairs.length },
+          'DUPLICATE USER IN MATCHES — removed pair, participants go to bye');
+        for (const uid of pairUsers) {
+          if (!seenUsers.has(uid)) byeParticipants.push(uid);
         }
-        seenUsers.add(uid);
+        warnings.push(`Pair removed: duplicate user(s) ${duplicateUids.join(', ')} detected`);
+      } else {
+        for (const uid of pairUsers) seenUsers.add(uid);
+        cleanPairs.push(pair);
       }
     }
+    // Replace pairs with clean set
+    pairs.length = 0;
+    pairs.push(...cleanPairs);
 
     return {
       roundNumber,

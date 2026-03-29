@@ -22,13 +22,14 @@ export interface ChatMessage {
 
 type SessionPhase = 'lobby' | 'matched' | 'rating' | 'complete';
 type ConnectionStatus = 'connecting' | 'connected' | 'reconnecting' | 'disconnected';
-type TransitionStatus = 
+type TransitionStatus =
   | null
   | 'starting_session'
   | 'preparing_match'
   | 'round_ending'
   | 'between_rounds'
-  | 'session_ending';
+  | 'session_ending'
+  | 'evicted';
 type SessionStatus = 'scheduled' | 'lobby_open' | 'round_active' | 'round_rating' | 'round_transition' | 'closing_lobby' | 'completed' | 'cancelled';
 
 interface SessionLiveState {

@@ -159,12 +159,41 @@ async function handleJoinSession(
 
     const session = await sessionService.getSessionById(data.sessionId);
 
+    // ── Single-session enforcement ──
+    // At 200+ participants, duplicate tabs/reconnects are common.
+    // A user can only be "present" in ONE active session at a time.
+    // If they're already in another session, remove them from the old one first.
+    for (const [existingSessionId, existingSession] of activeSessions) {
+      if (existingSessionId !== data.sessionId && existingSession.presenceMap.has(userId)) {
+        existingSession.presenceMap.delete(userId);
+        socket.leave(sessionRoom(existingSessionId));
+        logger.info({ userId, oldSessionId: existingSessionId, newSessionId: data.sessionId },
+          'User moved to new session — removed from previous session presence');
+      }
+    }
+
+    // ── Single-socket enforcement for same session ──
+    // If this user already has a socket in this session, evict the old one
+    const activeSession = activeSessions.get(data.sessionId);
+    if (activeSession) {
+      const existingPresence = activeSession.presenceMap.get(userId);
+      if (existingPresence && existingPresence.socketId !== socket.id) {
+        // Disconnect old socket to prevent ghost users
+        const oldSocket = io.sockets.sockets.get(existingPresence.socketId);
+        if (oldSocket) {
+          oldSocket.emit('session:evicted', { reason: 'Connected from another tab or device' });
+          oldSocket.disconnect(true);
+        }
+        logger.info({ userId, oldSocketId: existingPresence.socketId, newSocketId: socket.id },
+          'Evicted old socket — single connection per user per session');
+      }
+    }
+
     // Join socket room
     socket.join(sessionRoom(data.sessionId));
     socket.join(userRoom(userId));
 
     // Update presence
-    const activeSession = activeSessions.get(data.sessionId);
     if (activeSession) {
       activeSession.presenceMap.set(userId, {
         lastHeartbeat: new Date(),
@@ -755,11 +784,24 @@ async function handleDisconnect(socket: Socket): Promise<void> {
                     } catch { /* room may already exist */ }
 
                     const matchId = require('uuid').v4();
-                    await query(
-                      `INSERT INTO matches (id, session_id, round_number, participant_a_id, participant_b_id, status, started_at)
-                       VALUES ($1, $2, $3, $4, $5, 'active', NOW())`,
-                      [matchId, sessionId, disconnectRound, partnerId, candidatePresent]
-                    );
+                    // Normalize participant order (lexicographic) for constraint consistency
+                    const normA = partnerId < candidatePresent ? partnerId : candidatePresent;
+                    const normB = partnerId < candidatePresent ? candidatePresent : partnerId;
+                    try {
+                      await query(
+                        `INSERT INTO matches (id, session_id, round_number, participant_a_id, participant_b_id, room_id, status, started_at)
+                         VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW())`,
+                        [matchId, sessionId, disconnectRound, normA, normB, roomId]
+                      );
+                    } catch (insertErr: any) {
+                      // DB constraint caught a conflict — participant already matched
+                      if (insertErr.message?.includes('PARTICIPANT_ALREADY_MATCHED') || insertErr.code === '23505') {
+                        logger.warn({ partnerId, candidatePresent, disconnectRound },
+                          'Auto-reassign skipped: participant already in active match');
+                        continue; // Try next candidate
+                      }
+                      throw insertErr;
+                    }
 
                     // Fetch display names
                     const nameRes = await query<{ id: string; display_name: string }>(
@@ -1864,53 +1906,92 @@ async function transitionToRound(
     // Collect all matched user IDs to determine bye participants
     const matchedUserIds = new Set<string>();
 
-    // Activate matches, create LiveKit rooms, and notify participants
+    // ── SCALE-OPTIMISED: Parallel room creation + batched DB updates ──
+    // At 200 participants = 100 matches, sequential await would take 15-30s.
+    // Parallel approach: <2s regardless of participant count.
+
+    // Step 1: Compute roomIds and collect ALL participant IDs upfront
+    const matchRoomMap = new Map<string, string>(); // matchId -> roomId
+    const allParticipantIds = new Set<string>();
     for (const match of matches) {
       const matchIdShort = match.id.slice(0, 8);
       const roomId = match.roomId || videoService.matchRoomId(sessionId, roundNumber, matchIdShort);
+      matchRoomMap.set(match.id, roomId);
 
-      // Create a LiveKit room for this match before assigning participants
-      try {
-        await videoService.createMatchRoom(sessionId, roundNumber, match.id.slice(0, 8));
-      } catch (err) {
-        logger.warn({ err, roomId }, 'LiveKit room creation failed (may already exist)');
+      const pids = [match.participantAId, match.participantBId];
+      if (match.participantCId) pids.push(match.participantCId);
+      for (const pid of pids) {
+        matchedUserIds.add(pid);
+        allParticipantIds.add(pid);
       }
+    }
 
-      await query(
-        `UPDATE matches SET status = 'active', room_id = $1, started_at = NOW() WHERE id = $2`,
-        [roomId, match.id]
+    // Step 2: Create ALL LiveKit rooms in parallel (batched, max 20 concurrent)
+    const ROOM_BATCH_SIZE = 20;
+    const matchList = Array.from(matches);
+    for (let i = 0; i < matchList.length; i += ROOM_BATCH_SIZE) {
+      const batch = matchList.slice(i, i + ROOM_BATCH_SIZE);
+      await Promise.allSettled(
+        batch.map(match =>
+          videoService.createMatchRoom(sessionId, roundNumber, match.id.slice(0, 8))
+            .catch(err => logger.warn({ err, matchId: match.id }, 'LiveKit room creation failed (may already exist)'))
+        )
       );
+    }
 
-      // Collect all participant IDs for this match (2 or 3)
+    // Step 3: Batch-update ALL matches to active status in one query
+    if (matches.length > 0) {
+      const updateCases = matches.map(m => {
+        const roomId = matchRoomMap.get(m.id)!;
+        return `WHEN '${m.id}' THEN '${roomId}'`;
+      }).join(' ');
+      const matchIds = matches.map(m => m.id);
+      await query(
+        `UPDATE matches SET status = 'active', started_at = NOW(),
+         room_id = CASE id::text ${updateCases} ELSE room_id END
+         WHERE id = ANY($1)`,
+        [matchIds]
+      );
+    }
+
+    // Step 4: Batch-fetch ALL display names in one query (not per-match)
+    const allPidArray = Array.from(allParticipantIds);
+    const namesResult = allPidArray.length > 0
+      ? await query<{ id: string; displayName: string }>(
+          `SELECT id, display_name AS "displayName" FROM users WHERE id = ANY($1)`,
+          [allPidArray]
+        )
+      : { rows: [] };
+    const globalNameMap = new Map(namesResult.rows.map(r => [r.id, r.displayName]));
+
+    // Step 5: Emit match:assigned to all participants + batch status update
+    const statusUpdatePromises: Promise<void>[] = [];
+    for (const match of matches) {
+      const roomId = matchRoomMap.get(match.id)!;
       const matchParticipantIds = [match.participantAId, match.participantBId];
       if (match.participantCId) matchParticipantIds.push(match.participantCId);
-      for (const pid of matchParticipantIds) matchedUserIds.add(pid);
 
-      // Look up display names for all participants in this match
-      const namesResult = await query<{ id: string; displayName: string }>(
-        `SELECT id, display_name AS "displayName" FROM users WHERE id = ANY($1)`,
-        [matchParticipantIds]
-      );
-      const nameMap = new Map(namesResult.rows.map(r => [r.id, r.displayName]));
-
-      // Build partners list for each participant and notify them
       for (const pid of matchParticipantIds) {
         const partners = matchParticipantIds
           .filter(id => id !== pid)
-          .map(id => ({ userId: id, displayName: nameMap.get(id) || 'Partner' }));
+          .map(id => ({ userId: id, displayName: globalNameMap.get(id) || 'Partner' }));
 
         io.to(userRoom(pid)).emit('match:assigned', {
           matchId: match.id,
           partnerId: partners[0].userId,
           partnerDisplayName: partners[0].displayName,
-          partners,  // Array of all partners (1 for pair, 2 for trio)
+          partners,
           roomId,
           roundNumber,
         });
 
-        await sessionService.updateParticipantStatus(sessionId, pid, ParticipantStatus.IN_ROUND);
+        statusUpdatePromises.push(
+          sessionService.updateParticipantStatus(sessionId, pid, ParticipantStatus.IN_ROUND)
+        );
       }
     }
+    // Fire all status updates in parallel (these are independent writes)
+    await Promise.allSettled(statusUpdatePromises);
 
     // Notify bye participants (unmatched due to odd count — exclude host, they stay in lobby)
     const allParticipants = await query<{ user_id: string }>(

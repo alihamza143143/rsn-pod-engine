@@ -94,6 +94,14 @@ export default function useSessionSocket(sessionId: string) {
     socket.on('cohost:assigned', (data: any) => { store.addCohost(data.userId); });
     socket.on('cohost:removed', (data: any) => { store.removeCohost(data.userId); });
 
+    // ── Eviction (duplicate tab/device) ──
+    socket.on('session:evicted', () => {
+      store.setConnectionStatus('disconnected');
+      store.setPhase('lobby');
+      // Signal will be picked up by UI to show "connected from another tab" message
+      store.setTransitionStatus('evicted');
+    });
+
     // ── Session lifecycle ──
     socket.on('session:status_changed', (data: any) => {
       store.setSessionStatus(data.status);

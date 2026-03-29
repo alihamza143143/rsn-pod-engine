@@ -8,6 +8,7 @@ export interface ServerToClientEvents {
   'session:round_ending': (data: { sessionId: string; roundNumber: number; secondsLeft: number }) => void;
   'session:round_ended': (data: { sessionId: string; roundNumber: number }) => void;
   'session:completed': (data: { sessionId: string }) => void;
+  'session:evicted': (data: { reason: string }) => void;
 
   // Matching & routing
   'match:assigned': (data: { matchId: string; partnerId: string; partnerDisplayName?: string; partners?: { userId: string; displayName: string }[]; roomId: string; roundNumber: number }) => void;
