@@ -41,7 +41,7 @@ Purpose: Persistent execution history and current state, independent of chat mem
 ## Current Phase Snapshot
 
 - Active Phase: Change 2.0 — Critical Event Flow Fix (client review issues)
-- Active Milestone: **Phase 1/5 complete (matching integrity + scale)**
+- Active Milestone: **Phase 2/5 complete (auth + token stability)**
 - Source Document: assets/Review on 29th March.pdf (9 system-level issues)
 - Last Updated: March 30, 2026
 
@@ -80,6 +80,16 @@ Approach: 5-phase fix, each verified against actual code with full-stack trace
 - Client: TransitionStatus union extended with 'evicted', useSessionSocket.ts handles eviction
 - Files: 029_matching_integrity_constraints.sql, matching.engine.ts, orchestration.service.ts, events.ts, sessionStore.ts, useSessionSocket.ts
 - Build: Zero TS errors (shared + server + client), client production build passes
+
+**Phase 2 — Auth & Token Stability (COMPLETE)**
+- Client: refreshAccessToken() now has a mutex — concurrent 401s piggyback on a single refresh call instead of racing. Eliminates "first request fails, second succeeds" at scale
+- Client: api.ts interceptor catch block now returns Promise.reject(refreshErr) instead of falling through to reject the original error — proper error propagation
+- Server: auth.ts middleware checks user.status via cached DB lookup (60s TTL) — deactivated users blocked on REST API
+- Server: identity.service.ts refreshAccessToken() checks user.status before issuing new tokens — deactivated users can't refresh
+- Server: index.ts socket auth middleware checks user.status before allowing connection — deactivated users blocked from real-time
+- Cache: statusCache with 60s TTL — at 200+ users, no DB query per request. invalidateUserStatusCache() exported for admin deactivation flow
+- Files: api.ts, authStore.ts, auth.ts, identity.service.ts, index.ts
+- Build: Zero TS errors (server + client), client production build passes
 
 ### What's Done (Change 1.8 — Phase 6: New Features, March 28, 2026)
 

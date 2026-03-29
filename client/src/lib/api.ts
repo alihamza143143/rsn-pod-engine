@@ -29,14 +29,16 @@ api.interceptors.response.use(
     if (err.response?.status === 401 && !original._retry && !isLogoutRequest && !isRefreshRequest) {
       original._retry = true;
       try {
+        // refreshAccessToken() has a mutex — safe for concurrent 401s
         await useAuthStore.getState().refreshAccessToken();
         const newToken = useAuthStore.getState().accessToken;
         original.headers.Authorization = `Bearer ${newToken}`;
         return api(original);
-      } catch {
+      } catch (refreshErr) {
         // Refresh failed — do NOT auto-logout. Let the request fail
         // naturally. The user stays logged in and can retry or
         // manually log out when they choose to.
+        return Promise.reject(refreshErr);
       }
     }
     return Promise.reject(err);

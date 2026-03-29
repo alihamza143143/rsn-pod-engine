@@ -61,7 +61,7 @@ const io = new SocketServer(server, {
 });
 
 // Socket.IO authentication middleware
-io.use((socket, next) => {
+io.use(async (socket, next) => {
   const token = socket.handshake.auth?.token || socket.handshake.headers?.authorization?.replace('Bearer ', '');
   if (!token) {
     return next(new Error('Authentication required'));
@@ -69,12 +69,25 @@ io.use((socket, next) => {
 
   try {
     const payload = jwt.verify(token, config.jwtSecret) as { sub: string; email: string; role: string; displayName?: string };
+
+    // Block deactivated users from socket connections
+    const { query: dbQuery } = await import('./db');
+    const userResult = await dbQuery<{ status: string }>(
+      'SELECT status FROM users WHERE id = $1', [payload.sub]
+    );
+    if (userResult.rows.length === 0 || userResult.rows[0].status !== 'active') {
+      return next(new Error('Account is deactivated'));
+    }
+
     socket.data.userId = payload.sub;
     socket.data.email = payload.email;
     socket.data.role = payload.role;
     socket.data.displayName = payload.displayName || payload.email;
     next();
   } catch (err) {
+    if (err instanceof Error && err.message === 'Account is deactivated') {
+      return next(err);
+    }
     next(new Error('Invalid token'));
   }
 });

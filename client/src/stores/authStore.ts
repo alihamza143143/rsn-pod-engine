@@ -17,6 +17,13 @@ interface AuthState {
   setTokens: (access: string, refresh: string) => void;
 }
 
+// ── Refresh mutex ──
+// At 200+ participants, many concurrent requests can hit 401 simultaneously.
+// Without a mutex, each one triggers a separate refresh call, causing token
+// rotation races (server revokes token A while client B is still using it).
+// The mutex ensures only ONE refresh runs; all others piggyback on its result.
+let refreshPromise: Promise<void> | null = null;
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   accessToken: localStorage.getItem('rsn_access') || null,
@@ -67,24 +74,35 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   refreshAccessToken: async () => {
-    const refresh = get().refreshToken;
-    if (!refresh) throw new Error('No refresh token');
-    const { data } = await api.post('/auth/refresh', { refreshToken: refresh });
-    const { accessToken, refreshToken: newRefresh } = data.data;
-    localStorage.setItem('rsn_access', accessToken);
-    localStorage.setItem('rsn_refresh', newRefresh);
-    set({ accessToken, refreshToken: newRefresh });
+    // Mutex: if a refresh is already in-flight, piggyback on it
+    if (refreshPromise) return refreshPromise;
+
+    refreshPromise = (async () => {
+      try {
+        const refresh = get().refreshToken;
+        if (!refresh) throw new Error('No refresh token');
+        const { data } = await api.post('/auth/refresh', { refreshToken: refresh });
+        const { accessToken, refreshToken: newRefresh } = data.data;
+        localStorage.setItem('rsn_access', accessToken);
+        localStorage.setItem('rsn_refresh', newRefresh);
+        set({ accessToken, refreshToken: newRefresh });
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+
+    return refreshPromise;
   },
 
   logout: async () => {
     // Prevent multiple simultaneous logout calls
     const current = get();
     if (!current.accessToken && !current.refreshToken) return;
-    
+
     // Call logout endpoint before clearing tokens so the auth header is still present
     // Use catch to silently ignore errors (e.g., if token is already invalid)
     await api.post('/auth/logout').catch(() => {});
-    
+
     localStorage.removeItem('rsn_access');
     localStorage.removeItem('rsn_refresh');
     set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false, isLoading: false });

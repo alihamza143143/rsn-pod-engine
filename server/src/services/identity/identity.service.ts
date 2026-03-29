@@ -448,8 +448,11 @@ export async function refreshAccessToken(refreshToken: string): Promise<AuthToke
     // Revoke the old refresh token (rotation)
     await query('UPDATE refresh_tokens SET revoked_at = NOW() WHERE id = $1', [result.rows[0].id]);
 
-    // Get user and generate new pair
+    // Get user, verify active, and generate new pair
     const user = await getUserById(payload.sub);
+    if (user.status !== 'active') {
+      throw new UnauthorizedError('Account is deactivated');
+    }
     return generateTokenPair(user);
   } catch (err) {
     if (err instanceof UnauthorizedError || err instanceof NotFoundError) {
