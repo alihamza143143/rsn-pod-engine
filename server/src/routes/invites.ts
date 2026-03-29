@@ -249,9 +249,10 @@ router.post(
         return res.status(403).json({ success: false, error: { code: 'AUTH_FORBIDDEN', message: 'Only the host can send reminders' } });
       }
 
-      // Get all pending invites for this session
+      // Get all pending invites for this session (only those with an email to send to)
       const pendingInvites = await query<{ id: string; invitee_email: string; code: string }>(
-        `SELECT id, invitee_email, code FROM invites WHERE session_id = $1 AND status = 'pending'`,
+        `SELECT id, invitee_email, code FROM invites
+         WHERE session_id = $1 AND status = 'pending' AND invitee_email IS NOT NULL AND invitee_email != ''`,
         [sessionId]
       );
 
