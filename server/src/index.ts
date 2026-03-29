@@ -11,7 +11,7 @@ import { Server as SocketServer } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import config from './config';
 import logger from './config/logger';
-import { testConnection, closePool } from './db';
+import { testConnection, closePool, query as dbQuery } from './db';
 import { runMigrations } from './db/migrate';
 
 // Middleware
@@ -71,7 +71,6 @@ io.use(async (socket, next) => {
     const payload = jwt.verify(token, config.jwtSecret) as { sub: string; email: string; role: string; displayName?: string };
 
     // Block deactivated users from socket connections
-    const { query: dbQuery } = await import('./db');
     const userResult = await dbQuery<{ status: string }>(
       'SELECT status FROM users WHERE id = $1', [payload.sub]
     );

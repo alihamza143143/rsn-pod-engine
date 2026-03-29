@@ -39,6 +39,11 @@ async function isUserActive(userId: string): Promise<boolean> {
       [userId]
     );
     const status = result.rows[0]?.status || 'inactive';
+    // Prevent unbounded cache growth — evict oldest entries if cache exceeds 5000
+    if (statusCache.size > 5000) {
+      const firstKey = statusCache.keys().next().value;
+      if (firstKey) statusCache.delete(firstKey);
+    }
     statusCache.set(userId, { status, cachedAt: Date.now() });
     return status === 'active';
   } catch (err) {
