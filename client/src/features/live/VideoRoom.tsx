@@ -198,7 +198,7 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
         retryCountRef.current = 0;
       }).catch(() => setConnectionError('Failed to get video room access'));
     }
-  }, [liveKitToken, sessionId]);
+  }, [liveKitToken, sessionId, currentRoomId]);
 
   if (isByeRound) {
     return (

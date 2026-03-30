@@ -137,7 +137,7 @@ export default function useSessionSocket(sessionId: string) {
     // ── Session lifecycle ──
     socket.on('session:status_changed', (data: any) => {
       store.setSessionStatus(data.status);
-      if (data.status === 'completed') { clearTimer(); store.setLiveKitToken(null, null); store.setMatch(null); store.setRoomId(null); store.setMatchingOverlay(null); store.setRoundDashboard(null); store.setTransitionStatus('session_ending'); setTimeout(() => { store.setTransitionStatus(null); store.setPhase('complete'); }, 1500); }
+      if (data.status === 'completed') { clearTimer(); clearByeTimeout(); store.setLiveKitToken(null, null); store.setMatch(null); store.setRoomId(null); store.setMatchingOverlay(null); store.setRoundDashboard(null); store.setByeRound(false); store.setPartnerDisconnected(false); store.setLeftCurrentRound(false); store.setTransitionStatus('session_ending'); setTimeout(() => { store.setTransitionStatus(null); store.setPhase('complete'); }, 1500); }
       if (data.status === 'lobby_open') store.setTransitionStatus(null); // Lobby overlay handles messaging
       if (data.status === 'closing_lobby') {
         // Closing lobby: clear match data, return to lobby with closing overlay
@@ -213,6 +213,7 @@ export default function useSessionSocket(sessionId: string) {
 
     socket.on('session:completed', () => {
       clearTimer();
+      clearByeTimeout();
       // session:completed always wins — force complete phase, clear ALL transient state
       store.setLiveKitToken(null, null);
       store.setMatch(null);
@@ -362,7 +363,10 @@ export default function useSessionSocket(sessionId: string) {
     socket.on('rating:window_closed', () => {
       clearTimer();
       clearRatingFallback(); // Cancel fallback — normal event received
+      clearByeTimeout();
       store.setLiveKitToken(null, null);
+      store.setByeRound(false);
+      store.setPartnerDisconnected(false);
       const state = useSessionStore.getState();
       store.setLastRatedRound(state.currentRound); // Prevent re-entry to rating for this round
       // Don't clear match data immediately — let RatingPrompt finish if user is mid-submit.
