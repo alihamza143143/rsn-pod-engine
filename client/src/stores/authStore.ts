@@ -24,6 +24,45 @@ interface AuthState {
 // The mutex ensures only ONE refresh runs; all others piggyback on its result.
 let refreshPromise: Promise<void> | null = null;
 
+// ── Proactive refresh timer ──
+// Instead of waiting for a 401 (which then needs recovery), refresh the access
+// token 2 minutes before it expires.  This eliminates nearly all 401s during
+// normal usage and keeps sessions alive silently.
+let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Decode the JWT payload (no verification — that's server-side) to read exp. */
+function getTokenExpiryMs(token: string): number | null {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return typeof payload.exp === 'number' ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+function scheduleProactiveRefresh(accessToken: string) {
+  if (refreshTimer) clearTimeout(refreshTimer);
+  const expiresAt = getTokenExpiryMs(accessToken);
+  if (!expiresAt) return;
+
+  // Refresh 2 minutes before expiry (for a 15-min token, this fires at ~13 min)
+  const refreshIn = expiresAt - Date.now() - 2 * 60 * 1000;
+  if (refreshIn <= 0) return; // already expired or about to — interceptor will handle it
+
+  refreshTimer = setTimeout(() => {
+    useAuthStore.getState().refreshAccessToken().catch(() => {
+      // Proactive refresh failed — that's OK, the 401 interceptor is the safety net
+    });
+  }, refreshIn);
+}
+
+function clearRefreshTimer() {
+  if (refreshTimer) {
+    clearTimeout(refreshTimer);
+    refreshTimer = null;
+  }
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   accessToken: localStorage.getItem('rsn_access') || null,
@@ -42,6 +81,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.setItem('rsn_access', accessToken);
     localStorage.setItem('rsn_refresh', refreshToken);
     set({ accessToken, refreshToken, isAuthenticated: true });
+    scheduleProactiveRefresh(accessToken);
     await get().checkSession();
   },
 
@@ -49,6 +89,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.setItem('rsn_access', accessToken);
     localStorage.setItem('rsn_refresh', refreshToken);
     set({ accessToken, refreshToken, isAuthenticated: true });
+    scheduleProactiveRefresh(accessToken);
     await get().checkSession();
   },
 
@@ -61,12 +102,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const { data } = await api.get('/auth/session', { timeout: 15000 });
       set({ user: data.data.user, isAuthenticated: true, isLoading: false });
+      // Schedule proactive refresh if we haven't already (e.g. app init)
+      scheduleProactiveRefresh(token);
     } catch (err: any) {
       // Only log out on 401 (token genuinely invalid/expired).
       // Network errors, timeouts, 5xx — keep the user logged in so a
       // server hiccup or Render cold-start doesn't nuke the session.
       if (err?.response?.status === 401) {
         set({ isLoading: false, isAuthenticated: false, user: null });
+        clearRefreshTimer();
       } else {
         set({ isLoading: false });
       }
@@ -79,13 +123,38 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     refreshPromise = (async () => {
       try {
-        const refresh = get().refreshToken;
+        // CRITICAL: Read from localStorage, NOT Zustand state.
+        // Another tab may have already refreshed (token rotation) and stored
+        // the new token in localStorage.  Zustand state is per-tab and can be stale.
+        const refresh = localStorage.getItem('rsn_refresh') || get().refreshToken;
         if (!refresh) throw new Error('No refresh token');
-        const { data } = await api.post('/auth/refresh', { refreshToken: refresh });
-        const { accessToken, refreshToken: newRefresh } = data.data;
-        localStorage.setItem('rsn_access', accessToken);
-        localStorage.setItem('rsn_refresh', newRefresh);
-        set({ accessToken, refreshToken: newRefresh });
+
+        let tokens: { accessToken: string; refreshToken: string };
+        try {
+          const { data } = await api.post('/auth/refresh', { refreshToken: refresh });
+          tokens = data.data;
+        } catch (firstErr: any) {
+          // If we got 401 "revoked", another tab may have rotated the token
+          // between our localStorage read and the server call.  Re-read
+          // localStorage and retry once — the other tab's new token might be
+          // there now.
+          if (firstErr?.response?.status === 401) {
+            const retryRefresh = localStorage.getItem('rsn_refresh');
+            if (retryRefresh && retryRefresh !== refresh) {
+              const { data } = await api.post('/auth/refresh', { refreshToken: retryRefresh });
+              tokens = data.data;
+            } else {
+              throw firstErr;
+            }
+          } else {
+            throw firstErr;
+          }
+        }
+
+        localStorage.setItem('rsn_access', tokens.accessToken);
+        localStorage.setItem('rsn_refresh', tokens.refreshToken);
+        set({ accessToken: tokens.accessToken, refreshToken: tokens.refreshToken });
+        scheduleProactiveRefresh(tokens.accessToken);
       } finally {
         refreshPromise = null;
       }
@@ -103,6 +172,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Use catch to silently ignore errors (e.g., if token is already invalid)
     await api.post('/auth/logout').catch(() => {});
 
+    clearRefreshTimer();
     localStorage.removeItem('rsn_access');
     localStorage.removeItem('rsn_refresh');
     set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false, isLoading: false });
@@ -112,5 +182,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.setItem('rsn_access', access);
     localStorage.setItem('rsn_refresh', refresh);
     set({ accessToken: access, refreshToken: refresh, isAuthenticated: true });
+    scheduleProactiveRefresh(access);
   },
 }));
