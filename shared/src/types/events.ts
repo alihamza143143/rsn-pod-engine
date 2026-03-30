@@ -77,8 +77,9 @@ export interface ServerToClientEvents {
   'lobby:mute_command': (data: { muted: boolean; byHost: boolean }) => void;
 
   // Chat
-  'chat:message': (data: { id: string; userId: string; displayName: string; message: string; timestamp: string; scope: 'lobby' | 'room'; isHost: boolean }) => void;
-  'chat:history': (data: { messages: { id: string; userId: string; displayName: string; message: string; timestamp: string; scope: 'lobby' | 'room'; isHost: boolean }[] }) => void;
+  'chat:message': (data: { id: string; userId: string; displayName: string; message: string; timestamp: string; scope: 'lobby' | 'room'; isHost: boolean; reactions?: Record<string, string[]> }) => void;
+  'chat:history': (data: { messages: { id: string; userId: string; displayName: string; message: string; timestamp: string; scope: 'lobby' | 'room'; isHost: boolean; reactions?: Record<string, string[]> }[] }) => void;
+  'chat:reaction_update': (data: { messageId: string; reactions: Record<string, string[]> }) => void;
 
   // Timer sync
   'timer:sync': (data: { segmentType: string; secondsRemaining: number; totalSeconds: number }) => void;
@@ -133,4 +134,5 @@ export interface ClientToServerEvents {
 
   // Chat
   'chat:send': (data: { sessionId: string; message: string; scope: 'lobby' | 'room' }) => void;
+  'chat:react': (data: { sessionId: string; messageId: string; emoji: string }) => void;
 }

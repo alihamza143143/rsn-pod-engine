@@ -1,8 +1,14 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { X, Send } from 'lucide-react';
+import { X, Send, SmilePlus } from 'lucide-react';
 import { useSessionStore, ChatMessage } from '@/stores/sessionStore';
 import { useAuthStore } from '@/stores/authStore';
 import { getSocket } from '@/lib/socket';
+
+const CHAT_EMOJIS = [
+  { type: 'heart', emoji: '❤️' },
+  { type: 'clap', emoji: '👏' },
+  { type: 'thumbs_up', emoji: '👍' },
+] as const;
 
 interface ChatPanelProps {
   sessionId: string;
@@ -95,6 +101,7 @@ export default function ChatPanel({ sessionId, onClose }: ChatPanelProps) {
             key={msg.id}
             msg={msg}
             isOwn={msg.userId === user?.id}
+            sessionId={sessionId}
           />
         ))}
         <div ref={messagesEndRef} />
@@ -133,14 +140,26 @@ export default function ChatPanel({ sessionId, onClose }: ChatPanelProps) {
   );
 }
 
-function MessageBubble({ msg, isOwn }: { msg: ChatMessage; isOwn: boolean }) {
+function MessageBubble({ msg, isOwn, sessionId }: { msg: ChatMessage; isOwn: boolean; sessionId: string }) {
+  const [showPicker, setShowPicker] = useState(false);
+  const userId = useAuthStore(s => s.user?.id);
+
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const handleReact = (emoji: string) => {
+    const socket = getSocket();
+    socket?.emit('chat:react', { sessionId, messageId: msg.id, emoji });
+    setShowPicker(false);
+  };
+
+  const reactions = msg.reactions || {};
+  const hasReactions = Object.keys(reactions).length > 0;
+
   return (
-    <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'}`}>
+    <div className={`flex flex-col ${isOwn ? 'items-end' : 'items-start'} group/msg`}>
       <div
         className={`max-w-[85%] rounded-2xl px-3.5 py-2 ${
           isOwn
@@ -165,6 +184,41 @@ function MessageBubble({ msg, isOwn }: { msg: ChatMessage; isOwn: boolean }) {
             {formatTime(msg.timestamp)}
           </span>
         </div>
+      </div>
+      {/* Reaction display */}
+      {hasReactions && (
+        <div className={`flex gap-1 mt-0.5 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+          {CHAT_EMOJIS.filter(e => reactions[e.type]?.length).map(e => (
+            <button
+              key={e.type}
+              onClick={() => handleReact(e.type)}
+              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] transition-colors ${
+                reactions[e.type]?.includes(userId || '') ? 'bg-blue-500/20 border border-blue-500/40' : 'bg-white/5 border border-white/10'
+              } hover:bg-white/10`}
+            >
+              <span>{e.emoji}</span>
+              <span className="text-gray-400">{reactions[e.type].length}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {/* Reaction picker toggle */}
+      <div className={`relative ${isOwn ? 'self-end' : 'self-start'}`}>
+        <button
+          onClick={() => setShowPicker(!showPicker)}
+          className="opacity-0 group-hover/msg:opacity-100 transition-opacity p-0.5 text-gray-500 hover:text-gray-300"
+        >
+          <SmilePlus className="h-3.5 w-3.5" />
+        </button>
+        {showPicker && (
+          <div className={`absolute bottom-6 ${isOwn ? 'right-0' : 'left-0'} flex gap-1 bg-[#292a2d] border border-white/10 rounded-full px-2 py-1 shadow-lg z-10`}>
+            {CHAT_EMOJIS.map(e => (
+              <button key={e.type} onClick={() => handleReact(e.type)} className="hover:scale-125 transition-transform text-sm">
+                {e.emoji}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

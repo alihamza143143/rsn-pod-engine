@@ -18,6 +18,7 @@ export interface ChatMessage {
   timestamp: string;
   scope: 'lobby' | 'room';
   isHost: boolean;
+  reactions?: Record<string, string[]>;
 }
 
 type SessionPhase = 'lobby' | 'matched' | 'rating' | 'complete';
@@ -115,6 +116,7 @@ interface SessionLiveState {
   updateRoomStatus: (matchId: string, status: string, participants: { userId: string; displayName: string; isConnected: boolean }[]) => void;
   addChatMessage: (msg: ChatMessage) => void;
   setChatMessages: (msgs: ChatMessage[]) => void;
+  updateMessageReaction: (messageId: string, reactions: Record<string, string[]>) => void;
   clearChatMessages: () => void;
   setChatOpen: (open: boolean) => void;
   resetUnreadChat: () => void;
@@ -201,6 +203,9 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
     unreadChatCount: s.chatOpen ? s.unreadChatCount : s.unreadChatCount + 1,
   })),
   setChatMessages: (chatMessages) => set({ chatMessages }),
+  updateMessageReaction: (messageId, reactions) => set((s) => ({
+    chatMessages: s.chatMessages.map(m => m.id === messageId ? { ...m, reactions } : m),
+  })),
   clearChatMessages: () => set({ chatMessages: [], unreadChatCount: 0 }),
   setChatOpen: (chatOpen) => set((s) => ({ chatOpen, unreadChatCount: chatOpen ? 0 : s.unreadChatCount })),
   resetUnreadChat: () => set({ unreadChatCount: 0 }),

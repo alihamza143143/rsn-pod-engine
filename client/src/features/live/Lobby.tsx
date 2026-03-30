@@ -60,64 +60,111 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
     socket?.emit('host:remove_participant', { sessionId, userId: targetIdentity, reason: 'Removed by host' });
   }, [sessionId]);
 
+  // Pin/spotlight state — client-side only, no server interaction
+  const [pinnedSid, setPinnedSid] = useState<string | null>(null);
+
+  // Auto-unpin if pinned participant leaves
+  useEffect(() => {
+    if (pinnedSid && !cameraTracks.find(t => t.participant.sid === pinnedSid)) {
+      setPinnedSid(null);
+    }
+  }, [cameraTracks, pinnedSid]);
+
+  // Helper to render a single video tile with all overlays
+  const renderTile = (trackRef: any, { isPinned = false, onClick }: { isPinned?: boolean; onClick?: () => void } = {}) => {
+    const name = trackRef.participant.name || trackRef.participant.identity || 'User';
+    const hasVideo = !!trackRef.publication?.track;
+    const isLocal = trackRef.participant.sid === localParticipant.sid;
+    const isMicOn = trackRef.participant.isMicrophoneEnabled;
+    return (
+      <div
+        key={trackRef.participant.sid}
+        className={`relative rounded-xl overflow-hidden bg-[#3c4043] ${isPinned ? 'h-full w-full' : 'aspect-video'} flex items-center justify-center group cursor-pointer`}
+        onClick={onClick}
+      >
+        {hasVideo && isTrackReference(trackRef) ? (
+          <VideoTrack trackRef={trackRef} className={`h-full w-full ${isPinned ? 'object-contain' : 'object-cover'}`} />
+        ) : (
+          <div className="flex flex-col items-center gap-2">
+            <div className={`${isPinned ? 'h-20 w-20' : 'h-14 w-14'} rounded-full bg-[#5f6368] flex items-center justify-center text-white font-semibold text-xl`}>
+              {name.charAt(0).toUpperCase()}
+            </div>
+          </div>
+        )}
+        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm rounded px-2 py-0.5 text-[11px] text-white truncate max-w-[90%] flex items-center gap-1.5">
+          {name}
+          {trackRef.participant.identity === hostUserId && (
+            <span className="text-[9px] font-medium text-gray-300 ml-0.5">(Host)</span>
+          )}
+        </div>
+        {isPinned && (
+          <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
+            Pinned · click to unpin
+          </div>
+        )}
+        {/* Own media controls on local tile */}
+        {isLocal && (
+          <div className="absolute bottom-1.5 right-1.5" onClick={e => e.stopPropagation()}>
+            <LobbyMediaControls isHost={isHost} sessionId={sessionId} />
+          </div>
+        )}
+        {/* Host mute/unmute + kick buttons on remote participant tiles */}
+        {isHost && !isLocal && (
+          <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+            <button
+              onClick={() => handleHostMute(trackRef.participant.identity, !!isMicOn)}
+              className="bg-black/50 backdrop-blur-sm rounded-full p-1.5 text-white hover:bg-black/70"
+              title={isMicOn ? `Mute ${name}` : `Unmute ${name}`}
+            >
+              {isMicOn ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5 text-red-400" />}
+            </button>
+            <button
+              onClick={() => handleKick(trackRef.participant.identity, name)}
+              className="bg-black/50 backdrop-blur-sm rounded-full p-1.5 text-white hover:bg-red-600/70"
+              title={`Remove ${name}`}
+            >
+              <UserX className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+        {/* Mic status indicator */}
+        {!isMicOn && (
+          <div className="absolute top-2 left-2 bg-red-500/90 rounded-full p-1">
+            <MicOff className="h-2.5 w-2.5 text-white" />
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Pinned layout: large tile + small row at bottom
+  const pinnedTrack = pinnedSid ? cameraTracks.find(t => t.participant.sid === pinnedSid) : null;
+  if (pinnedTrack) {
+    const unpinnedTracks = cameraTracks.filter(t => t.participant.sid !== pinnedSid);
+    return (
+      <div className={`flex flex-col gap-3 w-full ${maxWClass} mx-auto h-full`}>
+        <div className="flex-1 min-h-0">
+          {renderTile(pinnedTrack, { isPinned: true, onClick: () => setPinnedSid(null) })}
+        </div>
+        {unpinnedTracks.length > 0 && (
+          <div className="flex gap-2 h-24 shrink-0 overflow-x-auto">
+            {unpinnedTracks.map(t => (
+              <div key={t.participant.sid} className="flex-shrink-0 w-32">
+                {renderTile(t, { onClick: () => setPinnedSid(t.participant.sid) })}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Default grid layout (unchanged behavior when nothing is pinned)
   return (
     <div className={`grid ${gridCols} ${gapClass} w-full ${maxWClass} mx-auto`}>
-      {cameraTracks.map(trackRef => {
-        const name = trackRef.participant.name || trackRef.participant.identity || 'User';
-        const hasVideo = !!trackRef.publication?.track;
-        const isLocal = trackRef.participant.sid === localParticipant.sid;
-        const isMicOn = trackRef.participant.isMicrophoneEnabled;
-        return (
-          <div key={trackRef.participant.sid} className="relative rounded-xl overflow-hidden bg-[#3c4043] aspect-video flex items-center justify-center group">
-            {hasVideo && isTrackReference(trackRef) ? (
-              <VideoTrack trackRef={trackRef} className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex flex-col items-center gap-2">
-                <div className="h-14 w-14 rounded-full bg-[#5f6368] flex items-center justify-center text-white font-semibold text-xl">
-                  {name.charAt(0).toUpperCase()}
-                </div>
-              </div>
-            )}
-            <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm rounded px-2 py-0.5 text-[11px] text-white truncate max-w-[90%] flex items-center gap-1.5">
-              {name}
-              {trackRef.participant.identity === hostUserId && (
-                <span className="text-[9px] font-medium text-gray-300 ml-0.5">(Host)</span>
-              )}
-            </div>
-            {/* Own media controls on local (host) tile */}
-            {isLocal && (
-              <div className="absolute bottom-1.5 right-1.5">
-                <LobbyMediaControls isHost={isHost} sessionId={sessionId} />
-              </div>
-            )}
-            {/* Host mute/unmute + kick buttons on remote participant tiles */}
-            {isHost && !isLocal && (
-              <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onClick={() => handleHostMute(trackRef.participant.identity, !!isMicOn)}
-                  className="bg-black/50 backdrop-blur-sm rounded-full p-1.5 text-white hover:bg-black/70"
-                  title={isMicOn ? `Mute ${name}` : `Unmute ${name}`}
-                >
-                  {isMicOn ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5 text-red-400" />}
-                </button>
-                <button
-                  onClick={() => handleKick(trackRef.participant.identity, name)}
-                  className="bg-black/50 backdrop-blur-sm rounded-full p-1.5 text-white hover:bg-red-600/70"
-                  title={`Remove ${name}`}
-                >
-                  <UserX className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-            {/* Mic status indicator */}
-            {!isMicOn && (
-              <div className="absolute top-2 left-2 bg-red-500/90 rounded-full p-1">
-                <MicOff className="h-2.5 w-2.5 text-white" />
-              </div>
-            )}
-          </div>
-        );
-      })}
+      {cameraTracks.map(trackRef =>
+        renderTile(trackRef, { onClick: () => setPinnedSid(trackRef.participant.sid) })
+      )}
       {cameraTracks.length === 0 && (
         <div className="col-span-full text-center py-12 text-gray-500 text-sm">
           <div className="h-16 w-16 rounded-full bg-[#3c4043] flex items-center justify-center mx-auto mb-3">

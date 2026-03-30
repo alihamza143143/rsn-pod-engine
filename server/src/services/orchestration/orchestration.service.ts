@@ -53,6 +53,7 @@ interface ChatMessage {
   scope: 'lobby' | 'room';
   isHost: boolean;
   roomId?: string; // breakout room ID for room-scope messages
+  reactions: Record<string, string[]>; // emoji → userIds
 }
 
 const MAX_CHAT_MESSAGES = 50;
@@ -106,6 +107,7 @@ export function initOrchestration(
 
     // Chat
     socket.on('chat:send', (data) => handleChatSend(socket, data));
+    socket.on('chat:react', (data) => handleChatReact(socket, data));
     socket.on('reaction:send', (data) => handleReactionSend(socket, data));
 
     socket.on('disconnect', () => handleDisconnect(socket));
@@ -2777,6 +2779,7 @@ async function handleChatSend(
       timestamp: new Date().toISOString(),
       scope,
       isHost,
+      reactions: {},
     };
 
     // Store message in memory
@@ -2820,6 +2823,48 @@ async function handleChatSend(
   } catch (err: any) {
     logger.error({ err }, 'Error handling chat message');
     socket.emit('error', { code: 'CHAT_FAILED', message: 'Failed to send message' });
+  }
+}
+
+// ─── Per-Message Chat Reactions ─────────────────────────────────────────────
+
+const CHAT_REACTION_EMOJIS = ['heart', 'clap', 'thumbs_up'];
+
+async function handleChatReact(
+  socket: Socket,
+  data: { sessionId: string; messageId: string; emoji: string }
+): Promise<void> {
+  try {
+    const userId = getUserIdFromSocket(socket);
+    if (!userId) return;
+
+    const { sessionId, messageId, emoji } = data;
+    if (!sessionId || !messageId || !emoji) return;
+    if (!CHAT_REACTION_EMOJIS.includes(emoji)) return;
+
+    const msgs = chatMessages.get(sessionId);
+    if (!msgs) return;
+
+    const msg = msgs.find(m => m.id === messageId);
+    if (!msg) return;
+
+    // Toggle: add if not present, remove if already reacted
+    if (!msg.reactions[emoji]) msg.reactions[emoji] = [];
+    const idx = msg.reactions[emoji].indexOf(userId);
+    if (idx >= 0) {
+      msg.reactions[emoji].splice(idx, 1);
+      if (msg.reactions[emoji].length === 0) delete msg.reactions[emoji];
+    } else {
+      msg.reactions[emoji].push(userId);
+    }
+
+    // Broadcast updated reactions to all in session (lobby-scope messages visible to all)
+    io.to(sessionRoom(sessionId)).emit('chat:reaction_update', {
+      messageId,
+      reactions: msg.reactions,
+    });
+  } catch (err) {
+    logger.error({ err }, 'Error handling chat reaction');
   }
 }
 
