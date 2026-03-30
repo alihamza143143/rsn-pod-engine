@@ -1,4 +1,4 @@
-import { Users, Loader2, VideoOff, Sparkles, ChevronDown, ChevronUp, Mic, MicOff, Volume2, VolumeX, UserX, Clock, Camera } from 'lucide-react';
+import { Users, Loader2, Video, VideoOff, Sparkles, ChevronDown, ChevronUp, Mic, MicOff, Volume2, VolumeX, UserX, Clock, Camera } from 'lucide-react';
 import HostRoundDashboard from './HostRoundDashboard';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSessionStore } from '@/stores/sessionStore';
@@ -134,6 +134,7 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
   const { localParticipant } = useLocalParticipant();
   const { hostMuteCommand, setHostMuteCommand } = useSessionStore();
   const [micEnabled, setMicEnabled] = useState(isHost); // Host unmuted by default, others muted
+  const [camEnabled, setCamEnabled] = useState(true);
   const [allMuted, setAllMuted] = useState(false);
 
   // Auto-mute participants (not host) on mount
@@ -158,6 +159,11 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
     setMicEnabled(!micEnabled);
   }, [localParticipant, micEnabled]);
 
+  const toggleCam = useCallback(async () => {
+    await localParticipant.setCameraEnabled(!camEnabled);
+    setCamEnabled(!camEnabled);
+  }, [localParticipant, camEnabled]);
+
   const handleMuteAll = useCallback(() => {
     if (!sessionId) return;
     const socket = getSocket();
@@ -178,6 +184,17 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
       >
         {micEnabled ? <Mic className="h-3 w-3" /> : <MicOff className="h-3 w-3" />}
         {micEnabled ? 'Mute' : 'Unmute'}
+      </button>
+      <button
+        onClick={toggleCam}
+        className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors backdrop-blur-sm ${
+          camEnabled
+            ? 'bg-black/40 text-white hover:bg-black/60'
+            : 'bg-red-500/80 text-white hover:bg-red-600/80'
+        }`}
+      >
+        {camEnabled ? <Video className="h-3 w-3" /> : <VideoOff className="h-3 w-3" />}
+        {camEnabled ? 'Cam Off' : 'Cam On'}
       </button>
       {isHost && sessionId && (
         <button

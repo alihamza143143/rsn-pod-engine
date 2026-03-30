@@ -6,7 +6,7 @@ interface Props {
   roundNumber: number;
 }
 
-export default function MatchingOverlay({ roomCount, roundNumber }: Props) {
+export default function MatchingOverlay({ roundNumber }: Props) {
   const [phase, setPhase] = useState<'matching' | 'result'>('matching');
 
   useEffect(() => {
@@ -80,7 +80,7 @@ export default function MatchingOverlay({ roomCount, roundNumber }: Props) {
 
             <div>
               <h2 className="text-xl font-semibold text-white">
-                {roomCount} breakout room{roomCount !== 1 ? 's' : ''} created!
+                You've been matched!
               </h2>
               <p className="text-sm text-gray-400 mt-1">Connecting you now...</p>
             </div>
