@@ -4,7 +4,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
-import { ArrowRight, AlertCircle, KeyRound, UserPlus, Mail } from 'lucide-react';
+import { ArrowRight, AlertCircle, KeyRound, Mail } from 'lucide-react';
+// Note: inviteCode is never entered manually — it arrives via URL param from /invite/:code flow
+// and is passed silently to Google OAuth and magic link endpoints.
 import { API_BASE_URL } from '@/lib/runtimeEndpoints';
 
 const API_URL = API_BASE_URL;
@@ -12,7 +14,7 @@ const API_URL = API_BASE_URL;
 const ERROR_MESSAGES: Record<string, string> = {
   google_auth_failed: 'Google sign-in failed. Please try again.',
   INVALID_INVITE: 'The invite code is invalid or expired.',
-  REGISTRATION_BLOCKED: 'You need an approved join request or a valid invite code to sign up. Please request to join first.',
+  REGISTRATION_BLOCKED: 'You need an approved join request to sign up. Please request to join first.',
 };
 
 export default function LoginPage() {
@@ -24,18 +26,10 @@ export default function LoginPage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const handlingCrossTabAuth = useRef(false);
   const inviteCodeFromUrl = params.get('inviteCode');
-  const { register, handleSubmit, formState: { errors, isSubmitting }, getValues, watch, setValue } = useForm<{ email: string; inviteCode: string }>({
-    defaultValues: { inviteCode: inviteCodeFromUrl || '' },
-  });
+  const { register, handleSubmit, formState: { errors, isSubmitting }, getValues } = useForm<{ email: string }>();
 
-  const inviteCodeValue = watch('inviteCode');
-
-  // Auto-fill invite code from URL param (e.g. when redirected from invite page)
-  useEffect(() => {
-    if (inviteCodeFromUrl) {
-      setValue('inviteCode', inviteCodeFromUrl);
-    }
-  }, [inviteCodeFromUrl, setValue]);
+  // Invite code comes silently from URL params (via /invite/:code flow) — no manual input needed
+  const inviteCodeValue = inviteCodeFromUrl || '';
 
   // Store redirect path so VerifyPage can use it after login
   const redirectPath = params.get('redirect');
@@ -77,11 +71,11 @@ export default function LoginPage() {
     return () => window.removeEventListener('storage', onStorage);
   }, [sent, checkSession, navigate, setTokens]);
 
-  const onSubmit = async (data: { email: string; inviteCode: string }) => {
+  const onSubmit = async (data: { email: string }) => {
     setAuthError(null);
     setDevLink(null);
     try {
-      const response = await login(data.email, window.location.origin, data.inviteCode || undefined);
+      const response = await login(data.email, window.location.origin, inviteCodeValue || undefined);
       setSent(true);
       // Signal that this login tab is waiting for magic link verification
       localStorage.setItem('rsn_magic_link_sent', '1');
@@ -176,24 +170,9 @@ export default function LoginPage() {
               </form>
             </div>
 
-            {/* Path 2: New User with Invite */}
-            <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <UserPlus className="h-5 w-5 text-[#1a1a2e]" />
-                <h2 className="text-base font-semibold text-[#1a1a2e]">New here? Use your invite code</h2>
-              </div>
-              <Input
-                label="Invite code"
-                placeholder="Enter your invite code"
-                error={errors.inviteCode?.message}
-                {...register('inviteCode')}
-              />
-              <p className="text-xs text-gray-400 mt-1.5 mb-3">Enter your code below, then sign in above with Google or email.</p>
-            </div>
-
-            {/* Path 3: New User without Invite */}
+            {/* Path 2: New User — Request to Join */}
             <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-6 text-center">
-              <h2 className="text-base font-semibold text-[#1a1a2e] mb-2">No invite? Request access</h2>
+              <h2 className="text-base font-semibold text-[#1a1a2e] mb-2">New here? Request access</h2>
               <p className="text-sm text-gray-500 mb-4">RSN is invite-only. Apply and we&apos;ll review your request.</p>
               <button
                 onClick={() => navigate('/request-to-join')}
