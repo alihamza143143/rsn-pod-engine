@@ -15,7 +15,23 @@ router.get(
     try {
       const result = await query<any>(
         `SELECT n.id, n.type, n.title, n.body, n.link, n.is_read AS "isRead", n.created_at AS "createdAt",
-                i.status AS "inviteStatus",
+                -- Smart invite status: if user is already a member/participant, show as accepted
+                -- regardless of raw invite status. Single source of truth.
+                CASE
+                  WHEN i.id IS NULL THEN NULL
+                  WHEN i.status = 'accepted' THEN 'accepted'
+                  WHEN i.status = 'revoked' THEN 'revoked'
+                  WHEN i.status = 'expired' THEN 'expired'
+                  WHEN i.session_id IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM session_participants sp
+                    WHERE sp.session_id = i.session_id AND sp.user_id = $1 AND sp.status != 'removed'
+                  ) THEN 'accepted'
+                  WHEN i.pod_id IS NOT NULL AND EXISTS (
+                    SELECT 1 FROM pod_members pm
+                    WHERE pm.pod_id = i.pod_id AND pm.user_id = $1
+                  ) THEN 'accepted'
+                  ELSE i.status
+                END AS "inviteStatus",
                 i.pod_id AS "podId",
                 i.session_id AS "sessionId"
          FROM notifications n
