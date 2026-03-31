@@ -572,20 +572,26 @@ export async function getParticipantStatusCounts(sessionId: string): Promise<{
   total: number;
   pendingInvites: number;
 }> {
+  // Get host user ID so we can exclude them from participant counts
+  const sessionResult = await query<{ host_user_id: string }>(
+    `SELECT host_user_id FROM sessions WHERE id = $1`, [sessionId]
+  );
+  const hostUserId = sessionResult.rows[0]?.host_user_id;
+
   const statusResult = await query<{ status: string; count: string }>(
     `SELECT status, COUNT(*)::text AS count
      FROM session_participants
-     WHERE session_id = $1
+     WHERE session_id = $1${hostUserId ? ` AND user_id != $2` : ''}
      GROUP BY status`,
-    [sessionId]
+    hostUserId ? [sessionId, hostUserId] : [sessionId]
   );
 
   const counts: Record<string, number> = {};
-  let total = 0;
+  let activeTotal = 0;
   for (const row of statusResult.rows) {
     counts[row.status] = parseInt(row.count, 10);
     if (row.status !== 'removed' && row.status !== 'left') {
-      total += parseInt(row.count, 10);
+      activeTotal += parseInt(row.count, 10);
     }
   }
 
@@ -597,6 +603,9 @@ export async function getParticipantStatusCounts(sessionId: string): Promise<{
     [sessionId]
   );
   const pendingInvites = parseInt(inviteResult.rows[0]?.count || '0', 10);
+
+  // "All" = active participants + pending invites (everyone involved in the event)
+  const total = activeTotal + pendingInvites;
 
   return {
     registered: counts['registered'] || 0,

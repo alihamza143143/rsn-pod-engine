@@ -396,7 +396,7 @@ export default function SessionDetailPage() {
       {/* Participants */}
       <div className="animate-fade-in-up stagger-2">
         <h2 className="text-lg font-semibold text-[#1a1a2e] mb-3 flex items-center gap-2">
-          <Users className="h-5 w-5 text-rsn-red" /> Participants ({(participants || []).filter((p: any) => p.status !== 'removed' && p.userId !== session.hostUserId).length})
+          <Users className="h-5 w-5 text-rsn-red" /> Participants ({participantCounts?.total ?? (participants || []).filter((p: any) => p.status !== 'removed' && p.userId !== session.hostUserId).length})
         </h2>
 
         {/* Status summary row (host/admin only) */}
