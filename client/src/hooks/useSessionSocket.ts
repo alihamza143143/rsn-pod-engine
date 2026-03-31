@@ -11,7 +11,7 @@ const SOCKET_EVENTS = [
   'match:assigned', 'match:reassigned', 'match:bye_round',
   'match:partner_disconnected', 'match:partner_reconnected', 'match:return_to_lobby',
   'rating:window_open', 'rating:window_closed',
-  'session:matching_in_progress',
+  'session:matching_preparing', 'session:matching_in_progress', 'session:matching_cancelled',
   'host:broadcast', 'lobby:token', 'host:participant_removed',
   'host:match_preview', 'lobby:mute_command',
   'host:round_dashboard', 'host:room_status_update',
@@ -229,6 +229,12 @@ export default function useSessionSocket(sessionId: string) {
     });
 
     // ── Matching anticipation ──
+    socket.on('session:matching_preparing', () => {
+      store.setPreparingMatches(true);
+    });
+    socket.on('session:matching_cancelled', () => {
+      store.setPreparingMatches(false);
+    });
     socket.on('session:matching_in_progress', (data: any) => {
       store.setMatchingOverlay({ roomCount: data.roomCount, roundNumber: data.roundNumber });
     });

@@ -82,6 +82,7 @@ interface SessionLiveState {
   unreadChatCount: number;
   chatOpen: boolean;
   matchingOverlay: { roomCount: number; roundNumber: number } | null;
+  preparingMatches: boolean;
   lobbyDensity: 'compact' | 'normal' | 'spacious';
   cohosts: Set<string>;
   leftCurrentRound: boolean;
@@ -121,6 +122,7 @@ interface SessionLiveState {
   setChatOpen: (open: boolean) => void;
   resetUnreadChat: () => void;
   setMatchingOverlay: (data: { roomCount: number; roundNumber: number } | null) => void;
+  setPreparingMatches: (preparing: boolean) => void;
   setLobbyDensity: (d: 'compact' | 'normal' | 'spacious') => void;
   setCohosts: (userIds: string[]) => void;
   addCohost: (userId: string) => void;
@@ -163,6 +165,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   unreadChatCount: 0,
   chatOpen: true,
   matchingOverlay: null,
+  preparingMatches: false,
   lobbyDensity: 'normal' as const,
   cohosts: new Set<string>(),
   leftCurrentRound: false,
@@ -209,7 +212,8 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   clearChatMessages: () => set({ chatMessages: [], unreadChatCount: 0 }),
   setChatOpen: (chatOpen) => set((s) => ({ chatOpen, unreadChatCount: chatOpen ? 0 : s.unreadChatCount })),
   resetUnreadChat: () => set({ unreadChatCount: 0 }),
-  setMatchingOverlay: (matchingOverlay) => set({ matchingOverlay }),
+  setMatchingOverlay: (matchingOverlay) => set({ matchingOverlay, preparingMatches: false }),
+  setPreparingMatches: (preparingMatches) => set({ preparingMatches }),
   setLobbyDensity: (lobbyDensity) => set({ lobbyDensity }),
   setCohosts: (userIds) => set({ cohosts: new Set(userIds) }),
   addCohost: (userId) => set((s) => { const c = new Set(s.cohosts); c.add(userId); return { cohosts: c }; }),
@@ -236,7 +240,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
     lobbyToken: null, lobbyUrl: null, lobbyRoomId: null,
     timerVisibility: 'last_10s', matchPreview: null,
     hostMuteCommand: null, partnerDisconnected: false, roundDashboard: null,
-    chatMessages: [], unreadChatCount: 0, chatOpen: false, matchingOverlay: null, lobbyDensity: 'normal' as const,
+    chatMessages: [], unreadChatCount: 0, chatOpen: false, matchingOverlay: null, preparingMatches: false, lobbyDensity: 'normal' as const,
     cohosts: new Set<string>(), leftCurrentRound: false, lastRatedRound: 0,
   }),
 }));

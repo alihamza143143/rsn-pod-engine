@@ -99,6 +99,7 @@ export function initOrchestration(
     socket.on('host:swap_match', (data) => handleHostSwapMatch(socket, data));
     socket.on('host:exclude_participant', (data) => handleHostExcludeFromRound(socket, data));
     socket.on('host:regenerate_matches', (data) => handleHostRegenerateMatches(socket, data));
+    socket.on('host:cancel_preview', (data) => handleHostCancelPreview(socket, data));
     socket.on('host:mute_participant', (data) => handleHostMuteParticipant(socket, data));
     socket.on('host:mute_all', (data) => handleHostMuteAll(socket, data));
     socket.on('host:remove_from_room', (data) => handleHostRemoveFromRoom(socket, data));
@@ -1388,6 +1389,18 @@ async function handleHostGenerateMatches(
       ? 1
       : activeSession.currentRound + 1;
 
+    // Clean up any stale matches for this round (previous generate/cancel cycles)
+    await query(
+      `DELETE FROM matches WHERE session_id = $1 AND round_number = $2 AND status IN ('scheduled', 'cancelled')`,
+      [data.sessionId, nextRound]
+    );
+
+    // Notify all participants that host is preparing matches
+    io.to(sessionRoom(data.sessionId)).emit('session:matching_preparing', {
+      sessionId: data.sessionId,
+      roundNumber: nextRound,
+    });
+
     // Generate matches for preview — exclude host + co-hosts from matching
     await matchingService.generateSingleRound(data.sessionId, nextRound, allHostIds);
 
@@ -1576,9 +1589,9 @@ async function handleHostRegenerateMatches(
 
     const roundNumber = activeSession.pendingRoundNumber;
 
-    // Delete existing scheduled matches for this round
+    // Delete existing scheduled/cancelled matches for this round
     await query(
-      `DELETE FROM matches WHERE session_id = $1 AND round_number = $2 AND status = 'scheduled'`,
+      `DELETE FROM matches WHERE session_id = $1 AND round_number = $2 AND status IN ('scheduled', 'cancelled')`,
       [data.sessionId, roundNumber]
     );
 
@@ -1592,6 +1605,40 @@ async function handleHostRegenerateMatches(
     logger.info({ sessionId: data.sessionId, roundNumber }, 'Host regenerated matches');
   } catch (err: any) {
     socket.emit('error', { code: 'REGENERATE_FAILED', message: err.message });
+  }
+}
+
+// ─── Host Cancel Preview ──────────────────────────────────────────────────────
+
+async function handleHostCancelPreview(
+  socket: Socket,
+  data: { sessionId: string }
+): Promise<void> {
+  try {
+    if (!await verifyHost(socket, data.sessionId)) return;
+
+    const activeSession = activeSessions.get(data.sessionId);
+    if (!activeSession) return;
+
+    const roundNumber = activeSession.pendingRoundNumber;
+    activeSession.pendingRoundNumber = null;
+
+    // Clean up scheduled matches for cancelled preview
+    if (roundNumber) {
+      await query(
+        `DELETE FROM matches WHERE session_id = $1 AND round_number = $2 AND status IN ('scheduled', 'cancelled')`,
+        [data.sessionId, roundNumber]
+      );
+    }
+
+    // Tell participants to clear the preparing overlay
+    io.to(sessionRoom(data.sessionId)).emit('session:matching_cancelled', {
+      sessionId: data.sessionId,
+    });
+
+    logger.info({ sessionId: data.sessionId }, 'Host cancelled match preview');
+  } catch (err: any) {
+    logger.error({ err }, 'Error cancelling preview');
   }
 }
 

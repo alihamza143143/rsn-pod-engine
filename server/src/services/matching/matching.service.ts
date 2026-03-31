@@ -344,11 +344,11 @@ async function getExistingRounds(sessionId: string): Promise<RoundAssignment[]> 
 async function persistMatches(sessionId: string, rounds: RoundAssignment[]): Promise<void> {
   await transaction(async (client) => {
     for (const round of rounds) {
-      // Cancel any existing scheduled matches for this round before inserting new ones
-      // (handles rematch/regeneration — avoids trigger conflict with stale active matches)
+      // Delete any existing scheduled matches for this round before inserting new ones
+      // (handles rematch/regeneration — cancelled/scheduled rows still hold unique constraint)
       await client.query(
-        `UPDATE matches SET status = 'cancelled'
-         WHERE session_id = $1 AND round_number = $2 AND status = 'scheduled'`,
+        `DELETE FROM matches
+         WHERE session_id = $1 AND round_number = $2 AND status IN ('scheduled', 'cancelled')`,
         [sessionId, round.roundNumber]
       );
 

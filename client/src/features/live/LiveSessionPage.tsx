@@ -21,7 +21,7 @@ import { disconnectSocket, connectSocket, getSocket } from '@/lib/socket';
 export default function LiveSessionPage() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
-  const { phase, broadcasts, error: sessionError, connectionStatus, transitionStatus, sessionStatus, currentRound, totalRounds, setError, setPhase, reset, chatOpen, setChatOpen, unreadChatCount, matchingOverlay } = useSessionStore();
+  const { phase, broadcasts, error: sessionError, connectionStatus, transitionStatus, sessionStatus, currentRound, totalRounds, setError, setPhase, reset, chatOpen, setChatOpen, unreadChatCount, matchingOverlay, preparingMatches } = useSessionStore();
   const { user } = useAuthStore();
   const mediaRequestedRef = useRef(false);
   const [participantListOpen, setParticipantListOpen] = useState(false);
@@ -155,6 +155,31 @@ export default function LiveSessionPage() {
           <button onClick={() => setError(null)} className="ml-2 text-red-400 hover:text-red-300">
             <X className="h-3 w-3" />
           </button>
+        </div>
+      )}
+
+      {/* "Host is preparing matches" overlay — participants only */}
+      {preparingMatches && !matchingOverlay && !isHost && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#202124]/90 backdrop-blur-sm">
+          <div className="text-center space-y-5 px-6">
+            <div className="relative mx-auto w-20 h-20">
+              <div className="absolute inset-0 rounded-full border-2 border-blue-500/20 animate-ping" />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-14 h-14 rounded-full bg-blue-500/10 flex items-center justify-center">
+                  <Shuffle className="h-6 w-6 text-blue-400 animate-pulse" />
+                </div>
+              </div>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-white">Host is preparing matches...</h2>
+              <p className="text-sm text-gray-400 mt-1">Sit tight, you'll be matched shortly</p>
+            </div>
+            <div className="flex items-center justify-center gap-2">
+              {[0, 1, 2].map(i => (
+                <div key={i} className="w-1.5 h-1.5 rounded-full bg-blue-400/70" style={{ animation: 'bounce 1s ease-in-out infinite', animationDelay: `${i * 0.2}s` }} />
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

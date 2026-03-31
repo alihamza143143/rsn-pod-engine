@@ -40,7 +40,16 @@ export default function HostControls({ sessionId }: Props) {
     const unsub = useSessionStore.subscribe((state) => {
       if (state.matchPreview) { setGenerating(false); unsub(); }
     });
-    setTimeout(() => setGenerating(false), 10000);
+    // Listen for error to stop spinner and show feedback
+    const onError = (err: any) => {
+      if (err?.code === 'GENERATE_FAILED' || err?.code === 'NOT_ENOUGH_PARTICIPANTS') {
+        setGenerating(false);
+        useSessionStore.getState().setError(err.message || 'Failed to generate matches');
+        socket?.off('error', onError);
+      }
+    };
+    socket?.on('error', onError);
+    setTimeout(() => { setGenerating(false); socket?.off('error', onError); }, 10000);
   };
 
   const confirmRound = () => {
@@ -50,6 +59,7 @@ export default function HostControls({ sessionId }: Props) {
   };
 
   const cancelPreview = () => {
+    socket?.emit('host:cancel_preview', { sessionId });
     setMatchPreview(null);
     setSwapMode(null);
   };
@@ -60,7 +70,15 @@ export default function HostControls({ sessionId }: Props) {
     const unsub = useSessionStore.subscribe((state) => {
       if (state.matchPreview) { setGenerating(false); unsub(); }
     });
-    setTimeout(() => setGenerating(false), 10000);
+    const onError = (err: any) => {
+      if (err?.code === 'REGENERATE_FAILED') {
+        setGenerating(false);
+        useSessionStore.getState().setError(err.message || 'Failed to re-match');
+        socket?.off('error', onError);
+      }
+    };
+    socket?.on('error', onError);
+    setTimeout(() => { setGenerating(false); socket?.off('error', onError); }, 10000);
   };
 
   const handleParticipantClick = (userId: string) => {

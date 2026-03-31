@@ -63,7 +63,9 @@ export interface ServerToClientEvents {
   'match:return_to_lobby': (data: { reason: 'partner_left' | 'you_left' | 'auto_return' }) => void;
 
   // Matching anticipation
+  'session:matching_preparing': (data: { sessionId: string; roundNumber: number }) => void;
   'session:matching_in_progress': (data: { sessionId: string; roomCount: number; roundNumber: number }) => void;
+  'session:matching_cancelled': (data: { sessionId: string }) => void;
 
   // Co-host
   'cohost:assigned': (data: { userId: string; displayName: string; role: string }) => void;
@@ -118,6 +120,7 @@ export interface ClientToServerEvents {
   'host:swap_match': (data: { sessionId: string; userA: string; userB: string }) => void;
   'host:exclude_participant': (data: { sessionId: string; userId: string }) => void;
   'host:regenerate_matches': (data: { sessionId: string }) => void;
+  'host:cancel_preview': (data: { sessionId: string }) => void;
   'host:mute_participant': (data: { sessionId: string; targetUserId: string; muted: boolean }) => void;
   'host:mute_all': (data: { sessionId: string; muted: boolean }) => void;
   'host:remove_from_room': (data: { sessionId: string; matchId: string; userId: string }) => void;
