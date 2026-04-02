@@ -215,9 +215,9 @@ describe('Session Service', () => {
         .resolves.toBeUndefined();
     });
 
-    it('should throw when session is not scheduled', async () => {
+    it('should throw when session is completed', async () => {
       mockQuery.mockResolvedValueOnce({
-        rows: [{ ...mockSession, status: SessionStatus.ROUND_ACTIVE }],
+        rows: [{ ...mockSession, status: SessionStatus.COMPLETED }],
         rowCount: 1,
       });
 
@@ -228,7 +228,7 @@ describe('Session Service', () => {
     it('should throw NotFoundError when registration not found', async () => {
       // getSessionById
       mockQuery.mockResolvedValueOnce({ rows: [mockSession], rowCount: 1 });
-      // UPDATE rowCount = 0
+      // DELETE rowCount = 0
       mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
       await expect(sessionService.unregisterParticipant('session-123', 'user-ghost'))
