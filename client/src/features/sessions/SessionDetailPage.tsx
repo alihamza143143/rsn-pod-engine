@@ -213,11 +213,15 @@ export default function SessionDetailPage() {
   const unregisterMutation = useMutation({
     mutationFn: () => api.delete(`/sessions/${sessionId}/register`),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['session-participants', sessionId] });
-      qc.invalidateQueries({ queryKey: ['session', sessionId] });
+      qc.refetchQueries({ queryKey: ['session-participants', sessionId] });
+      qc.refetchQueries({ queryKey: ['session', sessionId] });
+      qc.invalidateQueries({ queryKey: ['my-sessions'] });
       addToast('Unregistered from event', 'success');
     },
-    onError: () => addToast('Failed to unregister', 'error'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.error?.message || 'Failed to unregister';
+      addToast(msg, 'error');
+    },
   });
 
   if (isLoading) return <PageLoader />;
@@ -314,11 +318,12 @@ export default function SessionDetailPage() {
               <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-sm">
                 <CheckCircle className="h-4 w-4" /> Registered
               </div>
-              {(session.status === 'scheduled' || session.status === 'lobby_open') && (
-                <Button variant="ghost" onClick={() => unregisterMutation.mutate()} isLoading={unregisterMutation.isPending}>
-                  <UserMinus className="h-4 w-4 mr-2" /> Unregister
-                </Button>
-              )}
+              <Button variant="ghost" onClick={() => {
+                if (!confirm('Are you sure you want to unregister? You will need to register again or get a new invite to rejoin.')) return;
+                unregisterMutation.mutate();
+              }} isLoading={unregisterMutation.isPending}>
+                <UserMinus className="h-4 w-4 mr-2" /> Unregister
+              </Button>
             </>
           )}
           {(session.status === 'scheduled' || session.status === 'lobby_open' || session.status === 'round_active' || session.status === 'round_rating' || session.status === 'round_transition') && (

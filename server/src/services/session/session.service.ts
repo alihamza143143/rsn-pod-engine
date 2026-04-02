@@ -312,19 +312,23 @@ export async function registerParticipant(sessionId: string, userId: string, use
 export async function unregisterParticipant(sessionId: string, userId: string): Promise<void> {
   const session = await getSessionById(sessionId);
 
-  if (session.status !== SessionStatus.SCHEDULED) {
-    throw new AppError(400, 'SESSION_IN_PROGRESS', 'Cannot unregister from an active event');
+  // Block unregister only for completed/cancelled events
+  if (session.status === SessionStatus.COMPLETED || session.status === SessionStatus.CANCELLED) {
+    throw new AppError(400, 'SESSION_IN_PROGRESS', 'Cannot unregister from a completed or cancelled event');
   }
 
+  // Actually DELETE the row — user is fully unregistered, must re-register to rejoin
   const result = await query(
-    `UPDATE session_participants SET status = 'left', left_at = NOW()
-     WHERE session_id = $1 AND user_id = $2 AND status IN ('registered', 'checked_in')`,
+    `DELETE FROM session_participants
+     WHERE session_id = $1 AND user_id = $2 AND status != 'removed'`,
     [sessionId, userId]
   );
 
   if (result.rowCount === 0) {
     throw new NotFoundError('Registration');
   }
+
+  logger.info({ sessionId, userId }, 'Participant unregistered (row deleted)');
 }
 
 export async function getSessionParticipants(

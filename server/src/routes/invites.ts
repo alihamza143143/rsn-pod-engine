@@ -139,6 +139,37 @@ router.get(
   }
 );
 
+// ─── GET /invites/pod/:podId ──────────────────────────────────────────────────
+
+router.get(
+  '/pod/:podId',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { podId } = req.params;
+      const status = req.query.status as string | undefined;
+
+      // Only pod director/host or admin can view pod invites
+      const memberResult = await query<{ role: string }>(
+        `SELECT role FROM pod_members WHERE pod_id = $1 AND user_id = $2 AND status = 'active'`,
+        [podId, req.user!.userId]
+      );
+      const memberRole = memberResult.rows[0]?.role;
+      const isDirectorOrHost = memberRole === 'director' || memberRole === 'host';
+      const isAdmin = req.user!.role === 'admin' || req.user!.role === 'super_admin';
+      if (!isDirectorOrHost && !isAdmin) {
+        return res.status(403).json({ success: false, error: { code: 'AUTH_FORBIDDEN', message: 'Only pod directors can view pod invites' } });
+      }
+
+      const invites = await inviteService.listPodInvites(podId, status);
+      const response: ApiResponse = { success: true, data: invites };
+      return res.json(response);
+    } catch (err) {
+      return next(err);
+    }
+  }
+);
+
 // ─── POST /invites/:id/remind ────────────────────────────────────────────────
 
 router.post(

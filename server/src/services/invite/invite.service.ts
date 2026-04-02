@@ -396,11 +396,38 @@ export async function acceptInvite(code: string, userId: string): Promise<Invite
           if (!(err instanceof ConflictError)) throw err;
         }
       }
-      // Now register for the session
+      // Register for the session — try service first, fall back to direct INSERT
       try {
         await sessionService.registerParticipant(invite.sessionId, userId);
       } catch (err) {
-        if (!(err instanceof ConflictError)) throw err;
+        if (!(err instanceof ConflictError)) {
+          // Service rejected (capacity, status check, etc.) — force-insert as registered
+          logger.warn({ err, sessionId: invite.sessionId, userId }, 'registerParticipant failed during invite accept — forcing direct insert');
+          try {
+            await query(
+              `INSERT INTO session_participants (session_id, user_id, status)
+               VALUES ($1, $2, 'registered')
+               ON CONFLICT (session_id, user_id) DO NOTHING`,
+              [invite.sessionId, userId]
+            );
+          } catch (insertErr) {
+            logger.error({ insertErr, sessionId: invite.sessionId, userId }, 'Direct participant insert also failed');
+          }
+        }
+      }
+      // Belt-and-suspenders: verify user is actually registered
+      const check = await query(
+        `SELECT 1 FROM session_participants WHERE session_id = $1 AND user_id = $2 AND status NOT IN ('removed')`,
+        [invite.sessionId, userId]
+      );
+      if (check.rows.length === 0) {
+        await query(
+          `INSERT INTO session_participants (session_id, user_id, status)
+           VALUES ($1, $2, 'registered')
+           ON CONFLICT (session_id, user_id) DO UPDATE SET status = 'registered', left_at = NULL`,
+          [invite.sessionId, userId]
+        );
+        logger.info({ sessionId: invite.sessionId, userId }, 'Forced registration via belt-and-suspenders check');
       }
     }
 
@@ -538,6 +565,31 @@ export async function listSessionInvites(
      FROM invites i
      LEFT JOIN users u ON u.email = i.invitee_email
      WHERE i.session_id = $1 AND i.type = 'session'
+       ${statusFilter}
+     ORDER BY i.created_at DESC`,
+    params
+  );
+
+  return result.rows;
+}
+
+export async function listPodInvites(
+  podId: string,
+  status?: string
+): Promise<{ id: string; code: string; inviteeEmail: string | null; inviteeName: string | null; status: string; createdAt: string }[]> {
+  const statusFilter = status ? `AND i.status = $2` : '';
+  const params = status ? [podId, status] : [podId];
+
+  const result = await query<{
+    id: string; code: string; inviteeEmail: string | null;
+    inviteeName: string | null; status: string; createdAt: string;
+  }>(
+    `SELECT i.id, i.code, i.invitee_email AS "inviteeEmail",
+            u.display_name AS "inviteeName",
+            i.status, i.created_at AS "createdAt"
+     FROM invites i
+     LEFT JOIN users u ON u.email = i.invitee_email
+     WHERE i.pod_id = $1 AND i.type = 'pod'
        ${statusFilter}
      ORDER BY i.created_at DESC`,
     params

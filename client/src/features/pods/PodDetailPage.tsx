@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Users, Calendar, LogOut, Shield, UserMinus, Eye, Radio,
   Pencil, Trash2, UserPlus, Lock, Mail, Copy, Check, UserCheck, X,
-  Clock, CopyPlus, Search, XCircle,
+  Clock, CopyPlus, Search, XCircle, Send, Inbox,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
@@ -151,6 +151,19 @@ export default function PodDetailPage() {
     queryKey: ['user-search', debouncedPodSearch],
     queryFn: () => api.get(`/users/search?q=${encodeURIComponent(debouncedPodSearch)}`).then(r => r.data.data ?? []),
     enabled: debouncedPodSearch.length >= 1,
+  });
+
+  const { data: podMemberCounts } = useQuery({
+    queryKey: ['pod-member-counts', podId],
+    queryFn: () => api.get(`/pods/${podId}/member-counts`).then(r => r.data.data),
+    enabled: !!podId,
+  });
+
+  const [showPodPendingInvites, setShowPodPendingInvites] = useState(false);
+  const { data: podPendingInvites } = useQuery({
+    queryKey: ['pod-pending-invites', podId],
+    queryFn: () => api.get(`/invites/pod/${podId}?status=pending`).then(r => r.data.data ?? []),
+    enabled: !!podId && showPodPendingInvites,
   });
 
   // ─── Mutations ─────────────────────────────────────────────────────────────
@@ -867,10 +880,66 @@ export default function PodDetailPage() {
         </div>
       </Modal>
 
+      {/* ── Pending Pod Invites Banner (directors only) ─────────────────── */}
+      {isDirectorOrHost && podMemberCounts?.pendingInvites > 0 && !showPodPendingInvites && (
+        <Card className="animate-fade-in-up border-purple-200 bg-purple-50">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Send className="h-4 w-4 text-purple-600" />
+              <p className="text-sm text-purple-800 font-medium">
+                {podMemberCounts.pendingInvites} Pending Invite{podMemberCounts.pendingInvites > 1 ? 's' : ''}</p>
+              <p className="text-xs text-purple-600">{podMemberCounts.pendingInvites} {podMemberCounts.pendingInvites > 1 ? "people haven't" : "person hasn't"} accepted their invite yet.</p>
+            </div>
+            <Button size="sm" variant="ghost" onClick={() => setShowPodPendingInvites(true)} className="text-purple-700">
+              <Eye className="h-4 w-4 mr-1" /> View & Remind
+            </Button>
+          </div>
+        </Card>
+      )}
+
+      {/* ── Pending Pod Invites List ──────────────────────────────────────── */}
+      {showPodPendingInvites && (
+        <div className="animate-fade-in-up">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-[#1a1a2e] flex items-center gap-2">
+              <Inbox className="h-5 w-5 text-purple-600" /> Pending Pod Invites ({podPendingInvites?.length ?? 0})
+            </h2>
+            <Button size="sm" variant="ghost" onClick={() => setShowPodPendingInvites(false)}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+          {!podPendingInvites || podPendingInvites.length === 0 ? (
+            <Card><p className="text-gray-400 text-sm text-center py-3">No pending invites</p></Card>
+          ) : (
+            <div className="grid gap-2">
+              {podPendingInvites.map((inv: any) => (
+                <Card key={inv.id} className="!p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-xs font-bold">
+                        {(inv.inviteeName || inv.inviteeEmail || '?').charAt(0).toUpperCase()}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-800">{inv.inviteeName || inv.inviteeEmail || 'Shareable link'}</p>
+                        {inv.inviteeName && inv.inviteeEmail && (
+                          <p className="text-xs text-gray-400">{inv.inviteeEmail}</p>
+                        )}
+                        <p className="text-xs text-gray-400">Sent {new Date(inv.createdAt).toLocaleDateString()}</p>
+                      </div>
+                    </div>
+                    <Badge variant="warning" className="text-xs">Pending</Badge>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Active Members ───────────────────────────────────────────────── */}
       <div className="animate-fade-in-up stagger-2">
         <h2 className="text-lg font-semibold text-[#1a1a2e] mb-3 flex items-center gap-2">
-          <Users className="h-5 w-5 text-rsn-red" /> Members ({activeMembers.length})
+          <Users className="h-5 w-5 text-rsn-red" /> Members ({podMemberCounts?.total ?? activeMembers.length})
         </h2>
         <div className="grid gap-2">
           {activeMembers.map((m: any) => (

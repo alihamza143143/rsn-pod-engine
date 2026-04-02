@@ -361,6 +361,54 @@ export async function getMemberRole(podId: string, userId: string): Promise<PodM
   return result.rows.length > 0 ? result.rows[0].role : null;
 }
 
+export async function getMemberStatusCounts(podId: string): Promise<{
+  active: number;
+  pending_approval: number;
+  invited: number;
+  declined: number;
+  no_response: number;
+  left: number;
+  removed: number;
+  total: number;
+  pendingInvites: number;
+}> {
+  const statusResult = await query<{ status: string; count: string }>(
+    `SELECT status, COUNT(*)::text AS count FROM pod_members WHERE pod_id = $1 GROUP BY status`,
+    [podId]
+  );
+
+  const counts: Record<string, number> = {};
+  let total = 0;
+  for (const row of statusResult.rows) {
+    counts[row.status] = parseInt(row.count, 10);
+    if (row.status !== 'removed') {
+      total += parseInt(row.count, 10);
+    }
+  }
+
+  // Count pending pod invites
+  const inviteResult = await query<{ count: string }>(
+    `SELECT COUNT(*)::text AS count FROM invites
+     WHERE pod_id = $1 AND type = 'pod' AND status = 'pending'
+       AND (expires_at IS NULL OR expires_at > NOW())`,
+    [podId]
+  );
+  const pendingInvites = parseInt(inviteResult.rows[0]?.count || '0', 10);
+  total += pendingInvites;
+
+  return {
+    active: counts['active'] || 0,
+    pending_approval: counts['pending_approval'] || 0,
+    invited: counts['invited'] || 0,
+    declined: counts['declined'] || 0,
+    no_response: counts['no_response'] || 0,
+    left: counts['left'] || 0,
+    removed: counts['removed'] || 0,
+    total,
+    pendingInvites,
+  };
+}
+
 // ─── Join / Request to Join ──────────────────────────────────────────────────
 
 export async function joinPod(podId: string, userId: string): Promise<PodMember> {

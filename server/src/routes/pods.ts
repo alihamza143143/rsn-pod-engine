@@ -191,6 +191,28 @@ router.get(
   }
 );
 
+// ─── GET /pods/:id/member-counts ────────────────────────────────────────────
+
+router.get(
+  '/:id/member-counts',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      if (!hasRoleAtLeast(req.user!.role, UserRole.ADMIN)) {
+        const role = await podService.getMemberRole(req.params.id, req.user!.userId);
+        if (!role || (role !== 'director' && role !== 'host')) {
+          throw new ForbiddenError('Only pod directors can view member counts');
+        }
+      }
+      const counts = await podService.getMemberStatusCounts(req.params.id);
+      const response: ApiResponse = { success: true, data: counts };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // ─── POST /pods/:id/members ─────────────────────────────────────────────────
 
 router.post(
