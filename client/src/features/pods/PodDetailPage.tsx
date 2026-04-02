@@ -118,6 +118,7 @@ export default function PodDetailPage() {
   const debouncedPodSearch = useDebouncedValue(podUserSearch, 300);
   const [podSelectedUsers, setPodSelectedUsers] = useState<any[]>([]);
 
+  const [memberStatusFilter, setMemberStatusFilter] = useState<string | null>(null);
   // Duplicate pod: open CreatePodModal pre-filled
   const [duplicateOpen, setDuplicateOpen] = useState(false);
   // Request to join: rules agreement
@@ -936,13 +937,50 @@ export default function PodDetailPage() {
         </div>
       )}
 
-      {/* ── Active Members ───────────────────────────────────────────────── */}
+      {/* ── Members ────────────────────────────────────────────────────────── */}
       <div className="animate-fade-in-up stagger-2">
         <h2 className="text-lg font-semibold text-[#1a1a2e] mb-3 flex items-center gap-2">
           <Users className="h-5 w-5 text-rsn-red" /> Members ({podMemberCounts?.total ?? activeMembers.length})
         </h2>
+
+        {/* Status summary tabs (director/host only) */}
+        {isDirectorOrHost && podMemberCounts && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {[
+              { key: null, label: 'All', count: podMemberCounts.total, color: 'bg-gray-100 text-gray-700 border-gray-200' },
+              ...(podMemberCounts.active > 0 ? [{ key: 'active', label: 'Active', count: podMemberCounts.active, color: 'bg-emerald-50 text-emerald-700 border-emerald-200' }] : []),
+              ...(podMemberCounts.pending_approval > 0 ? [{ key: 'pending_approval', label: 'Pending Approval', count: podMemberCounts.pending_approval, color: 'bg-amber-50 text-amber-700 border-amber-200' }] : []),
+              ...(podMemberCounts.invited > 0 ? [{ key: 'invited', label: 'Invited', count: podMemberCounts.invited, color: 'bg-blue-50 text-blue-700 border-blue-200' }] : []),
+              ...(podMemberCounts.declined > 0 ? [{ key: 'declined', label: 'Declined', count: podMemberCounts.declined, color: 'bg-red-50 text-red-600 border-red-200' }] : []),
+              ...(podMemberCounts.left > 0 ? [{ key: 'left', label: 'Left', count: podMemberCounts.left, color: 'bg-gray-100 text-gray-500 border-gray-200' }] : []),
+              ...(podMemberCounts.pendingInvites > 0 ? [{ key: 'pending_invite', label: 'Pending Invites', count: podMemberCounts.pendingInvites, color: 'bg-purple-50 text-purple-700 border-purple-200' }] : []),
+            ].map((tab: any) => (
+              <button
+                key={tab.key ?? 'all'}
+                onClick={() => {
+                  if (tab.key === 'pending_invite') {
+                    setShowPodPendingInvites(!showPodPendingInvites);
+                    setMemberStatusFilter(null);
+                  } else {
+                    setShowPodPendingInvites(false);
+                    setMemberStatusFilter(tab.key);
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all ${
+                  (tab.key === 'pending_invite' ? showPodPendingInvites : memberStatusFilter === tab.key)
+                    ? 'ring-2 ring-rsn-red/30 border-rsn-red ' + tab.color
+                    : tab.color + ' hover:opacity-80'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span className="font-bold">{tab.count}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="grid gap-2">
-          {activeMembers.map((m: any) => (
+          {(memberStatusFilter === null ? activeMembers : membersList.filter((m: any) => m.status === memberStatusFilter)).map((m: any) => (
             <Card key={m.userId || m.id} className="!p-3">
               <div className="flex items-center justify-between">
                 <a href={`/profile/${m.userId || m.id}`} className="flex-1 min-w-0 hover:opacity-80 transition-opacity">
