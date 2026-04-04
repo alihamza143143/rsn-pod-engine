@@ -526,21 +526,26 @@ async function handleRatingSubmit(
     });
 
     // ─── Early exit: if ALL participants in this round have rated, skip remaining timer ───
-    await checkAllRatingsComplete(socket);
+    await checkAllRatingsCompleteByUserId(userId);
   } catch (err: any) {
     socket.emit('error', { code: 'RATING_FAILED', message: err.message });
   }
 }
 
 /**
+ * Called from the REST ratings endpoint after a rating is submitted.
+ * Triggers the early-exit check to end the rating window if all participants have rated.
+ */
+export async function notifyRatingSubmitted(userId: string): Promise<void> {
+  await checkAllRatingsCompleteByUserId(userId);
+}
+
+/**
  * After each rating submission, check if all participants in the current round
  * have finished rating. If so, cancel the rating window timer and advance immediately.
  */
-async function checkAllRatingsComplete(socket: Socket): Promise<void> {
+async function checkAllRatingsCompleteByUserId(userId: string): Promise<void> {
   try {
-    const userId = getUserIdFromSocket(socket);
-    if (!userId) return;
-
     // Find which session this user is in
     let sessionId: string | null = null;
     let activeSession: ActiveSession | null = null;

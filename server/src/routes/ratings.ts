@@ -7,6 +7,7 @@ import { validate } from '../middleware/validate';
 import { UserRole, hasRoleAtLeast } from '@rsn/shared';
 import * as ratingService from '../services/rating/rating.service';
 import * as sessionService from '../services/session/session.service';
+import { notifyRatingSubmitted } from '../services/orchestration/orchestration.service';
 import { ForbiddenError } from '../middleware/errors';
 
 const router = Router();
@@ -30,6 +31,8 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const rating = await ratingService.submitRating(req.user!.userId, req.body);
+      // Trigger early-exit check: if all participants have rated, end rating window immediately
+      notifyRatingSubmitted(req.user!.userId).catch(() => {});
       res.status(201).json({ success: true, data: rating });
     } catch (err) {
       next(err);

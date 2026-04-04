@@ -48,7 +48,7 @@ export const DEFAULT_SESSION_CONFIG: SessionConfig = {
   roundDurationSeconds: 480,         // 8 minutes
   lobbyDurationSeconds: 480,         // 8 minutes
   transitionDurationSeconds: 30,     // 30 seconds
-  ratingWindowSeconds: 30,           // 30 seconds
+  ratingWindowSeconds: 10,           // 10 seconds (safety net — early-exit fires when all rated)
   closingLobbyDurationSeconds: 480,  // 8 minutes
   noShowTimeoutSeconds: 60,          // 60 seconds
   maxParticipants: 500,
