@@ -217,11 +217,9 @@ export default function LiveSessionPage() {
           </div>
         )}
 
-        {/* Reaction bar — visible during lobby and matched phases */}
+        {/* Reaction bar — toggleable, bottom-left */}
         {phase !== 'complete' && phase !== 'rating' && sessionId && (
-          <div className="absolute bottom-20 left-4 z-20">
-            <ReactionBar sessionId={sessionId} />
-          </div>
+          <ReactionBar sessionId={sessionId} />
         )}
 
         {/* Chat toggle button */}

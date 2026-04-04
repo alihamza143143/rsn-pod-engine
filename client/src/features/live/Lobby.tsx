@@ -86,19 +86,19 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
           <VideoTrack trackRef={trackRef} className={`h-full w-full ${isPinned ? 'object-contain' : 'object-cover'}`} />
         ) : (
           <div className="flex flex-col items-center gap-2">
-            <div className={`${isPinned ? 'h-20 w-20' : 'h-14 w-14'} rounded-full bg-[#5f6368] flex items-center justify-center text-[#1a1a2e] font-semibold text-xl`}>
+            <div className={`${isPinned ? 'h-20 w-20' : 'h-14 w-14'} rounded-full bg-[#5f6368] flex items-center justify-center text-white font-semibold text-xl`}>
               {name.charAt(0).toUpperCase()}
             </div>
           </div>
         )}
-        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm rounded px-2 py-0.5 text-[11px] text-[#1a1a2e] truncate max-w-[90%] flex items-center gap-1.5">
+        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm rounded px-2 py-0.5 text-[11px] text-white truncate max-w-[90%] flex items-center gap-1.5">
           {name}
           {trackRef.participant.identity === hostUserId && (
-            <span className="text-[9px] font-medium text-gray-300 ml-0.5">(Host)</span>
+            <span className="text-[9px] font-medium text-amber-300 ml-0.5">(Host)</span>
           )}
         </div>
         {isPinned && (
-          <div className="absolute top-2 right-2 bg-black/60 text-[#1a1a2e] text-[10px] px-2 py-0.5 rounded-full">
+          <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
             Pinned · click to unpin
           </div>
         )}
@@ -113,14 +113,14 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
           <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
             <button
               onClick={() => handleHostMute(trackRef.participant.identity, !!isMicOn)}
-              className="bg-black/50 backdrop-blur-sm rounded-full p-1.5 text-[#1a1a2e] hover:bg-black/70"
+              className="bg-black/50 backdrop-blur-sm rounded-full p-1.5 text-white hover:bg-black/70"
               title={isMicOn ? `Mute ${name}` : `Unmute ${name}`}
             >
               {isMicOn ? <Volume2 className="h-3.5 w-3.5" /> : <VolumeX className="h-3.5 w-3.5 text-red-400" />}
             </button>
             <button
               onClick={() => handleKick(trackRef.participant.identity, name)}
-              className="bg-black/50 backdrop-blur-sm rounded-full p-1.5 text-[#1a1a2e] hover:bg-red-600/70"
+              className="bg-black/50 backdrop-blur-sm rounded-full p-1.5 text-white hover:bg-red-600/70"
               title={`Remove ${name}`}
             >
               <UserX className="h-3.5 w-3.5" />
@@ -242,7 +242,7 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
         onClick={toggleMic}
         className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors backdrop-blur-sm ${
           micEnabled
-            ? 'bg-black/40 text-[#1a1a2e] hover:bg-black/60'
+            ? 'bg-black/40 text-white hover:bg-black/60'
             : 'bg-red-500/80 text-[#1a1a2e] hover:bg-red-600/80'
         }`}
       >
@@ -253,7 +253,7 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
         onClick={toggleCam}
         className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors backdrop-blur-sm ${
           camEnabled
-            ? 'bg-black/40 text-[#1a1a2e] hover:bg-black/60'
+            ? 'bg-black/40 text-white hover:bg-black/60'
             : 'bg-red-500/80 text-[#1a1a2e] hover:bg-red-600/80'
         }`}
       >
@@ -266,7 +266,7 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
           className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors backdrop-blur-sm ${
             allMuted
               ? 'bg-red-500/80 text-[#1a1a2e] hover:bg-red-600/80'
-              : 'bg-black/40 text-[#1a1a2e] hover:bg-black/60'
+              : 'bg-black/40 text-white hover:bg-black/60'
           }`}
         >
           {allMuted ? <VolumeX className="h-3 w-3" /> : <Volume2 className="h-3 w-3" />}
@@ -445,7 +445,7 @@ function HostParticipantPanel({ sessionId }: { sessionId?: string }) {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
               {participants.map(p => (
                 <div key={p.userId} className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/5 transition-colors group/participant relative">
-                  <div className="h-8 w-8 rounded-full bg-[#5f6368] flex items-center justify-center text-[#1a1a2e] text-xs font-semibold shrink-0">
+                  <div className="h-8 w-8 rounded-full bg-[#5f6368] flex items-center justify-center text-white text-xs font-semibold shrink-0">
                     {(p.displayName || 'U').charAt(0).toUpperCase()}
                   </div>
                   <span className="text-sm text-gray-300 truncate">{p.displayName || 'User'}</span>

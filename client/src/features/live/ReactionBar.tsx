@@ -70,6 +70,8 @@ export default function ReactionBar({ sessionId }: { sessionId: string }) {
     setTimeout(() => setCooldown(false), 1000);
   }, [sessionId, cooldown]);
 
+  const [showPanel, setShowPanel] = useState(false);
+
   return (
     <>
       {/* Floating reaction animations */}
@@ -81,25 +83,36 @@ export default function ReactionBar({ sessionId }: { sessionId: string }) {
             style={{ left: `${r.x}%` }}
           >
             <span className="text-3xl">{r.emoji}</span>
-            <span className="block text-[10px] text-gray-300 font-medium mt-0.5">{r.displayName}</span>
+            <span className="block text-[10px] text-[#1a1a2e] font-medium mt-0.5">{r.displayName}</span>
           </div>
         ))}
       </div>
 
-      {/* Reaction buttons — hidden when host is not in lobby */}
+      {/* Reaction toggle button + popup panel */}
       {!reactionsDisabled && (
-        <div className="flex items-center gap-1 bg-[#3c4043]/90 backdrop-blur-sm rounded-full px-2 py-1">
-          {REACTIONS.map(({ type, emoji, label }) => (
-            <button
-              key={type}
-              onClick={() => sendReaction(type)}
-              disabled={cooldown}
-              title={label}
-              className="p-1.5 rounded-full hover:bg-white/10 active:scale-90 transition-all disabled:opacity-40 text-lg leading-none"
-            >
-              {emoji}
-            </button>
-          ))}
+        <div className="fixed bottom-20 left-4 z-20">
+          {showPanel && (
+            <div className="absolute bottom-12 left-0 flex items-center gap-1 bg-white shadow-xl border border-gray-200 rounded-2xl px-2 py-1.5 mb-2">
+              {REACTIONS.map(({ type, emoji, label }) => (
+                <button
+                  key={type}
+                  onClick={() => { sendReaction(type); setShowPanel(false); }}
+                  disabled={cooldown}
+                  title={label}
+                  className="p-1.5 rounded-full hover:bg-gray-100 active:scale-90 transition-all disabled:opacity-40 text-lg leading-none"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            onClick={() => setShowPanel(!showPanel)}
+            className="p-3 bg-white shadow-lg border border-gray-200 rounded-full hover:bg-gray-50 transition-colors text-lg"
+            title="Reactions"
+          >
+            😀
+          </button>
         </div>
       )}
     </>
