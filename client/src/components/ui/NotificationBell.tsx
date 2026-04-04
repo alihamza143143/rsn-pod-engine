@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Bell, Check, CheckCircle, X, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -252,7 +253,7 @@ export default function NotificationBell() {
         )}
       </button>
 
-      {open && (
+      {open && createPortal(
         <>
           {/* Backdrop — tappable to close */}
           <div className="fixed inset-0 z-[9998] bg-black/20 sm:bg-transparent" onClick={() => setOpen(false)} />
@@ -339,7 +340,8 @@ export default function NotificationBell() {
             })}
           </div>
         </div>
-        </>
+        </>,
+        document.body
       )}
     </div>
   );
