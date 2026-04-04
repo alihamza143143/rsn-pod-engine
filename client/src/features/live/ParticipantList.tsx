@@ -48,7 +48,7 @@ export default function ParticipantList({ onClose, sessionId }: Props) {
         </div>
         <button
           onClick={onClose}
-          className="p-1 text-gray-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+          className="p-1 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition-colors"
         >
           <X className="h-4 w-4" />
         </button>
@@ -82,7 +82,7 @@ export default function ParticipantList({ onClose, sessionId }: Props) {
                   onClick={() => toggleCohost(p.userId)}
                   title={isCohost ? 'Remove co-host' : 'Make co-host'}
                   className={`p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-all shrink-0 ${
-                    isCohost ? 'text-blue-400 hover:bg-blue-500/10' : 'text-gray-500 hover:bg-white/10'
+                    isCohost ? 'text-blue-400 hover:bg-blue-500/10' : 'text-gray-500 hover:bg-gray-100'
                   }`}
                 >
                   <Shield className="h-3.5 w-3.5" />

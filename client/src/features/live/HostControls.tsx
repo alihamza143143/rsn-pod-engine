@@ -200,13 +200,13 @@ export default function HostControls({ sessionId }: Props) {
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
               {matchPreview.matches.map((m, i) => (
-                <div key={i} className="flex items-center gap-1 text-xs bg-white/5 rounded-lg px-2 py-1.5">
+                <div key={i} className="flex items-center gap-1 text-xs bg-gray-50 rounded-lg px-2 py-1.5">
                   <button
                     onClick={() => handleParticipantClick(m.participantA.userId)}
                     className={`font-medium truncate px-1.5 py-0.5 rounded transition-colors ${
                       swapMode === m.participantA.userId
                         ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30'
-                        : 'text-gray-700 hover:bg-white/10 hover:text-white'
+                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                     }`}
                     title="Click to swap this person"
                   >
@@ -218,7 +218,7 @@ export default function HostControls({ sessionId }: Props) {
                     className={`font-medium truncate px-1.5 py-0.5 rounded transition-colors ${
                       swapMode === m.participantB.userId
                         ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30'
-                        : 'text-gray-700 hover:bg-white/10 hover:text-white'
+                        : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                     }`}
                     title="Click to swap this person"
                   >
@@ -232,7 +232,7 @@ export default function HostControls({ sessionId }: Props) {
                         className={`font-medium truncate px-1.5 py-0.5 rounded transition-colors ${
                           swapMode === m.participantC!.userId
                             ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/30'
-                            : 'text-gray-700 hover:bg-white/10 hover:text-white'
+                            : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                         }`}
                         title="Click to swap this person"
                       >

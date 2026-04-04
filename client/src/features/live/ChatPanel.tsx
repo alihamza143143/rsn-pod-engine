@@ -85,7 +85,7 @@ export default function ChatPanel({ sessionId, onClose }: ChatPanelProps) {
         </div>
         <button
           onClick={onClose}
-          className="p-1 text-gray-400 hover:text-white rounded-lg hover:bg-white/10 transition-colors"
+          className="p-1 text-gray-400 hover:text-gray-900 rounded-lg hover:bg-gray-100 transition-colors"
         >
           <X className="h-4 w-4" />
         </button>
@@ -145,12 +145,12 @@ function ChatInputWithEmoji({ inputRef, input, setInput, handleKeyDown, handleSe
         <div className="absolute bottom-full left-0 right-0 mb-1 bg-[#292a2d] border border-white/10 rounded-xl p-2 grid grid-cols-10 gap-1">
           {EMOJI_PICKER_LIST.map(e => (
             <button key={e} onClick={() => { setInput(input + e); setShowEmoji(false); inputRef.current?.focus(); }}
-              className="text-lg hover:bg-white/10 rounded p-1 transition-colors">{e}</button>
+              className="text-lg hover:bg-gray-100 rounded p-1 transition-colors">{e}</button>
           ))}
         </div>
       )}
       <div className="flex items-center gap-2">
-        <button onClick={() => setShowEmoji(!showEmoji)} className="p-2 text-gray-400 hover:text-white transition-colors">
+        <button onClick={() => setShowEmoji(!showEmoji)} className="p-2 text-gray-400 hover:text-gray-900 transition-colors">
           <Smile className="h-4 w-4" />
         </button>
         <input
@@ -227,7 +227,7 @@ function MessageBubble({ msg, isOwn, sessionId }: { msg: ChatMessage; isOwn: boo
               onClick={() => handleReact(e.type)}
               className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[11px] transition-colors ${
                 reactions[e.type]?.includes(userId || '') ? 'bg-blue-500/20 border border-blue-500/40' : 'bg-white/5 border border-white/10'
-              } hover:bg-white/10`}
+              } hover:bg-gray-100`}
             >
               <span>{e.emoji}</span>
               <span className="text-gray-400">{reactions[e.type].length}</span>
