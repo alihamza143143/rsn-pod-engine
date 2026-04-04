@@ -614,9 +614,9 @@ function PreLobbyWaitingRoom({ isHost = false }: { isHost?: boolean }) {
               Host is online
             </div>
           ) : hostOnline === false ? (
-            <div className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-white/5 px-3 py-1.5 rounded-full">
-              <span className="h-2 w-2 rounded-full bg-gray-500" />
-              Host is offline
+            <div className="inline-flex items-center gap-1.5 text-xs text-gray-400 bg-gray-100 px-3 py-1.5 rounded-full">
+              <span className="h-2 w-2 rounded-full bg-gray-400" />
+              Waiting for host
             </div>
           ) : (
             <div className="inline-flex items-center gap-1.5 text-xs text-gray-500 bg-white/5 px-3 py-1.5 rounded-full">

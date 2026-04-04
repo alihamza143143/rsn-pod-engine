@@ -182,7 +182,7 @@ export default function HostControls({ sessionId }: Props) {
                 <button
                   onClick={regenerateMatches}
                   disabled={generating}
-                  className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors px-2 py-1 rounded hover:bg-white/10"
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-blue-600 transition-colors px-2 py-1 rounded hover:bg-blue-50"
                   title="Re-run matching algorithm"
                 >
                   {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
