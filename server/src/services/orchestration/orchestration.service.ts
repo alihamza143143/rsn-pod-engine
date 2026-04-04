@@ -103,6 +103,7 @@ export function initOrchestration(
     socket.on('host:mute_participant', (data) => handleHostMuteParticipant(socket, data));
     socket.on('host:mute_all', (data) => handleHostMuteAll(socket, data));
     socket.on('host:remove_from_room', (data) => handleHostRemoveFromRoom(socket, data));
+    socket.on('host:move_to_room', (data) => handleHostMoveToRoom(socket, data));
     socket.on('host:assign_cohost', (data) => handleAssignCohost(socket, data));
     socket.on('host:remove_cohost', (data) => handleRemoveCohost(socket, data));
 
@@ -1754,6 +1755,115 @@ async function handleHostRemoveFromRoom(socket: Socket, data: any): Promise<void
   } catch (err) {
     logger.error({ err }, 'Error removing participant from room');
     socket.emit('error', { code: 'REMOVE_FAILED', message: 'Failed to remove participant from room' });
+  }
+}
+
+// ─── Host: Move Participant to Another Room ─────────────────────────────────
+
+async function handleHostMoveToRoom(
+  socket: Socket,
+  data: { sessionId: string; userId: string; targetMatchId: string }
+): Promise<void> {
+  try {
+    if (!await verifyHost(socket, data.sessionId)) return;
+
+    const activeSession = activeSessions.get(data.sessionId);
+    if (!activeSession || activeSession.status !== SessionStatus.ROUND_ACTIVE) {
+      socket.emit('error', { code: 'INVALID_STATE', message: 'Can only move participants during an active round' });
+      return;
+    }
+
+    const { userId, targetMatchId, sessionId } = data;
+
+    // Find the user's current match
+    const currentMatchResult = await query<{ id: string; participant_a_id: string; participant_b_id: string; room_id: string }>(
+      `SELECT id, participant_a_id, participant_b_id, room_id FROM matches
+       WHERE session_id = $1 AND round_number = $2 AND status = 'active'
+         AND (participant_a_id = $3 OR participant_b_id = $3)`,
+      [sessionId, activeSession.currentRound, userId]
+    );
+
+    if (currentMatchResult.rows.length === 0) {
+      socket.emit('error', { code: 'NOT_IN_MATCH', message: 'Participant is not in an active match' });
+      return;
+    }
+
+    const currentMatch = currentMatchResult.rows[0];
+    const currentPartnerId = currentMatch.participant_a_id === userId
+      ? currentMatch.participant_b_id : currentMatch.participant_a_id;
+
+    // Find the target match
+    const targetMatchResult = await query<{ id: string; participant_a_id: string; participant_b_id: string; room_id: string }>(
+      `SELECT id, participant_a_id, participant_b_id, room_id FROM matches WHERE id = $1 AND status = 'active'`,
+      [targetMatchId]
+    );
+
+    if (targetMatchResult.rows.length === 0) {
+      socket.emit('error', { code: 'TARGET_NOT_FOUND', message: 'Target room not found or not active' });
+      return;
+    }
+
+    const targetMatch = targetMatchResult.rows[0];
+    const targetParticipants = [targetMatch.participant_a_id, targetMatch.participant_b_id];
+
+    // End the user's current match
+    await query(`UPDATE matches SET status = 'completed', ended_at = NOW() WHERE id = $1`, [currentMatch.id]);
+
+    // Give the abandoned partner a bye
+    io.to(userRoom(currentPartnerId)).emit('match:return_to_lobby', { reason: 'partner_left' });
+
+    // Create new match: user joins the target room participants
+    const newRoomId = `move-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const allParticipants = [...targetParticipants, userId];
+    const [pA, pB] = allParticipants[0] < allParticipants[1]
+      ? [allParticipants[0], allParticipants[1]] : [allParticipants[1], allParticipants[0]];
+
+    // End the old target match
+    await query(`UPDATE matches SET status = 'completed', ended_at = NOW() WHERE id = $1`, [targetMatchId]);
+
+    // Insert new match with all participants
+    const newMatchResult = await query<{ id: string }>(
+      `INSERT INTO matches (session_id, round_number, participant_a_id, participant_b_id, participant_c_id, room_id, status, started_at)
+       VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW()) RETURNING id`,
+      [sessionId, activeSession.currentRound, pA, pB, allParticipants.length > 2 ? allParticipants[2] : null, newRoomId]
+    );
+    const newMatchId = newMatchResult.rows[0].id;
+
+    // Get display names for all participants
+    const namesResult = await query<{ id: string; display_name: string }>(
+      `SELECT id, display_name FROM users WHERE id = ANY($1)`, [allParticipants]
+    );
+    const nameMap = new Map(namesResult.rows.map(r => [r.id, r.display_name || 'User']));
+
+    // Notify all participants in the new room
+    for (const pid of allParticipants) {
+      const partners = allParticipants.filter(p => p !== pid).map(p => ({
+        userId: p,
+        displayName: nameMap.get(p) || 'User',
+      }));
+      io.to(userRoom(pid)).emit('match:reassigned', {
+        matchId: newMatchId,
+        newPartnerId: partners[0]?.userId,
+        partnerDisplayName: partners[0]?.displayName,
+        roomId: newRoomId,
+        roundNumber: activeSession.currentRound,
+      });
+    }
+
+    // Give abandoned partner a bye notification
+    io.to(userRoom(currentPartnerId)).emit('match:bye_round', {
+      roundNumber: activeSession.currentRound,
+      reason: 'The host moved your partner to another room. Waiting for next round.',
+    });
+
+    // Refresh dashboard
+    await emitHostDashboard(sessionId);
+
+    logger.info({ sessionId, userId, targetMatchId, newMatchId },
+      'Host moved participant to another room');
+  } catch (err: any) {
+    logger.error({ err }, 'Error moving participant to room');
+    socket.emit('error', { code: 'MOVE_FAILED', message: err.message });
   }
 }
 

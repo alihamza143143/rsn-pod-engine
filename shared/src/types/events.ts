@@ -121,6 +121,7 @@ export interface ClientToServerEvents {
   'host:exclude_participant': (data: { sessionId: string; userId: string }) => void;
   'host:regenerate_matches': (data: { sessionId: string }) => void;
   'host:cancel_preview': (data: { sessionId: string }) => void;
+  'host:move_to_room': (data: { sessionId: string; userId: string; targetMatchId: string }) => void;
   'host:mute_participant': (data: { sessionId: string; targetUserId: string; muted: boolean }) => void;
   'host:mute_all': (data: { sessionId: string; muted: boolean }) => void;
   'host:remove_from_room': (data: { sessionId: string; matchId: string; userId: string }) => void;
