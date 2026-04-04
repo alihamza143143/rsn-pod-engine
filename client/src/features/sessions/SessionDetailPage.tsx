@@ -326,11 +326,11 @@ export default function SessionDetailPage() {
               </Button>
             </>
           )}
-          {(session.status === 'scheduled' || session.status === 'lobby_open' || session.status === 'round_active' || session.status === 'round_rating' || session.status === 'round_transition') && (
+          {(isRegistered || isHost) && (session.status === 'scheduled' || session.status === 'lobby_open' || session.status === 'round_active' || session.status === 'round_rating' || session.status === 'round_transition') && (
             <Button
-              variant={isRegistered || isHost ? 'primary' : 'secondary'}
+              variant="primary"
               onClick={() => navigate(`/session/${sessionId}/live`)}
-              className={isRegistered || isHost ? 'btn-glow' : ''}
+              className="btn-glow"
             >
               <Play className="h-4 w-4 mr-2" />
               {session.status === 'scheduled'
