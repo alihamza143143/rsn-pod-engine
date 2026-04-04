@@ -55,14 +55,7 @@ export default function NotificationBell() {
   const { addToast } = useToastStore();
   const qc = useQueryClient();
 
-  // Close on outside click
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  // Outside click handled by portal backdrop — no separate listener needed
 
   const fetchNotifications = async () => {
     setLoading(true);
