@@ -300,7 +300,7 @@ export default function NotificationBell() {
               const showActions = canActOnInvite(n);
               const statusLabel = getInviteStatusLabel(n);
               const isActing = actionLoading === n.id;
-              const isClickable = !INVITE_TYPES.includes(n.type) || n.inviteStatus === 'accepted';
+              const isClickable = true; // All notifications are clickable — navigate to destination
 
               return (
                 <div
