@@ -200,33 +200,20 @@ export default function NotificationBell() {
   const handleClick = (n: Notification) => {
     if (!n.isRead) markRead(n.id);
 
-    const isInvite = INVITE_TYPES.includes(n.type);
-
-    if (isInvite) {
-      if (n.inviteStatus === 'revoked') {
-        addToast('This invite was declined', 'info');
-        return;
-      }
-      // For all other invite statuses (pending, expired, accepted) — navigate to destination
-      // Pending: user can register from the event/pod page
-      // Expired: user can still view the event/pod
-      // Accepted: user goes to their pod/event
-      if (n.inviteStatus === 'expired') {
-        addToast('This invite has expired', 'info');
-      }
-      const dest = getDestination(n);
-      if (dest) {
-        setOpen(false);
-        navigate(dest);
-      }
+    if (n.inviteStatus === 'revoked') {
+      addToast('This invite was declined', 'info');
       return;
     }
+    if (n.inviteStatus === 'expired') {
+      addToast('This invite has expired', 'info');
+    }
 
-    // Non-invite notifications — navigate to destination
+    // Navigate to destination — try session/pod first, fall back to link
     const dest = getDestination(n);
     if (dest) {
       setOpen(false);
-      navigate(dest);
+      // Use window.location for guaranteed navigation (portal can interfere with React Router)
+      window.location.href = dest;
     }
   };
 
