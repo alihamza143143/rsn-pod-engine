@@ -54,6 +54,31 @@ export async function transaction<T>(
   }
 }
 
+/**
+ * Acquire a row-level lock on a session and execute a callback.
+ * Prevents concurrent host actions from racing on the same session.
+ * Uses SELECT ... FOR UPDATE within a transaction.
+ */
+export async function withSessionLock<T>(
+  sessionId: string,
+  callback: (client: PoolClient) => Promise<T>
+): Promise<T> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    // Acquire row lock — blocks other withSessionLock calls for same session
+    await client.query('SELECT id FROM sessions WHERE id = $1 FOR UPDATE', [sessionId]);
+    const result = await callback(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 export async function testConnection(): Promise<boolean> {
   try {
     const result = await pool.query('SELECT NOW()');

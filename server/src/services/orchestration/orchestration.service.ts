@@ -42,6 +42,109 @@ interface ActiveSession {
 
 const activeSessions = new Map<string, ActiveSession>();
 
+// Track disconnect timeouts so they can be cancelled on reconnect
+const disconnectTimeouts = new Map<string, NodeJS.Timeout>();
+
+// Per-session operation lock — prevents concurrent host actions on same session
+const sessionLocks = new Map<string, Promise<void>>();
+async function withSessionGuard<T>(sessionId: string, fn: () => Promise<T>): Promise<T> {
+  // Wait for any pending operation on this session to finish
+  while (sessionLocks.has(sessionId)) {
+    await sessionLocks.get(sessionId);
+  }
+  let resolve: () => void;
+  const lock = new Promise<void>(r => { resolve = r; });
+  sessionLocks.set(sessionId, lock);
+  try {
+    return await fn();
+  } finally {
+    sessionLocks.delete(sessionId);
+    resolve!();
+  }
+}
+
+// ─── Session State Persistence ─────────────────────────────────────────────
+// Persist minimal active session state to DB so server restart can recover
+
+async function persistSessionState(sessionId: string, activeSession: ActiveSession): Promise<void> {
+  try {
+    const state = {
+      status: activeSession.status,
+      currentRound: activeSession.currentRound,
+      hostUserId: activeSession.hostUserId,
+      isPaused: activeSession.isPaused,
+      timerEndsAt: activeSession.timerEndsAt?.toISOString() || null,
+      pausedTimeRemaining: activeSession.pausedTimeRemaining || null,
+    };
+    await query(
+      `UPDATE sessions SET active_state = $1, active_state_updated_at = NOW() WHERE id = $2`,
+      [JSON.stringify(state), sessionId]
+    );
+  } catch (err) {
+    logger.warn({ err, sessionId }, 'Failed to persist session state — non-fatal');
+  }
+}
+
+async function clearPersistedState(sessionId: string): Promise<void> {
+  try {
+    await query(`UPDATE sessions SET active_state = NULL, active_state_updated_at = NULL WHERE id = $1`, [sessionId]);
+  } catch { /* non-fatal */ }
+}
+
+async function recoverActiveSessions(): Promise<void> {
+  const activeStatuses = ['lobby_open', 'round_active', 'round_rating', 'round_transition', 'closing_lobby'];
+  const result = await query<{
+    id: string; status: string; host_user_id: string; config: any; current_round: number;
+    active_state: any; lobby_room_id: string;
+  }>(
+    `SELECT id, status, host_user_id, config, current_round, active_state, lobby_room_id
+     FROM sessions WHERE status = ANY($1) AND active_state IS NOT NULL`,
+    [activeStatuses]
+  );
+
+  if (result.rows.length === 0) {
+    logger.info('No active sessions to recover on startup');
+    return;
+  }
+
+  for (const row of result.rows) {
+    const config = typeof row.config === 'string' ? JSON.parse(row.config) : row.config;
+    const state = typeof row.active_state === 'string' ? JSON.parse(row.active_state) : row.active_state;
+
+    const activeSession: ActiveSession = {
+      sessionId: row.id,
+      status: row.status as SessionStatus,
+      currentRound: state?.currentRound || row.current_round || 0,
+      hostUserId: row.host_user_id,
+      config,
+      presenceMap: new Map(),
+      manuallyLeftRound: new Set(),
+      timer: null,
+      timerEndsAt: state?.timerEndsAt ? new Date(state.timerEndsAt) : null,
+      pendingRoundNumber: null,
+      isPaused: state?.isPaused || false,
+      pausedTimeRemaining: state?.pausedTimeRemaining || null,
+    };
+
+    activeSessions.set(row.id, activeSession);
+
+    // If there was a running timer, restart it based on remaining time
+    if (activeSession.timerEndsAt && activeSession.timerEndsAt.getTime() > Date.now()) {
+      const remainingMs = activeSession.timerEndsAt.getTime() - Date.now();
+      const remainingSec = Math.ceil(remainingMs / 1000);
+      logger.info({ sessionId: row.id, remainingSec, status: row.status },
+        'Recovering active session with running timer');
+      // Re-start the timer for the remaining duration
+      startSegmentTimer(row.id, remainingSec, getTimerCallbackForState(row.id, activeSession));
+    } else {
+      logger.info({ sessionId: row.id, status: row.status },
+        'Recovered active session (no timer or timer expired)');
+    }
+  }
+
+  logger.info({ count: result.rows.length }, 'Active sessions recovered from database');
+}
+
 // ─── In-Memory Chat Store ──────────────────────────────────────────────────
 
 interface ChatMessage {
@@ -69,6 +172,11 @@ export function initOrchestration(
   socketServer: SocketServer<ClientToServerEvents, ServerToClientEvents>
 ): void {
   io = socketServer;
+
+  // Recover active sessions from DB (server restart recovery)
+  recoverActiveSessions().catch(err =>
+    logger.error({ err }, 'Failed to recover active sessions on startup')
+  );
 
   io.on('connection', (socket: Socket) => {
     logger.debug({ socketId: socket.id }, 'Socket connected');
@@ -199,6 +307,14 @@ async function handleJoinSession(
         logger.info({ userId, oldSocketId: existingPresence.socketId, newSocketId: socket.id },
           'Evicted old socket — single connection per user per session');
       }
+    }
+
+    // Cancel any pending disconnect timeout for this user (they reconnected)
+    const reconnectKey = `${data.sessionId}:${userId}`;
+    if (disconnectTimeouts.has(reconnectKey)) {
+      clearTimeout(disconnectTimeouts.get(reconnectKey)!);
+      disconnectTimeouts.delete(reconnectKey);
+      logger.info({ sessionId: data.sessionId, userId }, 'Cancelled disconnect timeout — user reconnected');
     }
 
     // Join socket room
@@ -758,8 +874,16 @@ async function handleDisconnect(socket: Socket): Promise<void> {
             const disconnectRound = activeSession.currentRound;
             const disconnectMatchId = userMatch.id;
 
+            // Cancel any existing disconnect timeout for this user
+            const timeoutKey = `${sessionId}:${userId}`;
+            if (disconnectTimeouts.has(timeoutKey)) {
+              clearTimeout(disconnectTimeouts.get(timeoutKey)!);
+              disconnectTimeouts.delete(timeoutKey);
+            }
+
             // Step 2: After 15 seconds, try auto-reassignment or fall back to bye
-            setTimeout(async () => {
+            const timeoutId = setTimeout(async () => {
+              disconnectTimeouts.delete(timeoutKey);
               try {
                 const currentSession = activeSessions.get(sessionId);
                 if (!currentSession || currentSession.currentRound !== disconnectRound) return;
@@ -858,6 +982,7 @@ async function handleDisconnect(socket: Socket): Promise<void> {
                 logger.warn({ err, sessionId, userId }, 'Error in disconnect timeout handler');
               }
             }, 15000);
+            disconnectTimeouts.set(timeoutKey, timeoutId);
           }
         } catch (err) {
           logger.warn({ err, sessionId, userId }, 'Failed to notify partner of disconnect');
@@ -946,6 +1071,7 @@ async function handleHostStart(
   socket: Socket,
   data: { sessionId: string }
 ): Promise<void> {
+  return withSessionGuard(data.sessionId, async () => {
   try {
     if (!await verifyHost(socket, data.sessionId)) return;
 
@@ -1011,6 +1137,7 @@ async function handleHostStart(
     };
 
     activeSessions.set(data.sessionId, activeSession);
+    persistSessionState(data.sessionId, activeSession).catch(() => {});
 
     // Broadcast status change
     io.to(sessionRoom(data.sessionId)).emit('session:status_changed', {
@@ -1025,6 +1152,7 @@ async function handleHostStart(
     logger.error({ err }, 'Error starting session');
     socket.emit('error', { code: 'START_FAILED', message: err.message });
   }
+  });
 }
 
 // ─── Host Start Round (manual trigger) ──────────────────────────────────────
@@ -2062,6 +2190,7 @@ async function transitionToRound(
 
     await sessionService.updateSessionStatus(sessionId, SessionStatus.ROUND_ACTIVE);
     await query('UPDATE sessions SET current_round = $1 WHERE id = $2', [roundNumber, sessionId]);
+    persistSessionState(sessionId, activeSession).catch(() => {});
 
     // Generate matches for this round (or load if pre-generated)
     // Exclude host from matching — host stays in lobby to manage the event
@@ -2246,6 +2375,7 @@ async function endRound(
     // Move to rating phase
     activeSession.status = SessionStatus.ROUND_RATING;
     await sessionService.updateSessionStatus(sessionId, SessionStatus.ROUND_RATING);
+    persistSessionState(sessionId, activeSession).catch(() => {});
 
     io.to(sessionRoom(sessionId)).emit('session:status_changed', {
       sessionId,
@@ -2342,6 +2472,7 @@ async function endRatingWindow(
       // Transition phase
       activeSession.status = SessionStatus.ROUND_TRANSITION;
       await sessionService.updateSessionStatus(sessionId, SessionStatus.ROUND_TRANSITION);
+      persistSessionState(sessionId, activeSession).catch(() => {});
 
       io.to(sessionRoom(sessionId)).emit('session:status_changed', {
         sessionId,
@@ -2375,6 +2506,7 @@ async function endRatingWindow(
       // Last round done → transition to closing lobby for goodbyes
       activeSession.status = SessionStatus.CLOSING_LOBBY;
       await sessionService.updateSessionStatus(sessionId, SessionStatus.CLOSING_LOBBY);
+      persistSessionState(sessionId, activeSession).catch(() => {});
 
       io.to(sessionRoom(sessionId)).emit('session:status_changed', {
         sessionId,
@@ -2467,6 +2599,7 @@ async function completeSession(sessionId: string): Promise<void> {
     // Always clean up to prevent memory leak, even on error
     activeSessions.delete(sessionId);
     cleanupChatMessages(sessionId);
+    clearPersistedState(sessionId).catch(() => {});
   }
 }
 

@@ -116,7 +116,8 @@ describe('Session Service', () => {
 
   describe('updateSessionStatus', () => {
     it('should update session status', async () => {
-      // Single UPDATE ... RETURNING query
+      // SELECT for validation + UPDATE ... RETURNING query
+      mockQuery.mockResolvedValueOnce({ rows: [{ status: SessionStatus.SCHEDULED }], rowCount: 1 });
       mockQuery.mockResolvedValueOnce({ rows: [{ ...mockSession, status: SessionStatus.LOBBY_OPEN }], rowCount: 1 });
 
       const session = await sessionService.updateSessionStatus(
@@ -346,19 +347,23 @@ describe('Session Service', () => {
 
   describe('updateSessionStatus - with extra updates', () => {
     it('should update status with currentRound', async () => {
+      // SELECT for validation + UPDATE
+      mockQuery.mockResolvedValueOnce({ rows: [{ status: SessionStatus.LOBBY_OPEN }], rowCount: 1 });
       mockQuery.mockResolvedValueOnce({ rows: [{ ...mockSession, status: SessionStatus.ROUND_ACTIVE, currentRound: 2 }], rowCount: 1 });
 
       const result = await sessionService.updateSessionStatus('session-123', SessionStatus.ROUND_ACTIVE, { currentRound: 2 });
       expect(result.status).toBe(SessionStatus.ROUND_ACTIVE);
-      expect(mockQuery.mock.calls[0][0]).toContain('current_round');
+      expect(mockQuery.mock.calls[1][0]).toContain('current_round');
     });
 
     it('should update status with startedAt', async () => {
       const now = new Date();
+      // SELECT for validation + UPDATE
+      mockQuery.mockResolvedValueOnce({ rows: [{ status: SessionStatus.LOBBY_OPEN }], rowCount: 1 });
       mockQuery.mockResolvedValueOnce({ rows: [{ ...mockSession, status: SessionStatus.ROUND_ACTIVE }], rowCount: 1 });
 
       await sessionService.updateSessionStatus('session-123', SessionStatus.ROUND_ACTIVE, { startedAt: now });
-      expect(mockQuery.mock.calls[0][0]).toContain('started_at');
+      expect(mockQuery.mock.calls[1][0]).toContain('started_at');
     });
   });
 });

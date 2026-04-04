@@ -363,11 +363,35 @@ export async function getParticipantCount(sessionId: string): Promise<number> {
 
 // ─── Session State Changes ──────────────────────────────────────────────────
 
+// Valid session status transitions — prevents illegal state jumps
+const VALID_SESSION_TRANSITIONS: Record<string, string[]> = {
+  [SessionStatus.SCHEDULED]: [SessionStatus.LOBBY_OPEN, SessionStatus.CANCELLED],
+  [SessionStatus.LOBBY_OPEN]: [SessionStatus.ROUND_ACTIVE, SessionStatus.COMPLETED, SessionStatus.CANCELLED],
+  [SessionStatus.ROUND_ACTIVE]: [SessionStatus.ROUND_RATING, SessionStatus.COMPLETED, SessionStatus.CANCELLED],
+  [SessionStatus.ROUND_RATING]: [SessionStatus.ROUND_TRANSITION, SessionStatus.CLOSING_LOBBY, SessionStatus.COMPLETED],
+  [SessionStatus.ROUND_TRANSITION]: [SessionStatus.ROUND_ACTIVE, SessionStatus.COMPLETED, SessionStatus.CANCELLED],
+  [SessionStatus.CLOSING_LOBBY]: [SessionStatus.COMPLETED],
+  [SessionStatus.COMPLETED]: [],
+  [SessionStatus.CANCELLED]: [],
+};
+
 export async function updateSessionStatus(
   sessionId: string,
   status: SessionStatus,
   updates?: Partial<{ currentRound: number; lobbyRoomId: string; startedAt: Date; endedAt: Date }>
 ): Promise<Session> {
+  // Validate state transition
+  const currentResult = await query<{ status: string }>(`SELECT status FROM sessions WHERE id = $1`, [sessionId]);
+  if (currentResult.rows.length > 0) {
+    const currentStatus = currentResult.rows[0].status;
+    const validNextStates = VALID_SESSION_TRANSITIONS[currentStatus];
+    if (validNextStates && !validNextStates.includes(status)) {
+      logger.warn({ sessionId, from: currentStatus, to: status }, 'Invalid session status transition — allowing as safety fallback');
+      // Log but allow — orchestration may have legitimate edge cases
+      // In future, this should throw to enforce strict state machine
+    }
+  }
+
   const setClauses = ['status = $1'];
   const values: unknown[] = [status];
   let paramIdx = 2;
@@ -541,11 +565,19 @@ export async function generateLiveKitToken(sessionId: string, userId: string, ro
     );
     const displayName = nameResult.rows[0]?.display_name || 'User';
 
+    // Dynamic TTL: remaining event time + 10 min buffer (minimum 30 min, max 4 hours)
+    const sessionConfig = typeof session.config === 'string' ? JSON.parse(session.config as unknown as string) : session.config;
+    const roundsRemaining = Math.max(1, (sessionConfig?.numberOfRounds || 5) - (session.currentRound || 0));
+    const roundDuration = sessionConfig?.roundDurationSeconds || 480;
+    const ratingWindow = sessionConfig?.ratingWindowSeconds || 10;
+    const estimatedRemainingSeconds = roundsRemaining * (roundDuration + ratingWindow + 30) + 600;
+    const ttl = Math.max(1800, Math.min(14400, estimatedRemainingSeconds)); // 30 min to 4 hours
+
     // Generate LiveKit access token
     const at = new AccessToken(config.livekitApiKey, config.livekitApiSecret, {
       identity: userId,
       name: displayName,
-      ttl: 3600,
+      ttl,
     });
 
     // Use the match-specific room if provided, otherwise fall back to session room

@@ -81,9 +81,10 @@ export class LiveKitProvider implements IVideoProvider {
   async issueJoinToken(
     userId: string,
     roomId: string,
-    displayName: string
+    displayName: string,
+    tokenTtl?: number
   ): Promise<VideoToken> {
-    const ttl = 3600; // 1 hour
+    const ttl = tokenTtl || 3600; // default 1 hour, but callers should pass dynamic TTL
 
     const grant: VideoGrant = {
       roomJoin: true,
