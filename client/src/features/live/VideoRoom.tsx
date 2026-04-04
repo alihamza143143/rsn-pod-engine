@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSessionStore } from '@/stores/sessionStore';
 import { formatTime } from '@/lib/utils';
-import { Video, Clock, Mic, MicOff, VideoOff, Wifi, UserX, Loader2, ArrowLeft, Sparkles } from 'lucide-react';
+import { Video, Clock, Mic, MicOff, VideoOff, Wifi, UserX, ArrowLeft, Sparkles } from 'lucide-react';
 import { getSocket, disconnectSocket } from '@/lib/socket';
 import {
   LiveKitRoom,
@@ -184,6 +184,29 @@ function MediaControls() {
   );
 }
 
+function PartnerLeftAutoReturn({ sessionId }: { sessionId: string }) {
+  const [countdown, setCountdown] = useState(5);
+  useEffect(() => {
+    const interval = setInterval(() => setCountdown(c => c - 1), 1000);
+    const timer = setTimeout(() => {
+      getSocket()?.emit('participant:leave_conversation', { sessionId });
+    }, 5000);
+    return () => { clearInterval(interval); clearTimeout(timer); };
+  }, [sessionId]);
+  return (
+    <div className="bg-amber-500/10 px-4 py-3 flex items-center justify-center gap-2">
+      <UserX className="h-4 w-4 text-amber-400" />
+      <p className="text-sm text-amber-400 font-medium">Your partner left. Returning to main room in {Math.max(0, countdown)}s...</p>
+      <button
+        onClick={() => getSocket()?.emit('participant:leave_conversation', { sessionId })}
+        className="ml-2 px-3 py-1 text-xs font-medium bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-full transition-colors"
+      >
+        Return Now
+      </button>
+    </div>
+  );
+}
+
 export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
   const { timerSeconds, currentRound, totalRounds, isByeRound, liveKitToken, livekitUrl, currentRoomId, transitionStatus, timerVisibility, partnerDisconnected } = useSessionStore();
   const { setLiveKitToken } = useSessionStore();
@@ -207,9 +230,9 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
           <div className="h-20 w-20 rounded-full bg-[#3c4043] flex items-center justify-center mx-auto mb-4">
             <Video className="h-8 w-8 text-gray-400" />
           </div>
-          <h3 className="text-lg font-semibold text-white mb-2">Bye Round</h3>
+          <h3 className="text-lg font-semibold text-white mb-2">Waiting for Next Round</h3>
           <p className="text-gray-400 text-sm">
-            You have a bye this round — sit tight, you'll be matched in the next round!
+            You have a round off — you'll be back in the next one!
           </p>
           <p className="text-gray-500 text-xs mt-3">Round {currentRound} of {totalRounds}</p>
         </div>
@@ -295,25 +318,17 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
         </div>
       )}
 
-      {/* Partner disconnected overlay */}
-      {partnerDisconnected && (
-        <div className="bg-amber-500/10 px-4 py-3 flex items-center justify-center gap-2">
-          <UserX className="h-4 w-4 text-amber-400" />
-          <p className="text-sm text-amber-400 font-medium">Your partner left the room.</p>
-          <button
-            onClick={() => { if (sessionId) getSocket()?.emit('participant:leave_conversation', { sessionId }); }}
-            className="ml-2 px-3 py-1 text-xs font-medium bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-full transition-colors"
-          >
-            Back to Main Room
-          </button>
-          <Loader2 className="h-4 w-4 text-amber-400 animate-spin" />
-        </div>
+      {/* Partner disconnected — auto-return to main room in 5 seconds */}
+      {partnerDisconnected && sessionId && (
+        <PartnerLeftAutoReturn sessionId={sessionId} />
       )}
 
       <div className="flex-1 flex flex-col p-4 gap-4 bg-[#202124] overflow-auto min-h-0">
         {/* Timer bar */}
         <div className="flex items-center justify-between bg-[#292a2d] rounded-xl px-4 py-3">
           <div className="flex items-center gap-3">
+            <span className="text-sm text-white font-medium">Breakout Room</span>
+            <span className="text-sm text-gray-500">|</span>
             <span className="text-sm text-gray-400">Round {currentRound} of {totalRounds}</span>
             <ConnectionIndicator />
             <MediaControls />

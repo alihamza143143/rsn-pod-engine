@@ -10,7 +10,7 @@ import RatingPrompt from './RatingPrompt';
 import SessionComplete from './SessionComplete';
 import HostControls from './HostControls';
 import ChatPanel from './ChatPanel';
-import MatchingOverlay from './MatchingOverlay';
+// MatchingOverlay replaced with inline banner — no longer full-screen
 import ReactionBar from './ReactionBar';
 import ParticipantList from './ParticipantList';
 import { PageLoader } from '@/components/ui/Spinner';
@@ -172,34 +172,25 @@ export default function LiveSessionPage() {
         </div>
       )}
 
-      {/* "Host is preparing matches" overlay — participants only */}
+      {/* "Host is preparing matches" — light top banner, not full-screen overlay */}
       {preparingMatches && !matchingOverlay && !isHost && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#202124]/90 backdrop-blur-sm">
-          <div className="text-center space-y-5 px-6">
-            <div className="relative mx-auto w-20 h-20">
-              <div className="absolute inset-0 rounded-full border-2 border-blue-500/20 animate-ping" />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="w-14 h-14 rounded-full bg-blue-500/10 flex items-center justify-center">
-                  <Shuffle className="h-6 w-6 text-blue-400 animate-pulse" />
-                </div>
-              </div>
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-white">Host is preparing matches...</h2>
-              <p className="text-sm text-gray-400 mt-1">Sit tight, you'll be matched shortly</p>
-            </div>
-            <div className="flex items-center justify-center gap-2">
-              {[0, 1, 2].map(i => (
-                <div key={i} className="w-1.5 h-1.5 rounded-full bg-blue-400/70" style={{ animation: 'bounce 1s ease-in-out infinite', animationDelay: `${i * 0.2}s` }} />
-              ))}
-            </div>
+        <div className="bg-blue-500/10 px-4 py-2.5 flex items-center justify-center gap-2">
+          <Shuffle className="h-4 w-4 text-blue-400 animate-pulse" />
+          <p className="text-sm text-blue-300 font-medium">Host is preparing matches...</p>
+          <div className="flex items-center gap-1 ml-1">
+            {[0, 1, 2].map(i => (
+              <div key={i} className="w-1.5 h-1.5 rounded-full bg-blue-400/70" style={{ animation: 'bounce 1s ease-in-out infinite', animationDelay: `${i * 0.2}s` }} />
+            ))}
           </div>
         </div>
       )}
 
-      {/* Matching anticipation overlay — participants only, host sees the dashboard */}
+      {/* Matching anticipation — light banner instead of full-screen overlay */}
       {matchingOverlay && !isHost && (
-        <MatchingOverlay roomCount={matchingOverlay.roomCount} roundNumber={matchingOverlay.roundNumber} />
+        <div className="bg-emerald-500/10 px-4 py-2.5 flex items-center justify-center gap-2">
+          <Shuffle className="h-4 w-4 text-emerald-400" />
+          <p className="text-sm text-emerald-300 font-medium">You've been matched! Connecting to Room {matchingOverlay.roomCount}...</p>
+        </div>
       )}
 
       {/* Main content + chat panel layout */}

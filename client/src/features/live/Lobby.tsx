@@ -284,7 +284,7 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
  * - First signal: shows the real value immediately (no grace period)
  * - Subsequent online→offline transitions: 5s grace period to absorb blips
  */
-function useHostPresence(gracePeriodMs = 5000): boolean | null {
+function useHostPresence(gracePeriodMs = 15000): boolean | null {
   const rawHostInLobby = useSessionStore(s => s.hostInLobby);
   const participants = useSessionStore(s => s.participants);
   const hostUserId = useSessionStore(s => s.hostUserId);
@@ -342,9 +342,9 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
         </div>
       ) : isByeRound ? (
         <>
-          <h2 className="text-xl font-bold text-white">Bye Round</h2>
-          <p className="text-gray-400 text-sm">Odd one out this round — you'll be matched in the next round!</p>
-          <p className="text-xs text-gray-500 mt-1">The round timer is still running. Hang tight.</p>
+          <h2 className="text-xl font-bold text-white">Waiting for Next Round</h2>
+          <p className="text-gray-400 text-sm">You have a round off — you'll be back in the next one!</p>
+          <p className="text-xs text-gray-500 mt-1">The round is still in progress. Sit tight.</p>
         </>
       ) : transitionStatus === 'session_ending' ? (
         <div className="flex flex-col items-center gap-2">
@@ -370,7 +370,7 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
           <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
           <h2 className="text-xl font-bold text-white">Round in Progress</h2>
           <p className="text-gray-400 text-sm">
-            {isHost ? 'Monitoring breakout rooms...' : 'You have a bye this round — hang tight!'}
+            {isHost ? 'Monitoring breakout rooms...' : 'Waiting for this round to finish'}
           </p>
         </div>
       ) : isScheduled ? (
@@ -396,16 +396,8 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
           <p className="text-gray-400 text-sm">
             {isHost
               ? 'You\'re the host — click Match People below when ready'
-              : hostOnline
-                ? 'You\'re in the main room — waiting for the host to begin matching...'
-                : 'You\'re in the main room — waiting for the host to reconnect...'}
+              : 'You\'re in the main room. The host will start matching shortly.'}
           </p>
-          {!isHost && !hostOnline && (
-            <div className="inline-flex items-center gap-1.5 text-xs text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              Host is offline
-            </div>
-          )}
         </>
       )}
       <div className="flex items-center justify-center gap-2 text-gray-500 text-xs">
