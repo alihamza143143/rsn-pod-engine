@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, Check, CheckCircle, X, Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+// Navigation uses window.location.href because portal renders outside Router context
 import { useQueryClient } from '@tanstack/react-query';
 import { useToastStore } from '@/stores/toastStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -51,7 +51,7 @@ export default function NotificationBell() {
   const [dropPos, setDropPos] = useState<{ top: number; left: number } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const btnRef = useRef<HTMLButtonElement>(null);
-  const navigate = useNavigate();
+  // navigate removed — using window.location.href for portal compatibility
   const { addToast } = useToastStore();
   const qc = useQueryClient();
 
@@ -140,11 +140,10 @@ export default function NotificationBell() {
       const dest = data?.sessionId ? `/sessions/${data.sessionId}` : data?.podId ? `/pods/${data.podId}` : null;
       if (dest) {
         const profileIncomplete = !user?.displayName || !user?.jobTitle;
-        if (profileIncomplete) {
-          navigate(`/onboarding?redirect=${encodeURIComponent(dest)}`);
-        } else {
-          navigate(dest);
-        }
+        setOpen(false);
+        setTimeout(() => {
+          window.location.href = profileIncomplete ? `/onboarding?redirect=${encodeURIComponent(dest)}` : dest;
+        }, 50);
       }
     } catch (err: any) {
       const errCode = err?.response?.data?.error?.code;
@@ -156,7 +155,7 @@ export default function NotificationBell() {
         invalidateInviteCaches();
         setOpen(false);
         const dest = getDestination(n);
-        if (dest) navigate(dest);
+        if (dest) setTimeout(() => { window.location.href = dest; }, 50);
         return;
       }
       const msg = errCode === 'INVITE_REVOKED' ? 'This invite has been revoked'
@@ -208,11 +207,12 @@ export default function NotificationBell() {
       addToast('This invite has expired', 'info');
     }
 
-    // Navigate to destination — try session/pod first, fall back to link
+    // Navigate to destination — use window.location because portal renders outside Router
     const dest = getDestination(n);
     if (dest) {
       setOpen(false);
-      navigate(dest);
+      // Small delay to let panel close animation complete before navigation
+      setTimeout(() => { window.location.href = dest; }, 50);
     }
   };
 
