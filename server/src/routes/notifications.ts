@@ -63,6 +63,23 @@ router.get(
   }
 );
 
+// POST /notifications/read-all — mark all as read (MUST be before /:id/read)
+router.post(
+  '/read-all',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      await query(
+        `UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE`,
+        [req.user!.userId]
+      );
+      res.json({ success: true } as ApiResponse);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // POST /notifications/:id/read — mark one as read
 router.post(
   '/:id/read',
@@ -72,23 +89,6 @@ router.post(
       await query(
         `UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2`,
         [req.params.id, req.user!.userId]
-      );
-      res.json({ success: true } as ApiResponse);
-    } catch (err) {
-      next(err);
-    }
-  }
-);
-
-// POST /notifications/read-all — mark all as read
-router.post(
-  '/read-all',
-  authenticate,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      await query(
-        `UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE`,
-        [req.user!.userId]
       );
       res.json({ success: true } as ApiResponse);
     } catch (err) {
