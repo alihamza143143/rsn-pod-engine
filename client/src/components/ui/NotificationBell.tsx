@@ -34,8 +34,10 @@ function extractInviteCode(link?: string): string | null {
 function getDestination(n: Notification): string | null {
   if (n.sessionId) return `/sessions/${n.sessionId}`;
   if (n.podId) return `/pods/${n.podId}`;
-  // For non-invite notifications, use the link directly (if it's an in-app path)
+  // For non-invite notifications, use the link directly
   if (n.link && !n.link.startsWith('/invite/')) return n.link;
+  // For invite notifications, navigate to the invite page so user can see details
+  if (n.link && n.link.startsWith('/invite/')) return n.link;
   return null;
 }
 
@@ -201,19 +203,17 @@ export default function NotificationBell() {
     const isInvite = INVITE_TYPES.includes(n.type);
 
     if (isInvite) {
-      if (n.inviteStatus === 'pending') {
-        // Don't navigate — user should use Accept/Decline buttons
-        return;
-      }
       if (n.inviteStatus === 'revoked') {
         addToast('This invite was declined', 'info');
         return;
       }
+      // For all other invite statuses (pending, expired, accepted) — navigate to destination
+      // Pending: user can register from the event/pod page
+      // Expired: user can still view the event/pod
+      // Accepted: user goes to their pod/event
       if (n.inviteStatus === 'expired') {
         addToast('This invite has expired', 'info');
-        return;
       }
-      // accepted — navigate to the pod/session
       const dest = getDestination(n);
       if (dest) {
         setOpen(false);
