@@ -208,7 +208,7 @@ export async function transitionToRound(
         })
       );
 
-      for (const { match, matchIdShort, success } of results) {
+      for (const { match, success } of results) {
         if (!success) {
           // Cancel the match and send bye to affected participants
           await query(`UPDATE matches SET status = 'cancelled' WHERE id = $1`, [match.id]);

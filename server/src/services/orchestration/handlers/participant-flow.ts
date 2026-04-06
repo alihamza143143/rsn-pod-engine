@@ -12,8 +12,8 @@ import { query } from '../../../db';
 import { SessionStatus, ParticipantStatus, UserRole } from '@rsn/shared';
 import {
   ActiveSession, activeSessions, disconnectTimeouts, withSessionGuard,
-  sessionRoom, userRoom, getUserIdFromSocket, persistSessionState,
-  getSessionChat, chatMessages,
+  sessionRoom, userRoom, getUserIdFromSocket,
+  chatMessages,
 } from '../state/session-state';
 import * as sessionService from '../../session/session.service';
 import * as matchingService from '../../matching/matching.service';
@@ -422,7 +422,7 @@ export function handleHeartbeat(
 // UNGUARDED: simple flag set, no race risk
 
 export async function handleReady(
-  io: SocketServer,
+  _io: SocketServer,
   socket: Socket,
   data: { sessionId: string }
 ): Promise<void> {
@@ -437,7 +437,7 @@ export async function handleReady(
 // ─── Rating Submit (via Socket) ─────────────────────────────────────────────
 
 export async function handleRatingSubmit(
-  io: SocketServer,
+  _io: SocketServer,
   socket: Socket,
   data: { matchId: string; qualityScore: number; meetAgain: boolean; feedback?: string; sessionId?: string }
 ): Promise<void> {

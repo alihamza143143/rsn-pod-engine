@@ -14,15 +14,13 @@
 import { Server as SocketServer, Socket } from 'socket.io';
 import logger from '../../../config/logger';
 import { query } from '../../../db';
-import { SessionStatus, ParticipantStatus } from '@rsn/shared';
+import { SessionStatus } from '@rsn/shared';
 import {
-  ActiveSession, activeSessions, withSessionGuard,
-  sessionRoom, userRoom, getUserIdFromSocket, persistSessionState,
+  activeSessions,
+  sessionRoom, userRoom, persistSessionState,
 } from '../state/session-state';
 import { verifyHost, getAllHostIds } from './host-actions';
-import * as sessionService from '../../session/session.service';
 import * as matchingService from '../../matching/matching.service';
-import * as ratingService from '../../rating/rating.service';
 
 // ─── Cross-module references (wired in Task 7) ────────────────────────────
 // transitionToRound lives in round-lifecycle.ts.
@@ -109,7 +107,7 @@ export async function handleHostGenerateMatches(
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Matching engine timeout after 60s')), MATCHING_TIMEOUT_MS)
       );
-      const matches = await Promise.race([matchPromise, timeoutPromise]);
+      await Promise.race([matchPromise, timeoutPromise]);
 
       // Store pending round number so confirm_round knows what to start
       activeSession.pendingRoundNumber = nextRound;
@@ -370,7 +368,7 @@ export async function handleHostCancelPreview(
 // ─── Helper: Send Match Preview to Host ───────────────────────────────────
 
 export async function sendMatchPreview(
-  io: SocketServer,
+  _io: SocketServer,
   socket: Socket,
   sessionId: string,
   roundNumber: number,
