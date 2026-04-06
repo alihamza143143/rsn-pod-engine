@@ -7,7 +7,15 @@ import { useState } from 'react';
 interface Props { sessionId: string; }
 
 export default function HostControls({ sessionId }: Props) {
-  const { participants, phase, currentRound, totalRounds, transitionStatus, sessionStatus, matchPreview, setMatchPreview, roundDashboard } = useSessionStore();
+  const participants = useSessionStore(s => s.participants);
+  const phase = useSessionStore(s => s.phase);
+  const currentRound = useSessionStore(s => s.currentRound);
+  const totalRounds = useSessionStore(s => s.totalRounds);
+  const transitionStatus = useSessionStore(s => s.transitionStatus);
+  const sessionStatus = useSessionStore(s => s.sessionStatus);
+  const matchPreview = useSessionStore(s => s.matchPreview);
+  const roundDashboard = useSessionStore(s => s.roundDashboard);
+  const { setMatchPreview } = useSessionStore.getState();
   const socket = getSocket();
   const [generating, setGenerating] = useState(false);
   const [isPaused, setIsPaused] = useState(false);

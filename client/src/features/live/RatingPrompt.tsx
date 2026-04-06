@@ -131,7 +131,13 @@ function RatingConfirmation({ meetAgain, isLastPartner, isLastRound, onContinue 
 }
 
 export default function RatingPrompt(_props: Props) {
-  const { currentMatch, currentMatchId, currentPartners, timerSeconds, setPhase, currentRound, totalRounds } = useSessionStore();
+  const currentMatch = useSessionStore(s => s.currentMatch);
+  const currentMatchId = useSessionStore(s => s.currentMatchId);
+  const currentPartners = useSessionStore(s => s.currentPartners);
+  const timerSeconds = useSessionStore(s => s.timerSeconds);
+  const currentRound = useSessionStore(s => s.currentRound);
+  const totalRounds = useSessionStore(s => s.totalRounds);
+  const { setPhase } = useSessionStore.getState();
   const { addToast } = useToastStore();
   const [currentPartnerIdx, setCurrentPartnerIdx] = useState(0);
   const [submissionState, setSubmissionState] = useState<SubmissionState>(null);

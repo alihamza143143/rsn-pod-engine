@@ -308,8 +308,17 @@ function PartnerLeftAutoReturn({ sessionId }: { sessionId: string }) {
 }
 
 export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
-  const { timerSeconds, currentRound, totalRounds, isByeRound, liveKitToken, livekitUrl, currentRoomId, transitionStatus, timerVisibility, partnerDisconnected } = useSessionStore();
-  const { setLiveKitToken } = useSessionStore();
+  const timerSeconds = useSessionStore(s => s.timerSeconds);
+  const currentRound = useSessionStore(s => s.currentRound);
+  const totalRounds = useSessionStore(s => s.totalRounds);
+  const isByeRound = useSessionStore(s => s.isByeRound);
+  const liveKitToken = useSessionStore(s => s.liveKitToken);
+  const livekitUrl = useSessionStore(s => s.livekitUrl);
+  const currentRoomId = useSessionStore(s => s.currentRoomId);
+  const transitionStatus = useSessionStore(s => s.transitionStatus);
+  const timerVisibility = useSessionStore(s => s.timerVisibility);
+  const partnerDisconnected = useSessionStore(s => s.partnerDisconnected);
+  const { setLiveKitToken } = useSessionStore.getState();
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const retryCountRef = useRef(0);
   const { sessionId } = useParams();
