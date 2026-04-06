@@ -78,8 +78,13 @@ export default function useSessionSocket(sessionId: string) {
     connectSocket(token);
     const socket = getSocket();
 
-    // Remove any stale listeners from a previous mount before adding new ones
-    for (const ev of SOCKET_EVENTS) socket.off(ev);
+    // FIX 4B: Remove ALL previous listeners before registering new ones
+    // Prevents accumulation on mount/unmount cycles (React strict mode, fast nav)
+    SOCKET_EVENTS.forEach(ev => socket.off(ev));
+    socket.off('connect');
+    socket.io.off('reconnect');
+    socket.io.off('reconnect_attempt');
+    socket.io.off('reconnect_failed');
 
     // Track connection status
     store.setConnectionStatus('connecting');
