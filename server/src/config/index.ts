@@ -15,8 +15,8 @@ export const config = {
 
   // Database
   databaseUrl: process.env.DATABASE_URL || 'postgres://rsn_dev:rsn_dev_password@localhost:5432/rsn_dev',
-  dbPoolMin: parseInt(process.env.DB_POOL_MIN || '2', 10),
-  dbPoolMax: parseInt(process.env.DB_POOL_MAX || '10', 10),
+  dbPoolMin: parseInt(process.env.DB_POOL_MIN || '5', 10),
+  dbPoolMax: parseInt(process.env.DB_POOL_MAX || '25', 10),
 
   // Redis
   redisUrl: process.env.REDIS_URL || 'redis://localhost:6379',

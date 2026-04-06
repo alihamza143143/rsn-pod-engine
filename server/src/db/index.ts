@@ -8,7 +8,7 @@ const pool = new Pool({
   min: config.dbPoolMin,
   max: config.dbPoolMax,
   idleTimeoutMillis: 240_000, // 4 min — drop idle connections before Neon's ~5-min server-side kill
-  connectionTimeoutMillis: 5_000,
+  connectionTimeoutMillis: 10_000,
 });
 
 pool.on('error', (err) => {

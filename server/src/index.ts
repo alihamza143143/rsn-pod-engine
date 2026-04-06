@@ -11,7 +11,7 @@ import { Server as SocketServer } from 'socket.io';
 import jwt from 'jsonwebtoken';
 import config from './config';
 import logger from './config/logger';
-import { testConnection, closePool, query as dbQuery } from './db';
+import { testConnection, closePool, query as dbQuery, pool } from './db';
 import { runMigrations } from './db/migrate';
 
 // Middleware
@@ -183,13 +183,26 @@ app.use((req, res, next) => {
 
 // ─── Health Check ───────────────────────────────────────────────────────────
 
-app.get('/health', (_req, res) => {
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    environment: config.env,
-    version: process.env.npm_package_version || '0.1.0',
-  });
+app.get('/health', async (_req, res) => {
+  try {
+    const dbStart = Date.now();
+    await pool.query('SELECT 1');
+    const dbLatency = Date.now() - dbStart;
+
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      environment: config.env,
+      db: { connected: true, latencyMs: dbLatency },
+    });
+  } catch (err) {
+    logger.error({ err }, 'Health check failed — DB unreachable');
+    res.status(503).json({
+      status: 'degraded',
+      timestamp: new Date().toISOString(),
+      db: { connected: false },
+    });
+  }
 });
 
 // ─── API Routes ─────────────────────────────────────────────────────────────
