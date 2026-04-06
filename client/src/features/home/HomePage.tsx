@@ -117,7 +117,7 @@ export default function HomePage() {
         <Card className="flex flex-col">
           <h3 className="font-semibold text-[#1a1a2e] mb-1">Create a Pod</h3>
           <p className="text-sm text-gray-500 mb-4 flex-1">Start your own pod and invite members</p>
-          <Button onClick={() => navigate('/pods')} className="w-full">
+          <Button onClick={() => navigate('/pods?create=true')} className="w-full">
             <Plus className="h-4 w-4 mr-2" /> Create Pod
           </Button>
         </Card>

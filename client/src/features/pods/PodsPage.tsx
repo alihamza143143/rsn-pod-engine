@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Users, Plus, Globe, Lock, Shield, Eye, UserCheck, UserPlus, Search } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
@@ -22,9 +22,18 @@ const VISIBILITY_CONFIG: Record<string, { label: string; icon: typeof Eye; varia
 
 export default function PodsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showCreate, setShowCreate] = useState(false);
   const [filter, setFilter] = useState<PodFilter>('active');
   const [search, setSearch] = useState('');
+
+  // Auto-open create modal when navigated with ?create=true (from Dashboard)
+  useEffect(() => {
+    if (searchParams.get('create') === 'true') {
+      setShowCreate(true);
+      setSearchParams({}, { replace: true }); // clean up URL
+    }
+  }, [searchParams, setSearchParams]);
 
   const { data, isLoading } = useQuery({
     queryKey: ['my-pods', filter],
