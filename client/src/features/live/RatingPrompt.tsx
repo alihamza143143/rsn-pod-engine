@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/Button';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useToastStore } from '@/stores/toastStore';
-import { Star, CheckCircle, Loader2, Clock, Heart } from 'lucide-react';
+import { Star, CheckCircle, Loader2, Clock, Handshake } from 'lucide-react';
 import api from '@/lib/api';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -77,10 +77,10 @@ function PartnerRatingForm({ partnerName, toUserId, matchId, onSubmitted, onSkip
       <button
         onClick={() => setMeetAgain(!meetAgain)}
         className={`flex items-center justify-center gap-2.5 w-full py-3 rounded-xl border-2 transition-all mb-5 text-base font-medium ${
-          meetAgain ? 'border-pink-500 bg-pink-500/10 text-pink-400' : 'border-white/10 text-gray-400 hover:border-white/20'
+          meetAgain ? 'border-indigo-500 bg-indigo-500/10 text-indigo-400' : 'border-white/10 text-gray-400 hover:border-white/20'
         }`}
       >
-        <Heart className={`h-5 w-5 ${meetAgain ? 'fill-pink-400' : ''}`} />
+        <Handshake className={`h-5 w-5 ${meetAgain ? 'text-indigo-400' : ''}`} />
         {meetAgain ? 'Would meet again!' : 'Would you meet again?'}
       </button>
 
@@ -113,9 +113,9 @@ function RatingConfirmation({ meetAgain, isLastPartner, isLastRound, onContinue 
       </div>
       <h2 className="text-lg font-bold text-white mb-1">Rating submitted!</h2>
       {meetAgain && (
-        <div className="flex items-center justify-center gap-2 mt-2 px-4 py-2 rounded-lg bg-pink-500/10 border border-pink-500/20">
-          <Heart className="h-4 w-4 text-pink-400" />
-          <p className="text-sm text-pink-300">
+        <div className="flex items-center justify-center gap-2 mt-2 px-4 py-2 rounded-lg bg-indigo-500/10 border border-indigo-500/20">
+          <Handshake className="h-4 w-4 text-indigo-400" />
+          <p className="text-sm text-indigo-300">
             You want to meet again! We'll let you know if it's mutual.
           </p>
         </div>

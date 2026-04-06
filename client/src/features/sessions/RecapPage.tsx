@@ -5,7 +5,7 @@ import Card from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
 import { Spinner } from '@/components/ui/Spinner';
-import { CheckCircle, Users, Star, Heart, ArrowLeft, Calendar, Download, UserCheck, CircleDot } from 'lucide-react';
+import { CheckCircle, Users, Star, Handshake, ArrowLeft, Calendar, Download, UserCheck, CircleDot } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -43,7 +43,7 @@ function InterestBadge({ connection }: { connection: Connection }) {
   if (connection.mutualMeetAgain) {
     return (
       <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-rsn-red/10 border border-rsn-red/20 text-rsn-red font-medium">
-        <Heart className="h-3 w-3 fill-rsn-red" />
+        <Handshake className="h-3 w-3 text-indigo-500" />
         <span>Mutual Match!</span>
       </div>
     );
@@ -212,7 +212,7 @@ export default function RecapPage() {
               <p className="text-xs text-gray-400">Avg Rating</p>
             </Card>
             <Card className="text-center py-4">
-              <Heart className="h-5 w-5 text-rsn-red mx-auto mb-1" />
+              <Handshake className="h-5 w-5 text-indigo-500 mx-auto mb-1" />
               <p className="text-2xl font-bold text-[#1a1a2e]">{stats.mutualMeetAgainCount}</p>
               <p className="text-xs text-gray-400">Mutual Matches (all)</p>
             </Card>
@@ -229,7 +229,7 @@ export default function RecapPage() {
               <p className="text-xs text-gray-400">People Met</p>
             </Card>
             <Card className="text-center py-4">
-              <Heart className="h-5 w-5 text-rsn-red mx-auto mb-1" />
+              <Handshake className="h-5 w-5 text-indigo-500 mx-auto mb-1" />
               <p className="text-2xl font-bold text-[#1a1a2e]">{stats.mutualMeetAgainCount}</p>
               <p className="text-xs text-gray-400">Mutual Matches</p>
             </Card>
@@ -249,13 +249,13 @@ export default function RecapPage() {
       {/* Mutual connections */}
       {data && data.mutualConnections.length > 0 && (
         <Card>
-          <h3 className="text-sm font-semibold text-rsn-red uppercase tracking-wider mb-4 flex items-center gap-2">
-            <Heart className="h-4 w-4 fill-rsn-red" />
+          <h3 className="text-sm font-semibold text-indigo-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+            <Handshake className="h-4 w-4 text-indigo-500" />
             Mutual Matches — You both said "meet again"!
           </h3>
           <div className="space-y-3">
             {data.mutualConnections.map(c => (
-              <a key={c.userId} href={`/profile/${c.userId}`} className="flex items-center gap-3 p-3 rounded-lg bg-rsn-red/5 border border-rsn-red/20 hover:bg-rsn-red/10 transition-colors">
+              <a key={c.userId} href={`/profile/${c.userId}`} className="flex items-center gap-3 p-3 rounded-lg bg-indigo-500/5 border border-indigo-500/20 hover:bg-indigo-500/10 transition-colors">
                 <Avatar src={c.avatarUrl} name={c.displayName || 'User'} size="md" />
                 <div className="flex-1 min-w-0">
                   <p className="text-gray-800 font-medium truncate">{c.displayName}</p>
@@ -269,7 +269,7 @@ export default function RecapPage() {
                   <div className="flex items-center gap-1 text-xs text-amber-400">
                     <Star className="h-3 w-3 fill-amber-400" />{c.qualityScore}
                   </div>
-                  <Heart className="h-4 w-4 text-rsn-red fill-rsn-red" />
+                  <Handshake className="h-4 w-4 text-indigo-500" />
                 </div>
               </a>
             ))}
