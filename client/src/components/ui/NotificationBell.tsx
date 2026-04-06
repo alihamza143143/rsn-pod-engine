@@ -115,6 +115,8 @@ export default function NotificationBell() {
     qc.invalidateQueries({ queryKey: ['received-invites'] });
     qc.invalidateQueries({ queryKey: ['my-pods'] });
     qc.invalidateQueries({ queryKey: ['my-sessions'] });
+    qc.invalidateQueries({ queryKey: ['session-participants'] });
+    qc.invalidateQueries({ queryKey: ['session-detail'] });
   };
 
   const handleAcceptInvite = async (n: Notification) => {

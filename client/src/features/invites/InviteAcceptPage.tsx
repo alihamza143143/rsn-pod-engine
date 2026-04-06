@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
@@ -50,6 +51,7 @@ function formatEventDate(dateStr: string): string {
 export default function InviteAcceptPage() {
   const { code } = useParams();
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const { user } = useAuthStore();
   const { addToast } = useToastStore();
   const [invite, setInvite] = useState<any>(null);
@@ -77,6 +79,8 @@ export default function InviteAcceptPage() {
     try {
       const res = await api.post(`/invites/${code}/accept`);
       addToast('Invite accepted!', 'success');
+      qc.invalidateQueries({ queryKey: ['session-participants'] });
+      qc.invalidateQueries({ queryKey: ['session-detail'] });
       const data = res.data?.data;
       const destination = getDestination(data);
 
