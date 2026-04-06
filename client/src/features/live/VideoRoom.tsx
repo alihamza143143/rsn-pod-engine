@@ -452,7 +452,14 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
         <PartnerLeftAutoReturn sessionId={sessionId} />
       )}
 
-      <div className="flex-1 flex flex-col p-4 gap-4 bg-[#202124] overflow-auto min-h-0">
+      <div className="flex-1 flex flex-col p-4 gap-4 bg-[#202124] overflow-auto min-h-0 relative">
+        {/* "Last N seconds!" pulse overlay for participants */}
+        {!isHost && timerSeconds > 0 && timerSeconds <= 30 && (
+          <div className="absolute top-12 left-1/2 -translate-x-1/2 bg-amber-500/90 text-white text-sm font-bold px-4 py-1.5 rounded-full animate-pulse z-10">
+            Last {timerSeconds} seconds!
+          </div>
+        )}
+
         {/* Timer bar */}
         <div className="flex items-center justify-between bg-[#292a2d] rounded-xl px-4 py-3">
           <div className="flex items-center gap-3">

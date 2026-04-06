@@ -402,13 +402,19 @@ export async function endRound(
             userId: id,
             displayName: ratingNameMap.get(id) || 'Partner',
           }));
+
+          // Scale rating duration by number of partners (trios get 60s, duos get 30s)
+          const partnerCount = partnersWithNames.length;
+          const scaledDuration = (activeSession.config.ratingWindowSeconds || 30) * Math.max(1, partnerCount);
+
           io.to(userRoom(pid)).emit('rating:window_open', {
             matchId: match.id,
             partnerId: partnerIds[0],
             partnerDisplayName: ratingNameMap.get(partnerIds[0]) || 'Partner',
             partners: partnersWithNames,
             roundNumber,
-            durationSeconds: activeSession.config.ratingWindowSeconds,
+            durationSeconds: scaledDuration,
+            partnerCount,
           });
         }
       }
@@ -428,8 +434,20 @@ export async function endRound(
       [sessionId]
     );
 
-    // Start rating window timer
-    startSegmentTimer(io, sessionId, activeSession.config.ratingWindowSeconds, () => {
+    // Find the max partner count across all completed matches
+    // Each match has participant_a, participant_b, and optionally participant_c
+    const completedMatches = matches.filter((m: any) => m.status === 'completed');
+    const maxPartnerCount = Math.max(
+      ...completedMatches.map((m: any) => {
+        const parts = [m.participantAId, m.participantBId, m.participantCId].filter(Boolean);
+        return parts.length - 1; // subtract self = number of partners
+      }),
+      1 // minimum 1
+    );
+    const ratingDuration = (activeSession.config.ratingWindowSeconds || 30) * maxPartnerCount;
+
+    // Start rating window timer (scaled by max partner count so trios have enough time)
+    startSegmentTimer(io, sessionId, ratingDuration, () => {
       endRatingWindow(io, sessionId, roundNumber);
     });
 
