@@ -610,7 +610,7 @@ export async function getPodMembersForInvite(podId: string, sessionId: string): 
       )
       AND pm.user_id NOT IN (
         SELECT i.accepted_by_user_id FROM invites i
-        WHERE i.session_id = $2 AND i.status IN ('pending', 'active', 'accepted')
+        WHERE i.session_id = $2 AND i.status IN ('pending', 'accepted')
         AND i.accepted_by_user_id IS NOT NULL
       )
     ORDER BY u.display_name
