@@ -78,13 +78,17 @@ export default function InviteAcceptPage() {
     setError(null);
     try {
       const res = await api.post(`/invites/${code}/accept`);
+      const data = res.data?.data;
+
+      // SAFETY NET: explicitly register for session after accept
+      if (data?.sessionId) {
+        try { await api.post(`/sessions/${data.sessionId}/register`); } catch { /* already registered is fine */ }
+      }
+
       addToast('Invite accepted!', 'success');
       qc.invalidateQueries({ queryKey: ['session-participants'] });
       qc.invalidateQueries({ queryKey: ['session-detail'] });
-      const data = res.data?.data;
       const destination = getDestination(data);
-
-      // Navigate directly — onboarding is handled by ProtectedRoute on first login, not here
       navigate(destination, { replace: true });
     } catch (err: any) {
       const errCode = err?.response?.data?.error?.code;

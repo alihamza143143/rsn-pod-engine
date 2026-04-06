@@ -125,13 +125,21 @@ export default function NotificationBell() {
     setActionLoading(n.id);
     try {
       const res = await api.post(`/invites/${code}/accept`);
+      const data = res.data?.data;
+
+      // SAFETY NET: If server accept returned a sessionId, explicitly register too
+      // This guarantees registration even if the server-side acceptInvite had a silent failure
+      if (data?.sessionId) {
+        try {
+          await api.post(`/sessions/${data.sessionId}/register`);
+        } catch { /* ignore — already registered is fine */ }
+      }
+
       addToast('Invite accepted!', 'success');
       if (!n.isRead) markRead(n.id);
       setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, inviteStatus: 'accepted', isRead: true } : x));
       invalidateInviteCaches();
       setOpen(false);
-      // Navigate to the pod/session directly — no onboarding hijack
-      const data = res.data?.data;
       const dest = data?.sessionId ? `/sessions/${data.sessionId}` : data?.podId ? `/pods/${data.podId}` : null;
       if (dest) {
         setOpen(false);
@@ -209,16 +217,24 @@ export default function NotificationBell() {
       const code = extractInviteCode(n.link);
       if (code) {
         try {
-          await api.post(`/invites/${code}/accept`);
+          const res = await api.post(`/invites/${code}/accept`);
+          const data = res.data?.data;
+          // SAFETY NET: explicitly register for session after accept
+          if (data?.sessionId) {
+            try { await api.post(`/sessions/${data.sessionId}/register`); } catch { /* already registered is fine */ }
+          }
           invalidateInviteCaches();
           setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, inviteStatus: 'accepted', isRead: true } : x));
         } catch (err: any) {
           const errCode = err?.response?.data?.error?.code;
-          // Already registered/member = still navigate
           if (errCode !== 'SESSION_ALREADY_REGISTERED' && errCode !== 'POD_MEMBER_EXISTS' &&
               errCode !== 'INVITE_ALREADY_USED' && errCode !== 'INVITE_EXPIRED') {
             addToast('Failed to accept invite', 'error');
             return;
+          }
+          // Even on error, try direct registration if we have sessionId
+          if (n.sessionId) {
+            try { await api.post(`/sessions/${n.sessionId}/register`); } catch { /* best effort */ }
           }
         }
       }
