@@ -585,56 +585,59 @@ export default function SessionDetailPage() {
       {/* Invite to Session Modal */}
       <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Invite to Event">
         <div className="space-y-5">
-          {/* Pod Members quick-invite (shown first for convenience) */}
+          {/* Pod Members — invite individually or all at once */}
           {session?.podId && isHost && (
-            <div className="rounded-lg border border-indigo-200 bg-indigo-50/30 p-4 space-y-3">
+            <div className="rounded-lg border border-gray-200 p-4 space-y-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold text-[#1a1a2e]">
-                    Pod Members {podMembers ? `(${podMembers.length} not yet invited)` : ''}
-                  </h3>
-                  <p className="text-xs text-gray-500">Quickly invite members from this pod.</p>
+                  <h3 className="text-sm font-semibold text-[#1a1a2e]">Invite Pod Members</h3>
+                  <p className="text-xs text-gray-500">Invite members from this event's pod.</p>
                 </div>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  onClick={async () => {
-                    setInvitingMember('all');
-                    try {
-                      const emails = podMembers.map((m: any) => m.email);
-                      const res = await api.post('/invites/bulk', { sessionId, emails });
-                      const r = res.data?.data;
-                      addToast(`Invited ${r?.sent || 0} pod members!${r?.skipped ? ` ${r.skipped} already invited.` : ''}`, 'success');
-                      refetchPodMembers();
-                    } catch (err: any) {
-                      addToast(err?.response?.data?.error?.message || 'Failed to bulk invite', 'error');
-                    } finally {
-                      setInvitingMember(null);
-                    }
-                  }}
-                  disabled={invitingMember === 'all'}
-                  isLoading={invitingMember === 'all'}
-                >
-                  Invite All
-                </Button>
+                {podMembers && podMembers.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="primary"
+                    onClick={async () => {
+                      setInvitingMember('all');
+                      try {
+                        const emails = podMembers.map((m: any) => m.email);
+                        const res = await api.post('/invites/bulk', { sessionId, emails });
+                        const r = res.data?.data;
+                        addToast(`Invited ${r?.sent || 0} pod members!${r?.skipped ? ` ${r.skipped} already invited.` : ''}`, 'success');
+                        refetchPodMembers();
+                      } catch (err: any) {
+                        addToast(err?.response?.data?.error?.message || 'Failed to invite', 'error');
+                      } finally {
+                        setInvitingMember(null);
+                      }
+                    }}
+                    disabled={invitingMember === 'all'}
+                    isLoading={invitingMember === 'all'}
+                  >
+                    Invite All ({podMembers.length})
+                  </Button>
+                )}
               </div>
               {!podMembers ? (
-                <p className="text-xs text-gray-400">Loading pod members...</p>
+                <p className="text-xs text-gray-400">Loading...</p>
               ) : podMembers.length === 0 ? (
-                <p className="text-xs text-gray-400">All pod members have already been invited.</p>
+                <p className="text-xs text-gray-400">All pod members have already been invited or registered.</p>
               ) : (
-                <div className="space-y-2 max-h-48 overflow-y-auto">
+                <div className="space-y-2 max-h-60 overflow-y-auto">
                   {podMembers.map((m: any) => (
-                    <div key={m.userId} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 border border-gray-100">
+                    <div key={m.userId} className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors">
                       <div className="flex items-center gap-3">
                         {m.avatarUrl ? (
                           <img src={m.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
                         ) : (
-                          <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-sm text-indigo-600 font-medium">
+                          <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-sm text-gray-600 font-medium">
                             {m.displayName?.[0]?.toUpperCase() || '?'}
                           </div>
                         )}
-                        <span className="text-sm text-gray-800">{m.displayName || m.email}</span>
+                        <div>
+                          <span className="text-sm text-gray-800 font-medium">{m.displayName || 'Unknown'}</span>
+                          <p className="text-xs text-gray-400">{m.email}</p>
+                        </div>
                       </div>
                       <Button
                         size="sm"
