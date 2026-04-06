@@ -570,6 +570,96 @@ export async function exportSessionData(sessionId: string): Promise<{
 // Called once at session completion. Ensures encounter_history is fully
 // up-to-date even for matches where one or both participants skipped rating.
 
+/**
+ * Get partners the user hasn't rated yet for a given session.
+ * Only returns results for completed/closing_lobby sessions.
+ */
+export async function getUnratedPartners(sessionId: string, userId: string): Promise<{
+  matchId: string;
+  partnerId: string;
+  partnerDisplayName: string;
+  roundNumber: number;
+}[]> {
+  const result = await query<{
+    match_id: string;
+    partner_id: string;
+    partner_display_name: string;
+    round_number: number;
+  }>(`
+    WITH user_partners AS (
+      SELECT
+        m.id AS match_id,
+        m.round_number,
+        CASE
+          WHEN m.participant_a_id = $2 THEN m.participant_b_id
+          WHEN m.participant_b_id = $2 THEN m.participant_a_id
+          ELSE m.participant_a_id
+        END AS partner_id
+      FROM matches m
+      JOIN sessions s ON s.id = m.session_id
+      WHERE m.session_id = $1
+        AND (m.participant_a_id = $2 OR m.participant_b_id = $2 OR m.participant_c_id = $2)
+        AND m.status IN ('completed', 'no_show')
+        AND s.status IN ('completed', 'closing_lobby')
+
+      UNION ALL
+
+      SELECT
+        m.id AS match_id,
+        m.round_number,
+        m.participant_c_id AS partner_id
+      FROM matches m
+      JOIN sessions s ON s.id = m.session_id
+      WHERE m.session_id = $1
+        AND (m.participant_a_id = $2 OR m.participant_b_id = $2)
+        AND m.participant_c_id IS NOT NULL
+        AND m.status IN ('completed', 'no_show')
+        AND s.status IN ('completed', 'closing_lobby')
+
+      UNION ALL
+
+      SELECT
+        m.id AS match_id,
+        m.round_number,
+        CASE
+          WHEN m.participant_a_id != $2 THEN m.participant_a_id
+          ELSE m.participant_b_id
+        END AS partner_id
+      FROM matches m
+      JOIN sessions s ON s.id = m.session_id
+      WHERE m.session_id = $1
+        AND m.participant_c_id = $2
+        AND m.status IN ('completed', 'no_show')
+        AND s.status IN ('completed', 'closing_lobby')
+    )
+    SELECT
+      up.match_id,
+      up.partner_id,
+      u.display_name AS partner_display_name,
+      up.round_number
+    FROM user_partners up
+    JOIN users u ON u.id = up.partner_id
+    WHERE NOT EXISTS (
+      SELECT 1 FROM ratings r
+      WHERE r.match_id = up.match_id
+        AND r.from_user_id = $2
+        AND r.to_user_id = up.partner_id
+    )
+    ORDER BY up.round_number
+  `, [sessionId, userId]);
+
+  return result.rows.map(r => ({
+    matchId: r.match_id,
+    partnerId: r.partner_id,
+    partnerDisplayName: r.partner_display_name,
+    roundNumber: r.round_number,
+  }));
+}
+
+// ─── Finalize Session Encounters ────────────────────────────────────────────
+// Called once at session completion. Ensures encounter_history is fully
+// up-to-date even for matches where one or both participants skipped rating.
+
 export async function finalizeSessionEncounters(sessionId: string): Promise<number> {
   const matchesResult = await query<{
     participantAId: string;

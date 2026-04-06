@@ -8,6 +8,7 @@ import { Spinner } from '@/components/ui/Spinner';
 import { CheckCircle, Users, Star, Handshake, ArrowLeft, Calendar, Download, UserCheck, CircleDot } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
+import { useToastStore } from '@/stores/toastStore';
 
 interface Connection {
   userId: string;
@@ -67,6 +68,58 @@ function InterestBadge({ connection }: { connection: Connection }) {
   return null;
 }
 
+function LateRatingForm({ matchId, partnerId, partnerName, roundNumber, onRated }: {
+  matchId: string; partnerId: string; partnerName: string; roundNumber: number; onRated: () => void;
+}) {
+  const [rating, setRating] = useState(0);
+  const [meetAgain, setMeetAgain] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+  const { addToast } = useToastStore();
+
+  if (done) return null;
+
+  const submit = async () => {
+    if (rating === 0) return;
+    setSubmitting(true);
+    try {
+      await api.post('/ratings', { matchId, qualityScore: rating, meetAgain, toUserId: partnerId });
+      addToast(`Rated ${partnerName}!`, 'success');
+      setDone(true);
+      onRated();
+    } catch (err: any) {
+      addToast(err?.response?.data?.error?.message || 'Failed to submit', 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-4 p-3 rounded-xl bg-[#292a2d]">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-white font-medium truncate">{partnerName}</p>
+        <p className="text-xs text-gray-500">Round {roundNumber}</p>
+      </div>
+      <div className="flex gap-1 shrink-0">
+        {[1, 2, 3, 4, 5].map(n => (
+          <button key={n} onClick={() => setRating(n)}>
+            <Star className={`h-5 w-5 ${n <= rating ? 'text-amber-400 fill-amber-400' : 'text-gray-600'}`} />
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={() => setMeetAgain(!meetAgain)}
+        className={`p-2 rounded-lg border shrink-0 ${meetAgain ? 'border-indigo-500 bg-indigo-500/10' : 'border-white/10'}`}
+      >
+        <Handshake className={`h-4 w-4 ${meetAgain ? 'text-indigo-400' : 'text-gray-500'}`} />
+      </button>
+      <Button size="sm" onClick={submit} isLoading={submitting} disabled={rating === 0} className="shrink-0">
+        Rate
+      </Button>
+    </div>
+  );
+}
+
 export default function RecapPage() {
   const { sessionId } = useParams();
   const navigate = useNavigate();
@@ -84,6 +137,12 @@ export default function RecapPage() {
     enabled: !!sessionId && !!user?.id && session?.hostUserId !== user?.id,
   });
   const isHost = session?.hostUserId === user?.id || cohostData === true;
+
+  const { data: unratedData, refetch: refetchUnrated } = useQuery({
+    queryKey: ['unrated-partners', sessionId],
+    queryFn: () => api.get(`/ratings/unrated?sessionId=${sessionId}`).then(r => r.data.data),
+    enabled: !!sessionId,
+  });
 
   const [data, setData] = useState<PeopleMetData | null>(null);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -244,6 +303,28 @@ export default function RecapPage() {
             </Card>
           </div>
         )
+      )}
+
+      {/* Unrated conversations — late rating */}
+      {unratedData && unratedData.length > 0 && (
+        <div className="bg-[#292a2d] rounded-2xl p-5 border border-amber-500/30">
+          <h3 className="text-sm font-semibold text-amber-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+            <Star className="h-4 w-4" />
+            You have unrated conversations
+          </h3>
+          <div className="space-y-3">
+            {unratedData.map((partner: any) => (
+              <LateRatingForm
+                key={`${partner.matchId}-${partner.partnerId}`}
+                matchId={partner.matchId}
+                partnerId={partner.partnerId}
+                partnerName={partner.partnerDisplayName}
+                roundNumber={partner.roundNumber}
+                onRated={() => refetchUnrated()}
+              />
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Mutual connections */}

@@ -40,6 +40,27 @@ router.post(
   }
 );
 
+// ─── GET /ratings/unrated — Get partners user hasn't rated ─────────────────
+
+router.get(
+  '/unrated',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const sessionId = req.query.sessionId as string;
+      if (!sessionId) {
+        res.status(400).json({ error: { message: 'sessionId required' } });
+        return;
+      }
+      const userId = req.user!.userId;
+      const unrated = await ratingService.getUnratedPartners(sessionId, userId);
+      res.json({ data: unrated });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // ─── GET /ratings/match/:matchId — Get ratings for a specific match ─────────
 
 router.get(
