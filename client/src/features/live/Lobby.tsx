@@ -404,8 +404,8 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
           <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-emerald-500/20 text-emerald-400">
             <Sparkles className="h-7 w-7" />
           </div>
-          <h2 className="text-xl font-bold text-[#1a1a2e]">All Rounds Complete!</h2>
-          <p className="text-gray-400 text-sm max-w-xs">Take a moment to say your goodbyes. The host will end the event shortly.</p>
+          <h2 className="text-xl font-bold text-[#1a1a2e]">Event wrapping up</h2>
+          <p className="text-gray-400 text-sm max-w-xs">Say your goodbyes before the event ends.</p>
         </div>
       ) : isByeRound ? (
         <>
@@ -429,7 +429,7 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
           <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
           <h2 className="text-xl font-bold text-[#1a1a2e]">Event Starting</h2>
           <p className="text-gray-400 text-sm">
-            {isHost ? 'Main room is open — use Match People below when ready.' : 'Waiting for the host to begin matching...'}
+            {isHost ? 'Lobby is open — use Match People below when ready.' : 'Waiting for the host to begin matching...'}
           </p>
         </div>
       ) : (sessionStatus === 'round_active' || sessionStatus === 'round_rating') ? (
@@ -459,11 +459,11 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
           <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-white/10 text-gray-300 mx-auto">
             <Sparkles className="h-6 w-6" />
           </div>
-          <h2 className="text-xl font-bold text-[#1a1a2e]">Main Room</h2>
+          <h2 className="text-xl font-bold text-[#1a1a2e]">Lobby</h2>
           <p className="text-gray-400 text-sm">
             {isHost
               ? 'You\'re the host — click Match People below when ready'
-              : 'You\'re in the main room. The host will start matching shortly.'}
+              : 'The host will start matching shortly.'}
           </p>
         </>
       )}
@@ -672,7 +672,7 @@ function PreLobbyWaitingRoom({ isHost = false }: { isHost?: boolean }) {
             {hostOnline === true
               ? 'The host is here! The event will begin shortly.'
               : hostOnline === false
-              ? 'The host hasn\'t joined yet. Once they start the event, you\'ll enter the main room.'
+              ? 'The host hasn\'t joined yet. Once they start the event, you\'ll enter the lobby.'
               : 'Connecting to the event...'}
           </p>
           {hostOnline === true ? (

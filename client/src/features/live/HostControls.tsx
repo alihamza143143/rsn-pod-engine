@@ -336,7 +336,7 @@ export default function HostControls({ sessionId }: Props) {
                   <>
                     <span className="text-gray-600">|</span>
                     <span className="text-green-400">{inRooms} in rooms</span>
-                    {inLobby > 0 && <span className="text-blue-400">{inLobby} in main room</span>}
+                    {inLobby > 0 && <span className="text-blue-400">{inLobby} in lobby</span>}
                     {byeCount > 0 && <span className="text-amber-400">{byeCount} bye</span>}
                     {disconnected > 0 && <span className="text-red-400">{disconnected} disconnected</span>}
                   </>
@@ -344,7 +344,7 @@ export default function HostControls({ sessionId }: Props) {
               })() : sessionStarted && (
                 <>
                   <span className="text-gray-600">|</span>
-                  <span className="text-blue-400">{Math.max(0, participants.length - 1)} in main room</span>
+                  <span className="text-blue-400">{Math.max(0, participants.length - 1)} in lobby</span>
                 </>
               )}
             </div>
@@ -360,7 +360,7 @@ export default function HostControls({ sessionId }: Props) {
             )}
             {!isInRound && sessionStarted && !allRoundsDone && (
               <span className="text-xs text-gray-500">
-                {currentRound > 0 ? `After Round ${currentRound}/${totalRounds}` : 'Main Room'}
+                {currentRound > 0 ? `After Round ${currentRound}/${totalRounds}` : 'Lobby'}
               </span>
             )}
           </div>

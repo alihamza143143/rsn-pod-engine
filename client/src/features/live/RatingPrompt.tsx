@@ -123,7 +123,7 @@ function RatingConfirmation({ meetAgain, isLastPartner, isLastRound, onContinue 
       {isLastPartner && isLastRound && (
         <div className="flex items-center justify-center gap-2 mt-3 text-sm text-gray-400">
           <Loader2 className="h-4 w-4 animate-spin" />
-          <span>Last round complete! Returning to main room...</span>
+          <span>Last round complete! Returning to lobby...</span>
         </div>
       )}
     </div>

@@ -296,7 +296,7 @@ function PartnerLeftAutoReturn({ sessionId }: { sessionId: string }) {
   return (
     <div className="bg-amber-500/10 px-4 py-3 flex items-center justify-center gap-2">
       <UserX className="h-4 w-4 text-amber-400" />
-      <p className="text-sm text-amber-400 font-medium">Your partner left. Returning to main room in {Math.max(0, countdown)}s...</p>
+      <p className="text-sm text-amber-400 font-medium">Your partner left. Returning to lobby in {Math.max(0, countdown)}s...</p>
       <button
         onClick={() => getSocket()?.emit('participant:leave_conversation', { sessionId })}
         className="ml-2 px-3 py-1 text-xs font-medium bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-full transition-colors"
@@ -427,7 +427,7 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
         </div>
       )}
 
-      {/* Partner disconnected — auto-return to main room in 5 seconds */}
+      {/* Partner disconnected — auto-return to lobby in 5 seconds */}
       {partnerDisconnected && sessionId && (
         <PartnerLeftAutoReturn sessionId={sessionId} />
       )}
@@ -445,14 +445,14 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
               <>
                 <button
                   onClick={() => {
-                    if (confirm('Return to the main room? Your round will continue for your partner.')) {
+                    if (confirm('Return to the lobby? Your round will continue for your partner.')) {
                       if (sessionId) getSocket()?.emit('participant:leave_conversation', { sessionId });
                     }
                   }}
                   className="flex items-center gap-1 px-2.5 py-1 text-xs text-gray-400 hover:text-amber-400 hover:bg-white/5 rounded-lg transition-colors"
-                  title="You can return to the main room at any time"
+                  title="You can return to the lobby at any time"
                 >
-                  <ArrowLeft className="h-3 w-3" /> Return to Main Room
+                  <ArrowLeft className="h-3 w-3" /> Return to Lobby
                 </button>
                 <button
                   onClick={() => {
