@@ -397,7 +397,7 @@ function useHostPresence(gracePeriodMs = 15000): boolean | null {
 }
 
 function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
-  const { participants, isByeRound, currentRound, totalRounds, transitionStatus, sessionStatus, hostUserId } = useSessionStore();
+  const { participants, isByeRound, currentRound, totalRounds, transitionStatus, sessionStatus, hostUserId, timerSeconds } = useSessionStore();
   const hostOnline = useHostPresence();
 
   // Session hasn't been started yet by host
@@ -412,6 +412,11 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
           </div>
           <h2 className="text-xl font-bold text-[#1a1a2e]">Event wrapping up</h2>
           <p className="text-gray-400 text-sm max-w-xs">Say your goodbyes before the event ends.</p>
+          {timerSeconds > 0 && (
+            <p className="text-sm text-gray-500 mt-2">
+              Ending in <span className="text-white font-mono">{timerSeconds}s</span>
+            </p>
+          )}
         </div>
       ) : isByeRound ? (
         <>
