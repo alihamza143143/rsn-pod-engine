@@ -40,6 +40,13 @@ export default function SessionDetailPage() {
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editScheduledAt, setEditScheduledAt] = useState('');
+  const [editNumberOfRounds, setEditNumberOfRounds] = useState(5);
+  const [editRoundDurationMinutes, setEditRoundDurationMinutes] = useState(8);
+  const [editRatingWindowSeconds, setEditRatingWindowSeconds] = useState(30);
+  const [editTimerVisibility, setEditTimerVisibility] = useState('always_visible');
+  const [editMaxParticipants, setEditMaxParticipants] = useState(500);
+  const [editClosingLobbyDuration, setEditClosingLobbyDuration] = useState(120);
+  const [editNoShowTimeout, setEditNoShowTimeout] = useState(60);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteLink, setInviteLink] = useState('');
@@ -127,7 +134,7 @@ export default function SessionDetailPage() {
   const canRegister = isMember || !isRestrictedPod;
 
   const updateMutation = useMutation({
-    mutationFn: (body: { title?: string; description?: string; scheduledAt?: string }) => api.put(`/sessions/${sessionId}`, body),
+    mutationFn: (body: { title?: string; description?: string; scheduledAt?: string; config?: Record<string, any> }) => api.put(`/sessions/${sessionId}`, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['session', sessionId] });
       addToast('Event updated', 'success');
@@ -149,6 +156,13 @@ export default function SessionDetailPage() {
     setEditTitle(session?.title || '');
     setEditDescription(session?.description || '');
     setEditScheduledAt(session?.scheduledAt ? new Date(session.scheduledAt).toISOString().slice(0, 16) : '');
+    setEditNumberOfRounds(session?.config?.numberOfRounds ?? 5);
+    setEditRoundDurationMinutes(Math.round((session?.config?.roundDurationSeconds ?? 480) / 60));
+    setEditRatingWindowSeconds(session?.config?.ratingWindowSeconds ?? 30);
+    setEditTimerVisibility(session?.config?.timerVisibility ?? 'always_visible');
+    setEditMaxParticipants(session?.config?.maxParticipants ?? 500);
+    setEditClosingLobbyDuration(session?.config?.closingLobbyDurationSeconds ?? 120);
+    setEditNoShowTimeout(session?.config?.noShowTimeoutSeconds ?? 60);
     setEditOpen(true);
   };
 
@@ -571,24 +585,9 @@ export default function SessionDetailPage() {
       {/* Invite to Session Modal */}
       <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Invite to Event">
         <div className="space-y-5">
-          {/* Option 1: Send Email Invite */}
-          <div className="rounded-lg border border-gray-200 p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-[#1a1a2e]">Option 1 — Send Email Invite</h3>
-            <p className="text-xs text-gray-500">Enter their email and we'll send the invite directly.</p>
-            <Input label="Email Address" type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="user@example.com" />
-            <Button
-              onClick={() => createSessionInviteMutation.mutate({ inviteeEmail: inviteEmail || undefined })}
-              isLoading={createSessionInviteMutation.isPending}
-              disabled={!inviteEmail}
-              className="w-full"
-            >
-              <Mail className="h-4 w-4 mr-2" /> Send Invite Email
-            </Button>
-          </div>
-
-          {/* Pod Members quick-invite */}
+          {/* Pod Members quick-invite (shown first for convenience) */}
           {podMembers && podMembers.length > 0 && (
-            <div className="rounded-lg border border-gray-200 p-4 space-y-3">
+            <div className="rounded-lg border border-indigo-200 bg-indigo-50/30 p-4 space-y-3">
               <h3 className="text-sm font-semibold text-[#1a1a2e]">Pod Members ({podMembers.length} not yet invited)</h3>
               <p className="text-xs text-gray-500">Quickly invite members from this pod who haven't been invited yet.</p>
               <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -617,6 +616,21 @@ export default function SessionDetailPage() {
               </div>
             </div>
           )}
+
+          {/* Option 1: Send Email Invite */}
+          <div className="rounded-lg border border-gray-200 p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-[#1a1a2e]">Option 1 — Send Email Invite</h3>
+            <p className="text-xs text-gray-500">Enter their email and we'll send the invite directly.</p>
+            <Input label="Email Address" type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="user@example.com" />
+            <Button
+              onClick={() => createSessionInviteMutation.mutate({ inviteeEmail: inviteEmail || undefined })}
+              isLoading={createSessionInviteMutation.isPending}
+              disabled={!inviteEmail}
+              className="w-full"
+            >
+              <Mail className="h-4 w-4 mr-2" /> Send Invite Email
+            </Button>
+          </div>
 
           {/* Option 2: Invite platform users */}
           {isHost && (
@@ -743,6 +757,15 @@ export default function SessionDetailPage() {
           if (editTitle) body.title = editTitle;
           if (editDescription !== undefined) body.description = editDescription;
           if (editScheduledAt) body.scheduledAt = new Date(editScheduledAt).toISOString();
+          body.config = {
+            numberOfRounds: editNumberOfRounds,
+            roundDurationSeconds: editRoundDurationMinutes * 60,
+            ratingWindowSeconds: editRatingWindowSeconds,
+            timerVisibility: editTimerVisibility,
+            maxParticipants: editMaxParticipants,
+            closingLobbyDurationSeconds: editClosingLobbyDuration,
+            noShowTimeoutSeconds: editNoShowTimeout,
+          };
           updateMutation.mutate(body);
         }} className="space-y-4">
           <Input label="Title" value={editTitle} onChange={e => setEditTitle(e.target.value)} required />
@@ -754,6 +777,85 @@ export default function SessionDetailPage() {
             />
           </div>
           <Input label="Scheduled At" type="datetime-local" value={editScheduledAt} onChange={e => setEditScheduledAt(e.target.value)} />
+
+          {/* Event Config Fields */}
+          <div className="border-t border-gray-200 pt-4 mt-4">
+            <h3 className="text-sm font-semibold text-[#1a1a2e] mb-3 flex items-center gap-2">
+              <Settings className="h-4 w-4 text-rsn-red" /> Event Configuration
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Number of Rounds</label>
+                <input
+                  type="number" min={1} max={20} value={editNumberOfRounds}
+                  onChange={e => setEditNumberOfRounds(Number(e.target.value))}
+                  className="w-full rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm focus:border-[#1a1a2e] focus:ring-1 focus:ring-[#1a1a2e] outline-none"
+                />
+                <p className="text-xs text-gray-400 mt-1">1 - 20 rounds</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Round Duration (minutes)</label>
+                <input
+                  type="number" min={1} max={60} value={editRoundDurationMinutes}
+                  onChange={e => setEditRoundDurationMinutes(Number(e.target.value))}
+                  className="w-full rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm focus:border-[#1a1a2e] focus:ring-1 focus:ring-[#1a1a2e] outline-none"
+                />
+                <p className="text-xs text-gray-400 mt-1">1 - 60 minutes per round</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Rating Window (seconds)</label>
+                <input
+                  type="number" min={10} max={120} value={editRatingWindowSeconds}
+                  onChange={e => setEditRatingWindowSeconds(Number(e.target.value))}
+                  className="w-full rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm focus:border-[#1a1a2e] focus:ring-1 focus:ring-[#1a1a2e] outline-none"
+                />
+                <p className="text-xs text-gray-400 mt-1">10 - 120 seconds</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Timer Visibility</label>
+                <select
+                  value={editTimerVisibility}
+                  onChange={e => setEditTimerVisibility(e.target.value)}
+                  className="w-full rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm focus:border-[#1a1a2e] focus:ring-1 focus:ring-[#1a1a2e] outline-none"
+                >
+                  <option value="always_visible">Always visible</option>
+                  <option value="hidden">Hidden</option>
+                  <option value="last_10s">Show last 10 seconds</option>
+                  <option value="last_30s">Show last 30 seconds</option>
+                  <option value="last_60s">Show last 60 seconds</option>
+                  <option value="last_120s">Show last 2 minutes</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Max Participants</label>
+                <input
+                  type="number" min={2} max={10000} value={editMaxParticipants}
+                  onChange={e => setEditMaxParticipants(Number(e.target.value))}
+                  className="w-full rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm focus:border-[#1a1a2e] focus:ring-1 focus:ring-[#1a1a2e] outline-none"
+                />
+                <p className="text-xs text-gray-400 mt-1">2 - 10,000</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Closing Lobby Duration (sec)</label>
+                <input
+                  type="number" min={30} max={3600} value={editClosingLobbyDuration}
+                  onChange={e => setEditClosingLobbyDuration(Number(e.target.value))}
+                  className="w-full rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm focus:border-[#1a1a2e] focus:ring-1 focus:ring-[#1a1a2e] outline-none"
+                />
+                <p className="text-xs text-gray-400 mt-1">30 - 3600 seconds</p>
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-600 mb-1">No-Show Timeout (seconds)</label>
+                <input
+                  type="number" min={15} max={300} value={editNoShowTimeout}
+                  onChange={e => setEditNoShowTimeout(Number(e.target.value))}
+                  className="w-full rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm focus:border-[#1a1a2e] focus:ring-1 focus:ring-[#1a1a2e] outline-none"
+                />
+                <p className="text-xs text-gray-400 mt-1">15 - 300 seconds</p>
+              </div>
+            </div>
+          </div>
+
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setEditOpen(false)}>Cancel</Button>
             <Button type="submit" isLoading={updateMutation.isPending}>Save</Button>

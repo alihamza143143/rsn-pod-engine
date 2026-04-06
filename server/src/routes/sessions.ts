@@ -21,6 +21,7 @@ const createSessionSchema = z.object({
   description: z.string().max(2000).optional(),
   scheduledAt: z.string().datetime().nullable(),
   config: z.object({
+    eventType: z.string().optional(),
     numberOfRounds: z.number().int().min(1).max(20).optional(),
     roundDurationSeconds: z.number().int().min(60).max(3600).optional(),
     lobbyDurationSeconds: z.number().int().min(30).max(3600).optional(),
@@ -29,6 +30,8 @@ const createSessionSchema = z.object({
     closingLobbyDurationSeconds: z.number().int().min(30).max(3600).optional(),
     noShowTimeoutSeconds: z.number().int().min(15).max(300).optional(),
     maxParticipants: z.number().int().min(2).max(10000).optional(),
+    timerVisibility: z.string().optional(),
+    matchingTemplateId: z.string().optional(),
   }).optional(),
 });
 
@@ -37,6 +40,7 @@ const updateSessionSchema = z.object({
   description: z.string().max(2000).optional(),
   scheduledAt: z.string().datetime().optional(),
   config: z.object({
+    eventType: z.string().optional(),
     numberOfRounds: z.number().int().min(1).max(20).optional(),
     roundDurationSeconds: z.number().int().min(60).max(3600).optional(),
     lobbyDurationSeconds: z.number().int().min(30).max(3600).optional(),
@@ -45,6 +49,8 @@ const updateSessionSchema = z.object({
     closingLobbyDurationSeconds: z.number().int().min(30).max(3600).optional(),
     noShowTimeoutSeconds: z.number().int().min(15).max(300).optional(),
     maxParticipants: z.number().int().min(2).max(10000).optional(),
+    timerVisibility: z.string().optional(),
+    matchingTemplateId: z.string().optional(),
   }).optional(),
 });
 
