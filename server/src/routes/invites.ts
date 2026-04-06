@@ -508,4 +508,48 @@ router.delete(
   }
 );
 
+// ─── POST /invites/bulk — Bulk invite pod members to a session ─────────────
+
+const bulkInviteSchema = z.object({
+  sessionId: z.string().uuid(),
+  emails: z.array(z.string().email()).min(1).max(500),
+});
+
+router.post(
+  '/bulk',
+  authenticate,
+  validate(bulkInviteSchema),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { sessionId, emails } = req.body;
+      const userId = req.user!.userId;
+      const results = { sent: 0, skipped: 0, errors: 0 };
+
+      for (const email of emails) {
+        try {
+          await inviteService.createInvite(userId, {
+            type: InviteType.SESSION,
+            sessionId,
+            inviteeEmail: email,
+            maxUses: 1,
+          });
+          results.sent++;
+        } catch (err: any) {
+          // Skip already-invited, already-registered, etc
+          if (err?.code === 'INVITE_EXISTS' || err?.code === 'SESSION_ALREADY_REGISTERED' || err?.code === 'CONFLICT') {
+            results.skipped++;
+          } else {
+            results.errors++;
+          }
+        }
+      }
+
+      const response: ApiResponse = { success: true, data: results };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 export default router;

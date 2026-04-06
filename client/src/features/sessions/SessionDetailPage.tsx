@@ -586,34 +586,68 @@ export default function SessionDetailPage() {
       <Modal open={inviteOpen} onClose={() => setInviteOpen(false)} title="Invite to Event">
         <div className="space-y-5">
           {/* Pod Members quick-invite (shown first for convenience) */}
-          {podMembers && podMembers.length > 0 && (
+          {session?.podId && isHost && (
             <div className="rounded-lg border border-indigo-200 bg-indigo-50/30 p-4 space-y-3">
-              <h3 className="text-sm font-semibold text-[#1a1a2e]">Pod Members ({podMembers.length} not yet invited)</h3>
-              <p className="text-xs text-gray-500">Quickly invite members from this pod who haven't been invited yet.</p>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {podMembers.map((m: any) => (
-                  <div key={m.userId} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 border border-gray-100">
-                    <div className="flex items-center gap-3">
-                      {m.avatarUrl ? (
-                        <img src={m.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
-                      ) : (
-                        <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-sm text-indigo-600 font-medium">
-                          {m.displayName?.[0]?.toUpperCase() || '?'}
-                        </div>
-                      )}
-                      <span className="text-sm text-gray-800">{m.displayName || m.email}</span>
-                    </div>
-                    <Button
-                      size="sm"
-                      onClick={() => invitePodMember(m.userId, m.email)}
-                      disabled={invitingMember === m.userId}
-                      isLoading={invitingMember === m.userId}
-                    >
-                      Invite
-                    </Button>
-                  </div>
-                ))}
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-[#1a1a2e]">
+                    Pod Members {podMembers ? `(${podMembers.length} not yet invited)` : ''}
+                  </h3>
+                  <p className="text-xs text-gray-500">Quickly invite members from this pod.</p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  onClick={async () => {
+                    setInvitingMember('all');
+                    try {
+                      const emails = podMembers.map((m: any) => m.email);
+                      const res = await api.post('/invites/bulk', { sessionId, emails });
+                      const r = res.data?.data;
+                      addToast(`Invited ${r?.sent || 0} pod members!${r?.skipped ? ` ${r.skipped} already invited.` : ''}`, 'success');
+                      refetchPodMembers();
+                    } catch (err: any) {
+                      addToast(err?.response?.data?.error?.message || 'Failed to bulk invite', 'error');
+                    } finally {
+                      setInvitingMember(null);
+                    }
+                  }}
+                  disabled={invitingMember === 'all'}
+                  isLoading={invitingMember === 'all'}
+                >
+                  Invite All
+                </Button>
               </div>
+              {!podMembers ? (
+                <p className="text-xs text-gray-400">Loading pod members...</p>
+              ) : podMembers.length === 0 ? (
+                <p className="text-xs text-gray-400">All pod members have already been invited.</p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {podMembers.map((m: any) => (
+                    <div key={m.userId} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 border border-gray-100">
+                      <div className="flex items-center gap-3">
+                        {m.avatarUrl ? (
+                          <img src={m.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
+                        ) : (
+                          <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-sm text-indigo-600 font-medium">
+                            {m.displayName?.[0]?.toUpperCase() || '?'}
+                          </div>
+                        )}
+                        <span className="text-sm text-gray-800">{m.displayName || m.email}</span>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => invitePodMember(m.userId, m.email)}
+                        disabled={invitingMember === m.userId}
+                        isLoading={invitingMember === m.userId}
+                      >
+                        Invite
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
