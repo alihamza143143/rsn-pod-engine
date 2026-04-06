@@ -592,6 +592,38 @@ export async function hardDeletePod(podId: string): Promise<void> {
   logger.info({ podId }, 'Pod permanently deleted by admin');
 }
 
+// ─── Pod Members for Invite ────────────────────────────────────────────────
+
+export async function getPodMembersForInvite(podId: string, sessionId: string): Promise<{
+  userId: string; displayName: string; email: string; avatarUrl: string | null;
+}[]> {
+  const result = await query<{
+    user_id: string; display_name: string; email: string; avatar_url: string | null;
+  }>(`
+    SELECT u.id AS user_id, u.display_name, u.email, u.avatar_url
+    FROM pod_members pm
+    JOIN users u ON u.id = pm.user_id
+    WHERE pm.pod_id = $1
+      AND pm.status = 'active'
+      AND pm.user_id NOT IN (
+        SELECT sp.user_id FROM session_participants sp WHERE sp.session_id = $2
+      )
+      AND pm.user_id NOT IN (
+        SELECT i.accepted_by_user_id FROM invites i
+        WHERE i.session_id = $2 AND i.status IN ('pending', 'active', 'accepted')
+        AND i.accepted_by_user_id IS NOT NULL
+      )
+    ORDER BY u.display_name
+  `, [podId, sessionId]);
+
+  return result.rows.map(r => ({
+    userId: r.user_id,
+    displayName: r.display_name,
+    email: r.email,
+    avatarUrl: r.avatar_url,
+  }));
+}
+
 // ─── Authorization Helpers ──────────────────────────────────────────────────
 
 async function requirePodRole(podId: string, userId: string, roles: PodMemberRole[]): Promise<void> {

@@ -49,6 +49,7 @@ export default function SessionDetailPage() {
   const [selectedUsers, setSelectedUsers] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [showPendingInvites, setShowPendingInvites] = useState(false);
+  const [invitingMember, setInvitingMember] = useState<string | null>(null);
 
   const { data: session, isLoading } = useQuery({
     queryKey: ['session', sessionId],
@@ -80,6 +81,30 @@ export default function SessionDetailPage() {
     queryFn: () => api.get(`/invites/session/${sessionId}?status=pending`).then(r => r.data.data ?? []),
     enabled: !!sessionId && (isHost || isAdmin) && showPendingInvites,
   });
+
+  const { data: podMembers, refetch: refetchPodMembers } = useQuery({
+    queryKey: ['pod-members-for-invite', session?.podId, sessionId],
+    queryFn: () => api.get(`/pods/${session?.podId}/members/for-invite?sessionId=${sessionId}`).then(r => r.data.data),
+    enabled: !!session?.podId && !!sessionId && isHost,
+  });
+
+  const invitePodMember = async (userId: string, email: string) => {
+    setInvitingMember(userId);
+    try {
+      await api.post('/invites', {
+        type: 'session',
+        sessionId,
+        inviteeEmail: email,
+        maxUses: 1,
+      });
+      addToast('Invite sent!', 'success');
+      refetchPodMembers();
+    } catch (err: any) {
+      addToast(err?.response?.data?.error?.message || 'Failed to invite', 'error');
+    } finally {
+      setInvitingMember(null);
+    }
+  };
 
   const remindMutation = useMutation({
     mutationFn: (inviteId: string) => api.post(`/invites/${inviteId}/remind`),
@@ -560,6 +585,38 @@ export default function SessionDetailPage() {
               <Mail className="h-4 w-4 mr-2" /> Send Invite Email
             </Button>
           </div>
+
+          {/* Pod Members quick-invite */}
+          {podMembers && podMembers.length > 0 && (
+            <div className="rounded-lg border border-gray-200 p-4 space-y-3">
+              <h3 className="text-sm font-semibold text-[#1a1a2e]">Pod Members ({podMembers.length} not yet invited)</h3>
+              <p className="text-xs text-gray-500">Quickly invite members from this pod who haven't been invited yet.</p>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {podMembers.map((m: any) => (
+                  <div key={m.userId} className="flex items-center justify-between p-2 rounded-lg bg-gray-50 border border-gray-100">
+                    <div className="flex items-center gap-3">
+                      {m.avatarUrl ? (
+                        <img src={m.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
+                      ) : (
+                        <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-sm text-indigo-600 font-medium">
+                          {m.displayName?.[0]?.toUpperCase() || '?'}
+                        </div>
+                      )}
+                      <span className="text-sm text-gray-800">{m.displayName || m.email}</span>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => invitePodMember(m.userId, m.email)}
+                      disabled={invitingMember === m.userId}
+                      isLoading={invitingMember === m.userId}
+                    >
+                      Invite
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Option 2: Invite platform users */}
           {isHost && (
