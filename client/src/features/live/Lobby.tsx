@@ -471,11 +471,11 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
             <Sparkles className="h-6 w-6" />
           </div>
           <h2 className="text-xl font-bold text-[#1a1a2e]">Lobby</h2>
-          <p className="text-gray-400 text-sm">
-            {isHost
-              ? 'You\'re the host — click Match People below when ready'
-              : 'The host will start matching shortly.'}
-          </p>
+          {isHost && (
+            <p className="text-gray-400 text-sm">
+              You're the host — click Match People below when ready
+            </p>
+          )}
         </>
       )}
       <div className="flex items-center justify-center gap-2 text-gray-500 text-xs">
