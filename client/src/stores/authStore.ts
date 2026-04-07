@@ -185,3 +185,41 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     scheduleProactiveRefresh(access);
   },
 }));
+
+// ── Cross-Tab Auth Sync ──────────────────────────────────────────────────────
+// When ANY tab logs in or out, ALL other tabs detect it and update their state.
+// This uses the browser's 'storage' event which fires in all tabs EXCEPT the
+// one that made the change. Works for 10+ tabs automatically.
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event: StorageEvent) => {
+    const store = useAuthStore.getState();
+
+    // Another tab logged in — pick up the tokens
+    if (event.key === 'rsn_access' && event.newValue && !store.isAuthenticated) {
+      const refresh = localStorage.getItem('rsn_refresh');
+      if (refresh) {
+        store.setTokens(event.newValue, refresh);
+        store.checkSession();
+      }
+    }
+
+    // Another tab logged out — clear this tab too
+    if (event.key === 'rsn_access' && !event.newValue && store.isAuthenticated) {
+      clearRefreshTimer();
+      useAuthStore.setState({
+        user: null, accessToken: null, refreshToken: null,
+        isAuthenticated: false, isLoading: false,
+      });
+    }
+
+    // Auth completion signal (from VerifyPage)
+    if (event.key === 'rsn_auth_completed_at' && event.newValue) {
+      const access = localStorage.getItem('rsn_access');
+      const refresh = localStorage.getItem('rsn_refresh');
+      if (access && refresh && !store.isAuthenticated) {
+        store.setTokens(access, refresh);
+        store.checkSession();
+      }
+    }
+  });
+}
