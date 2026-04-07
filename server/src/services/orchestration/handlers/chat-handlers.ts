@@ -196,12 +196,9 @@ export async function handleReactionSend(
 
     const displayName = (socket.data as any)?.displayName || 'User';
 
-    // Scope reactions: if user is in a breakout room (has matchId), emit only to that room
-    // Otherwise emit to the full session (lobby)
-    const targetRoom = data.matchId
-      ? `match:${data.matchId}`
-      : sessionRoom(sessionId);
-    io.to(targetRoom).emit('reaction:received', {
+    // Emit reactions to the full session room — all participants see floating emojis
+    // (Sockets don't join match: rooms, so scoping to match room wouldn't reach anyone)
+    io.to(sessionRoom(sessionId)).emit('reaction:received', {
       userId,
       displayName,
       type,
