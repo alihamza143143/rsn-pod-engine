@@ -636,11 +636,15 @@ function DeviceTest() {
 
   return (
     <div className="flex flex-col items-center gap-3 py-4">
-      {/* Camera preview */}
+      {/* Camera preview — always render video element, hide with CSS to preserve srcObject */}
       <div className="relative w-56 h-40 rounded-xl overflow-hidden bg-[#3c4043]">
-        {camOn ? (
-          <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-cover" style={{ transform: 'scaleX(-1)' }} />
-        ) : (
+        <video
+          ref={videoRef}
+          autoPlay muted playsInline
+          className="h-full w-full object-cover"
+          style={{ transform: 'scaleX(-1)', display: camOn ? 'block' : 'none' }}
+        />
+        {!camOn && (
           <div className="h-full w-full flex items-center justify-center">
             <VideoOff className="h-8 w-8 text-gray-500" />
           </div>
@@ -655,14 +659,12 @@ function DeviceTest() {
         <button onClick={toggleMic} className={`p-2 rounded-full transition-colors ${micOn ? 'bg-white/10 text-[#1a1a2e] hover:bg-white/20' : 'bg-red-500/80 text-[#1a1a2e]'}`}>
           {micOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
         </button>
-        {/* Mic level bar */}
-        {micOn && (
-          <div className="flex items-center gap-1">
-            <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
-              <div className="h-full bg-green-500 rounded-full transition-all duration-75" style={{ width: `${micLevel * 100}%` }} />
-            </div>
+        {/* Mic level bar — always visible, dims when muted */}
+        <div className="flex items-center gap-1">
+          <div className="w-16 h-1.5 bg-white/10 rounded-full overflow-hidden">
+            <div className={`h-full rounded-full transition-all duration-75 ${micOn ? 'bg-green-500' : 'bg-gray-500'}`} style={{ width: `${micOn ? micLevel * 100 : 0}%` }} />
           </div>
-        )}
+        </div>
       </div>
       <p className="text-[10px] text-gray-500">Test your camera and mic before the event starts</p>
     </div>
