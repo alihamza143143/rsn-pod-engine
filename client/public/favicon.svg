@@ -1,19 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <rect width="64" height="64" rx="14" fill="#DE322E"/>
-  <g transform="translate(8,8) scale(0.75)">
-    <!-- Black sheep silhouette -->
-    <ellipse cx="36" cy="28" rx="22" ry="16" fill="white"/>
-    <circle cx="18" cy="22" r="8" fill="white"/>
-    <circle cx="14" cy="18" r="4" fill="white"/>
-    <ellipse cx="36" cy="28" rx="20" ry="14" fill="#1a1a2e"/>
-    <circle cx="18" cy="22" r="6.5" fill="#1a1a2e"/>
-    <circle cx="14" cy="19" r="3" fill="#1a1a2e"/>
-    <!-- Legs -->
-    <rect x="22" y="40" width="4" height="10" rx="1.5" fill="#1a1a2e"/>
-    <rect x="40" y="40" width="4" height="10" rx="1.5" fill="#1a1a2e"/>
-    <!-- Eye -->
-    <circle cx="13" cy="18" r="1.5" fill="white"/>
-    <!-- Ear -->
-    <ellipse cx="21" cy="15" rx="3" ry="5" fill="#1a1a2e" transform="rotate(-20 21 15)"/>
-  </g>
+  <rect width="64" height="64" rx="8" fill="white"/>
+  <!-- Corner brackets -->
+  <path d="M8 20 L8 8 L20 8" stroke="#333" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M44 56 L56 56 L56 44" stroke="#333" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <!-- Sheep body -->
+  <ellipse cx="24" cy="32" rx="11" ry="9" fill="#333"/>
+  <!-- Sheep head -->
+  <circle cx="15" cy="27" r="5" fill="#333"/>
+  <circle cx="12" cy="25" r="2.5" fill="#333"/>
+  <!-- Eye -->
+  <circle cx="12" cy="24.5" r="1" fill="white"/>
+  <!-- Legs -->
+  <rect x="18" y="40" width="2.5" height="7" rx="1" fill="#333"/>
+  <rect x="27" y="40" width="2.5" height="7" rx="1" fill="#333"/>
+  <!-- RSN text -->
+  <text x="44" y="38" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="700" font-size="11" fill="#333">RSN</text>
 </svg>
