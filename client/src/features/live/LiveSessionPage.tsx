@@ -261,7 +261,7 @@ export default function LiveSessionPage() {
 
 const STATE_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
   scheduled:        { label: 'Event not started yet', icon: <Users className="h-3.5 w-3.5" />, color: 'bg-white/5 text-gray-400' },
-  lobby_open:       { label: 'Main Room — waiting for host to start round', icon: <Mic className="h-3.5 w-3.5" />, color: 'bg-white/5 text-gray-300' },
+  lobby_open:       { label: 'Main Room', icon: <Mic className="h-3.5 w-3.5" />, color: 'bg-white/5 text-gray-300' },
   round_active:     { label: 'Round {round} Live', icon: <Radio className="h-3.5 w-3.5 animate-pulse" />, color: 'bg-red-500/10 text-red-400' },
   round_rating:     { label: 'Rating — Round {round}', icon: <ArrowLeftRight className="h-3.5 w-3.5" />, color: 'bg-amber-500/10 text-amber-400' },
   round_transition: { label: 'Back in main room', icon: <Shuffle className="h-3.5 w-3.5" />, color: 'bg-white/5 text-gray-300' },

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
 import { Spinner } from '@/components/ui/Spinner';
-import { CheckCircle, Users, Star, Heart, ArrowRight, UserCheck, CircleDot } from 'lucide-react';
+import { CheckCircle, Users, Star, Handshake, ArrowRight, UserCheck, CircleDot } from 'lucide-react';
 import api from '@/lib/api';
 
 interface Connection {
@@ -31,15 +31,15 @@ interface Props { sessionId: string; }
 function InterestBadge({ connection }: { connection: Connection }) {
   if (connection.mutualMeetAgain) {
     return (
-      <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-pink-500/10 border border-pink-500/20 text-pink-400 font-medium">
-        <Heart className="h-3 w-3 fill-pink-400" />
+      <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-600 font-medium">
+        <Handshake className="h-3 w-3 text-indigo-500" />
         <span>Mutual Match!</span>
       </div>
     );
   }
   if (connection.meetAgain && !connection.theirMeetAgain) {
     return (
-      <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400">
+      <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-600">
         <UserCheck className="h-3 w-3" />
         <span>You expressed interest</span>
       </div>
@@ -47,7 +47,7 @@ function InterestBadge({ connection }: { connection: Connection }) {
   }
   if (!connection.meetAgain && connection.theirMeetAgain) {
     return (
-      <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-blue-400">
+      <div className="flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-blue-600">
         <UserCheck className="h-3 w-3" />
         <span>They expressed interest</span>
       </div>
@@ -98,32 +98,32 @@ export default function SessionComplete({ sessionId }: Props) {
   }, [sessionId]);
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 bg-[#202124]">
+    <div className="flex-1 overflow-y-auto p-4 bg-white">
       <div className="max-w-2xl mx-auto space-y-6">
         {/* Header */}
-        <div className="text-center bg-[#292a2d] rounded-2xl p-8">
-          <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-500/20 text-emerald-400 mb-4">
+        <div className="text-center bg-gray-50 rounded-2xl p-8 border border-gray-200">
+          <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-500/20 text-emerald-500 mb-4">
             <CheckCircle className="h-8 w-8" />
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">Event Complete!</h2>
-          <p className="text-gray-400">Great networking! Here's your recap.</p>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Event Complete!</h2>
+          <p className="text-gray-500">Great networking! Here's your recap.</p>
         </div>
 
         {loading ? (
           <div className="flex justify-center py-8"><Spinner /></div>
         ) : fetchError ? (
-          <div className="text-center bg-[#292a2d] rounded-2xl p-8">
-            <p className="text-gray-400 mb-3">Could not load your recap.</p>
+          <div className="text-center bg-gray-50 rounded-2xl p-8 border border-gray-200">
+            <p className="text-gray-500 mb-3">Could not load your recap.</p>
             <Button size="sm" variant="secondary" onClick={fetchRecap}>Retry</Button>
           </div>
         ) : (
           <>
             {/* Participation summary */}
             {totalRounds > 0 && (
-              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5">
-                <CircleDot className="h-4 w-4 text-blue-400 shrink-0" />
-                <p className="text-sm text-gray-400">
-                  You attended <span className="font-semibold text-white">{roundsAttended}</span> round{roundsAttended !== 1 ? 's' : ''} out of <span className="font-semibold text-white">{totalRounds}</span> total
+              <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gray-50 border border-gray-200">
+                <CircleDot className="h-4 w-4 text-blue-500 shrink-0" />
+                <p className="text-sm text-gray-500">
+                  You attended <span className="font-semibold text-gray-900">{roundsAttended}</span> round{roundsAttended !== 1 ? 's' : ''} out of <span className="font-semibold text-gray-900">{totalRounds}</span> total
                 </p>
               </div>
             )}
@@ -131,23 +131,23 @@ export default function SessionComplete({ sessionId }: Props) {
             {/* Stats summary */}
             {stats && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="text-center py-3 bg-[#292a2d] rounded-xl p-4">
-                  <Users className="h-5 w-5 text-blue-400 mx-auto mb-1" />
-                  <p className="text-2xl font-bold text-white">{connections.length}</p>
+                <div className="text-center py-3 bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <Users className="h-5 w-5 text-blue-500 mx-auto mb-1" />
+                  <p className="text-2xl font-bold text-gray-900">{connections.length}</p>
                   <p className="text-xs text-gray-500">People Met</p>
                 </div>
-                <div className="text-center py-3 bg-[#292a2d] rounded-xl p-4">
-                  <Heart className="h-5 w-5 text-pink-400 mx-auto mb-1" />
-                  <p className="text-2xl font-bold text-white">{stats.mutualMeetAgainCount}</p>
+                <div className="text-center py-3 bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <Handshake className="h-5 w-5 text-indigo-500 mx-auto mb-1" />
+                  <p className="text-2xl font-bold text-gray-900">{stats.mutualMeetAgainCount}</p>
                   <p className="text-xs text-gray-500">Mutual Matches</p>
                 </div>
-                <div className="text-center py-3 bg-[#292a2d] rounded-xl p-4">
-                  <Star className="h-5 w-5 text-amber-400 mx-auto mb-1" />
-                  <p className="text-2xl font-bold text-white">{stats.avgQualityScore.toFixed(1)}</p>
+                <div className="text-center py-3 bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <Star className="h-5 w-5 text-amber-500 mx-auto mb-1" />
+                  <p className="text-2xl font-bold text-gray-900">{stats.avgQualityScore.toFixed(1)}</p>
                   <p className="text-xs text-gray-500">Avg Rating</p>
                 </div>
-                <div className="text-center py-3 bg-[#292a2d] rounded-xl p-4">
-                  <p className="text-2xl font-bold text-white">{Math.round(stats.meetAgainRate * 100)}%</p>
+                <div className="text-center py-3 bg-gray-50 rounded-xl p-4 border border-gray-200">
+                  <p className="text-2xl font-bold text-gray-900">{Math.round(stats.meetAgainRate * 100)}%</p>
                   <p className="text-xs text-gray-500">Meet Again Rate</p>
                 </div>
               </div>
@@ -155,24 +155,24 @@ export default function SessionComplete({ sessionId }: Props) {
 
             {/* Mutual connections */}
             {mutualConnections.length > 0 && (
-              <div className="bg-[#292a2d] rounded-2xl p-6">
-                <h3 className="text-sm font-semibold text-pink-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                  <Heart className="h-4 w-4 fill-pink-400" />
+              <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
+                <h3 className="text-sm font-semibold text-indigo-600 uppercase tracking-wider mb-3 flex items-center gap-2">
+                  <Handshake className="h-4 w-4 text-indigo-500" />
                   Mutual Matches
                 </h3>
                 <div className="space-y-3">
                   {mutualConnections.map(c => (
-                    <a key={c.userId} href={`/profile/${c.userId}`} className="flex items-center gap-3 p-2 rounded-lg bg-pink-500/10 border border-pink-500/20 hover:bg-pink-500/15 transition-colors">
+                    <a key={c.userId} href={`/profile/${c.userId}`} className="flex items-center gap-3 p-2 rounded-lg bg-indigo-50 border border-indigo-200 hover:bg-indigo-100 transition-colors">
                       <Avatar src={c.avatarUrl} name={c.displayName || 'User'} size="sm" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-gray-200 font-medium truncate">{c.displayName}</p>
+                        <p className="text-gray-900 font-medium truncate">{c.displayName}</p>
                         {(c.jobTitle || c.company) && (
                           <p className="text-xs text-gray-500 truncate">
                             {[c.jobTitle, c.company].filter(Boolean).join(' · ')}
                           </p>
                         )}
                       </div>
-                      <Heart className="h-4 w-4 text-pink-400 fill-pink-400 shrink-0" />
+                      <Handshake className="h-4 w-4 text-indigo-500 shrink-0" />
                     </a>
                   ))}
                 </div>
@@ -187,23 +187,23 @@ export default function SessionComplete({ sessionId }: Props) {
               }, {});
               const rounds = Object.keys(byRound).map(Number).sort((a, b) => a - b);
               return rounds.map(round => (
-                <div key={round} className="bg-[#292a2d] rounded-2xl p-6">
+                <div key={round} className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
                   <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-500/10 text-blue-400 text-[10px] font-bold">{round}</span>
+                    <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-blue-50 text-blue-600 text-[10px] font-bold">{round}</span>
                     Round {round}
                   </h3>
                   <div className="space-y-2">
                     {byRound[round].map(c => (
-                      <a key={`${c.userId}-${c.roundNumber}`} href={`/profile/${c.userId}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5">
+                      <a key={`${c.userId}-${c.roundNumber}`} href={`/profile/${c.userId}`} className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100">
                         <Avatar src={c.avatarUrl} name={c.displayName || 'User'} size="sm" />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="text-gray-200 font-medium truncate">{c.displayName}</p>
+                            <p className="text-gray-900 font-medium truncate">{c.displayName}</p>
                             <InterestBadge connection={c} />
                           </div>
                         </div>
                         {c.qualityScore > 0 && (
-                          <div className="flex items-center gap-1 text-xs text-amber-400">
+                          <div className="flex items-center gap-1 text-xs text-amber-500">
                             <Star className="h-3 w-3 fill-amber-400" />
                             {c.qualityScore}
                           </div>
@@ -256,16 +256,16 @@ function FeedbackPrompt({ sessionId }: { sessionId: string }) {
 
   if (submitted) {
     return (
-      <div className="text-center py-4 bg-[#292a2d] rounded-2xl p-6">
+      <div className="text-center py-4 bg-gray-50 rounded-2xl p-6 border border-gray-200">
         <CheckCircle className="h-5 w-5 text-emerald-500 mx-auto mb-1" />
-        <p className="text-sm text-gray-400">Thanks for your feedback!</p>
+        <p className="text-sm text-gray-500">Thanks for your feedback!</p>
       </div>
     );
   }
 
   return (
-    <div className="bg-[#292a2d] rounded-2xl p-6">
-      <h3 className="text-sm font-semibold text-gray-200 mb-2">Is there anything you want to add?</h3>
+    <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
+      <h3 className="text-sm font-semibold text-gray-900 mb-2">Is there anything you want to add?</h3>
       <p className="text-xs text-gray-500 mb-3">Share your thoughts about this event — what worked, what could be better.</p>
       <textarea
         value={text}

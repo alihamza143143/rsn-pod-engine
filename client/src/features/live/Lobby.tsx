@@ -234,6 +234,10 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
       const target = !camEnabled;
       await localParticipant.setCameraEnabled(target);
       setCamEnabled(target);
+      // Mobile fix: verify track state restored after a short delay
+      setTimeout(() => {
+        setCamEnabled(localParticipant.isCameraEnabled);
+      }, 500);
     } catch (err) {
       console.error('Camera toggle failed, retrying:', err);
       try {
