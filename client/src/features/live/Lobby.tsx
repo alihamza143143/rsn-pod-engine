@@ -231,28 +231,30 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
 
   const toggleCam = useCallback(async () => {
     const target = !camEnabled;
+    setCamEnabled(target); // Optimistic UI update
     try {
-      if (!target) {
-        // Turning OFF — just disable
-        await localParticipant.setCameraEnabled(false);
-        setCamEnabled(false);
-      } else {
-        // Turning ON — unpublish stale tracks first, then re-enable fresh
-        for (const pub of localParticipant.videoTrackPublications.values()) {
-          if (pub.track) {
-            try { await localParticipant.unpublishTrack(pub.track); } catch { /* ignore */ }
-          }
-        }
-        await localParticipant.setCameraEnabled(true);
-        setCamEnabled(true);
-        // Verify after delay — catches mobile browser quirks
-        setTimeout(() => setCamEnabled(localParticipant.isCameraEnabled), 500);
-      }
+      await localParticipant.setCameraEnabled(target);
     } catch (err) {
       console.error('Camera toggle failed:', err);
-      // Last resort: read actual state from LiveKit
-      setCamEnabled(localParticipant.isCameraEnabled);
+      // If direct toggle fails, try the nuclear option: stop all video, then re-enable
+      if (target) {
+        try {
+          // Stop existing tracks
+          const tracks = Array.from(localParticipant.videoTrackPublications.values());
+          for (const pub of tracks) {
+            if (pub.track) pub.track.stop();
+          }
+          // Wait for cleanup
+          await new Promise(r => setTimeout(r, 300));
+          // Request fresh camera
+          await localParticipant.setCameraEnabled(true);
+        } catch (retryErr) {
+          console.error('Camera retry also failed:', retryErr);
+        }
+      }
     }
+    // Always sync from actual state after 500ms
+    setTimeout(() => setCamEnabled(localParticipant.isCameraEnabled), 500);
   }, [localParticipant, camEnabled]);
 
   const handleMuteAll = useCallback(() => {
