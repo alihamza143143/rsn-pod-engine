@@ -260,7 +260,10 @@ function MediaControls() {
         className={`p-2 rounded-full transition-colors ${camEnabled ? 'bg-gray-200 hover:bg-gray-300 text-gray-700' : 'bg-red-100 text-red-500 hover:bg-red-200'}`}>
         {camEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
       </button>
-      {/* Background effects button removed — already accessible via BG button in media controls */}
+      <button onClick={() => setShowBgPanel(!showBgPanel)} title="Background effects"
+        className={`px-2.5 py-1.5 rounded-full text-xs font-bold transition-colors ${bgMode !== 'disabled' ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
+        BG
+      </button>
 
       {/* Background effects panel */}
       {showBgPanel && (
