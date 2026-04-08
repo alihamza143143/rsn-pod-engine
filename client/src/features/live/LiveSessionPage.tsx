@@ -96,7 +96,15 @@ export default function LiveSessionPage() {
     <div className="h-screen bg-white flex flex-col">
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
-        <h2 className="text-sm font-medium text-[#1a1a2e] truncate">{session?.title || 'Live Event'}</h2>
+        <div className="flex items-center gap-1.5 min-w-0">
+          {session?.podId && session?.podName && (
+            <span className="text-xs text-gray-400 shrink-0">
+              <a href={`/pods/${session.podId}`} className="hover:text-gray-600 transition-colors">{session.podName}</a>
+              <span className="mx-1">/</span>
+            </span>
+          )}
+          <h2 className="text-sm font-medium text-[#1a1a2e] truncate">{session?.title || 'Live Event'}</h2>
+        </div>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setParticipantListOpen(!participantListOpen)}

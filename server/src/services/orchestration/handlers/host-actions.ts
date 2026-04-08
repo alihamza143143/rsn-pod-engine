@@ -797,6 +797,70 @@ export async function handleHostMoveToRoom(
   });
 }
 
+// ─── Host: Extend Round Timer ──────────────────────────────────────────────
+
+export async function handleHostExtendRound(
+  io: SocketServer,
+  socket: Socket,
+  data: { sessionId: string; additionalSeconds: number }
+): Promise<void> {
+  return withSessionGuard(data.sessionId, async () => {
+    if (!await verifyHost(socket, data.sessionId)) return;
+
+    const activeSession = activeSessions.get(data.sessionId);
+    if (!activeSession || !activeSession.timerEndsAt) {
+      socket.emit('error', { code: 'NO_TIMER', message: 'No active timer to extend' });
+      return;
+    }
+
+    if (activeSession.status !== SessionStatus.ROUND_ACTIVE) {
+      socket.emit('error', { code: 'INVALID_STATE', message: 'Can only extend timer during an active round' });
+      return;
+    }
+
+    const additionalMs = (data.additionalSeconds || 120) * 1000;
+
+    // Extend the timerEndsAt
+    const newEndsAt = new Date(activeSession.timerEndsAt.getTime() + additionalMs);
+    activeSession.timerEndsAt = newEndsAt;
+
+    // Reschedule the main timeout: clear old, set new with remaining time
+    if (activeSession.timer) {
+      clearTimeout(activeSession.timer);
+      activeSession.timer = null;
+    }
+
+    const remainingMs = newEndsAt.getTime() - Date.now();
+    if (_timerCallbacks) {
+      const callback = getTimerCallbackForState(data.sessionId, activeSession, _timerCallbacks);
+      // Set a raw timeout (don't use startSegmentTimer which resets timerEndsAt)
+      activeSession.timer = setTimeout(() => {
+        activeSession.timer = null;
+        activeSession.timerEndsAt = null;
+        if (activeSession.timerSyncInterval) {
+          clearInterval(activeSession.timerSyncInterval);
+          activeSession.timerSyncInterval = null;
+        }
+        callback();
+      }, remainingMs);
+    }
+
+    // Broadcast updated timer to all participants
+    const remaining = Math.ceil(remainingMs / 1000);
+    io.to(sessionRoom(data.sessionId)).emit('timer:sync', {
+      segmentType: activeSession.status,
+      secondsRemaining: remaining,
+    });
+
+    persistSessionState(data.sessionId, activeSession);
+
+    logger.info(
+      { sessionId: data.sessionId, additionalSeconds: data.additionalSeconds, newRemaining: remaining },
+      'Round extended by host'
+    );
+  });
+}
+
 // ─── Co-Host Management ─────────────────────────────────────────────────────
 
 export async function handleAssignCohost(

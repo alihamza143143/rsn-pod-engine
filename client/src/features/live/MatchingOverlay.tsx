@@ -8,11 +8,23 @@ interface Props {
 
 export default function MatchingOverlay({ roundNumber }: Props) {
   const [phase, setPhase] = useState<'matching' | 'result'>('matching');
+  const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
     const timer = setTimeout(() => setPhase('result'), 1800);
     return () => clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    if (phase !== 'result') return;
+    const timer = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) { clearInterval(timer); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [phase]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#202124]/95 backdrop-blur-sm">
@@ -82,7 +94,9 @@ export default function MatchingOverlay({ roundNumber }: Props) {
               <h2 className="text-xl font-semibold text-white">
                 You've been matched!
               </h2>
-              <p className="text-sm text-gray-400 mt-1">Connecting you now...</p>
+              <p className="text-sm text-gray-400 mt-1">
+                {countdown > 0 ? `Entering breakout room in ${countdown}...` : 'Connecting you now...'}
+              </p>
             </div>
           </>
         )}

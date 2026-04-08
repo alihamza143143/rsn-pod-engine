@@ -29,7 +29,7 @@ import {
   handleHostStart, handleHostStartRound, handleHostPause, handleHostResume,
   handleHostEnd, handleHostBroadcast, handleHostRemoveParticipant, handleHostReassign,
   handleHostMuteParticipant, handleHostMuteAll, handleHostRemoveFromRoom,
-  handleHostMoveToRoom, handleAssignCohost, handleRemoveCohost,
+  handleHostMoveToRoom, handleAssignCohost, handleRemoveCohost, handleHostExtendRound,
   startSession, pauseSession, resumeSession, endSession, broadcastMessage,
   setHostActionsIo, injectHostActionDeps,
 } from './handlers/host-actions';
@@ -172,6 +172,7 @@ export function initOrchestration(socketServer: SocketServer): void {
     wrapHandler('host:move_to_room', socket, handleHostMoveToRoom);
     wrapHandler('host:assign_cohost', socket, handleAssignCohost);
     wrapHandler('host:remove_cohost', socket, handleRemoveCohost);
+    wrapHandler('host:extend_round', socket, handleHostExtendRound);
 
     // ── Host Events (unguarded — no session state mutation) ──
     socket.on('host:broadcast_message', async (data) => {

@@ -129,6 +129,9 @@ export interface ClientToServerEvents {
   // Breakout room
   'participant:leave_conversation': (data: { sessionId: string }) => void;
 
+  // Timer extension
+  'host:extend_round': (data: { sessionId: string; additionalSeconds: number }) => void;
+
   // Co-host
   'host:assign_cohost': (data: { sessionId: string; userId: string; role: 'co_host' | 'moderator' }) => void;
   'host:remove_cohost': (data: { sessionId: string; userId: string }) => void;

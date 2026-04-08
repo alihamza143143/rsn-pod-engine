@@ -1,6 +1,6 @@
 import { useSessionStore } from '@/stores/sessionStore';
 import { Button } from '@/components/ui/Button';
-import { Play, Square, Loader2, Users, Radio, Shuffle, Check, X, Pause, SkipForward, MessageSquare, UserMinus, RefreshCw, UserPlus, AlertTriangle, CheckCircle2 } from 'lucide-react';
+import { Play, Square, Loader2, Users, Radio, Shuffle, Check, X, Pause, SkipForward, MessageSquare, UserMinus, RefreshCw, UserPlus, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
 import { getSocket } from '@/lib/socket';
 import { useState } from 'react';
 
@@ -405,6 +405,15 @@ export default function HostControls({ sessionId }: Props) {
             {isInRound && phase === 'matched' && (
               <Button size="sm" variant="secondary" onClick={togglePause}>
                 {isPaused ? <><Play className="h-4 w-4 mr-1" /> Resume</> : <><Pause className="h-4 w-4 mr-1" /> Pause</>}
+              </Button>
+            )}
+
+            {/* Extend round by 2 minutes */}
+            {isInRound && phase === 'matched' && (
+              <Button size="sm" variant="secondary" onClick={() => {
+                socket?.emit('host:extend_round', { sessionId, additionalSeconds: 120 });
+              }} title="Add 2 minutes to the current round">
+                <Clock className="h-4 w-4 mr-1" /> +2 min
               </Button>
             )}
 
