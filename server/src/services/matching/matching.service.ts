@@ -86,7 +86,8 @@ export async function generateSessionSchedule(
 export async function generateSingleRound(
   sessionId: string,
   roundNumber: number,
-  excludeUserIds?: string[]
+  excludeUserIds?: string[],
+  presentUserIds?: Set<string>
 ): Promise<RoundAssignment> {
   const session = await sessionService.getSessionById(sessionId);
   const sessionConfig = typeof session.config === 'string'
@@ -114,6 +115,14 @@ export async function generateSingleRound(
          WHERE sp.session_id = $1 AND sp.status IN ('in_lobby', 'checked_in', 'registered')`,
         [sessionId]
       );
+
+  // Phase 2 (Redis): presentUserIds will come from Redis presence instead of in-memory map.
+  // Filter to only participants who are actually connected (prevents phantom matches).
+  if (presentUserIds && presentUserIds.size > 0) {
+    participantsResult.rows = participantsResult.rows.filter(
+      (p) => presentUserIds.has(p.userId)
+    );
+  }
 
   // Get encounter history
   const userIds = participantsResult.rows.map((p) => p.userId);

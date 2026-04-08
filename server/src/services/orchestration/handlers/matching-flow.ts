@@ -70,13 +70,16 @@ export async function handleHostGenerateMatches(
 
     // Need at least 2 non-host/co-host participants for matching
     const allHostIds = await getAllHostIds(data.sessionId, activeSession.hostUserId);
-    const countResult = await query<{ count: string }>(
-      `SELECT COUNT(*) as count FROM session_participants
-       WHERE session_id = $1 AND status IN ('in_lobby', 'checked_in', 'registered')
-         AND user_id != ALL($2)`,
-      [data.sessionId, allHostIds]
+    const hostIdSet = new Set(allHostIds);
+
+    // Cross-check DB status with actual presence to prevent phantom matches.
+    // Phase 2 (Redis): presentUserIds will come from Redis presence instead of in-memory map.
+    const presentUserIds = new Set(activeSession.presenceMap.keys());
+    const presentNonHostIds = new Set(
+      [...presentUserIds].filter(uid => !hostIdSet.has(uid))
     );
-    const participantCount = parseInt(countResult.rows[0].count, 10);
+    const participantCount = presentNonHostIds.size;
+
     if (participantCount < 2) {
       socket.emit('error', {
         code: 'NOT_ENOUGH_PARTICIPANTS',
@@ -103,7 +106,7 @@ export async function handleHostGenerateMatches(
 
     // FIX 3B: Matching engine timeout — 60s max to prevent indefinite hangs
     try {
-      const matchPromise = matchingService.generateSingleRound(data.sessionId, nextRound, allHostIds);
+      const matchPromise = matchingService.generateSingleRound(data.sessionId, nextRound, allHostIds, presentUserIds);
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Matching engine timeout after 60s')), MATCHING_TIMEOUT_MS)
       );
@@ -317,9 +320,10 @@ export async function handleHostRegenerateMatches(
       [data.sessionId, roundNumber]
     );
 
-    // Re-generate (exclude host + co-hosts from matching)
+    // Re-generate (exclude host + co-hosts from matching, filter by presence)
     const allHostIds = await getAllHostIds(data.sessionId, activeSession.hostUserId);
-    await matchingService.generateSingleRound(data.sessionId, roundNumber, allHostIds);
+    const presentUserIds = new Set(activeSession.presenceMap.keys());
+    await matchingService.generateSingleRound(data.sessionId, roundNumber, allHostIds, presentUserIds);
 
     // Re-send preview
     await sendMatchPreview(io, socket, data.sessionId, roundNumber, activeSession.hostUserId);

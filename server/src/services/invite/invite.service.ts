@@ -206,8 +206,17 @@ export async function createInvite(userId: string, input: CreateInviteInput, use
         const cfg = session.config || {};
         const rounds = cfg.numberOfRounds || 5;
         const roundDuration = cfg.roundDurationSeconds || 480;
-        const breakDuration = cfg.transitionDurationSeconds || 30;
-        const totalMinutes = Math.ceil((rounds * roundDuration + (rounds - 1) * breakDuration) / 60);
+        const ratingWindow = cfg.ratingWindowSeconds || 30;
+        const transitionDuration = cfg.transitionDurationSeconds || 30;
+        const closingLobby = cfg.closingLobbyDurationSeconds || 120;
+
+        const totalSeconds =
+          (rounds * roundDuration) +
+          (rounds * ratingWindow) +
+          ((rounds - 1) * transitionDuration) +
+          closingLobby;
+
+        const totalMinutes = Math.ceil(totalSeconds / 60);
 
         // Get host email for organizer
         const hostResult = await query<{ display_name: string; email: string }>(

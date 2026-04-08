@@ -215,19 +215,26 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
     }
   }, [isHost, localParticipant]);
 
-  // Respond to host mute/unmute commands
+  // Guard: prevent user toggle while host mute command is being applied (race condition)
+  const [hostMuteProcessing, setHostMuteProcessing] = useState(false);
+
+  // Respond to host mute/unmute commands — takes priority over local toggle
   useEffect(() => {
     if (hostMuteCommand !== null && !isHost) {
-      localParticipant.setMicrophoneEnabled(!hostMuteCommand);
-      setMicEnabled(!hostMuteCommand);
-      setHostMuteCommand(null); // Clear the command after processing
+      setHostMuteProcessing(true);
+      const target = !hostMuteCommand; // hostMuteCommand=true means "mute", so !true = false = mute
+      localParticipant.setMicrophoneEnabled(target);
+      setMicEnabled(target);
+      setHostMuteCommand(null);
+      setTimeout(() => setHostMuteProcessing(false), 500);
     }
   }, [hostMuteCommand, isHost, localParticipant, setHostMuteCommand]);
 
   const toggleMic = useCallback(async () => {
+    if (hostMuteProcessing) return; // Don't allow toggle while host command is being applied
     await localParticipant.setMicrophoneEnabled(!micEnabled);
     setMicEnabled(!micEnabled);
-  }, [localParticipant, micEnabled]);
+  }, [localParticipant, micEnabled, hostMuteProcessing]);
 
   const toggleCam = useCallback(async () => {
     const target = !camEnabled;
