@@ -25,7 +25,7 @@ function PartnerRatingForm({ partnerName, toUserId, matchId, onSubmitted, onSkip
   const [submitting, setSubmitting] = useState(false);
 
   const submit = async () => {
-    if (rating === 0) return;
+    if (rating === 0 || submitting) return;
     setSubmitting(true);
     try {
       await api.post('/ratings', {
@@ -36,8 +36,14 @@ function PartnerRatingForm({ partnerName, toUserId, matchId, onSubmitted, onSkip
       });
       onSubmitted(meetAgain);
     } catch (err: any) {
-      const msg = err?.response?.data?.error?.message || 'Failed to submit rating';
-      addToast(msg, 'error');
+      const errCode = err?.response?.data?.error?.code;
+      if (errCode === 'MATCH_ALREADY_RATED') {
+        // Already rated — treat as success, move to next partner
+        onSubmitted(meetAgain);
+      } else {
+        const msg = err?.response?.data?.error?.message || 'Failed to submit rating';
+        addToast(msg, 'error');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -84,7 +90,7 @@ function PartnerRatingForm({ partnerName, toUserId, matchId, onSubmitted, onSkip
         {meetAgain ? 'Would meet again!' : 'Would you meet again?'}
       </button>
 
-      <Button onClick={submit} isLoading={submitting} disabled={rating === 0} className="w-full text-base py-3">
+      <Button onClick={submit} isLoading={submitting} disabled={rating === 0 || submitting} className="w-full text-base py-3">
         Submit Rating
       </Button>
 
