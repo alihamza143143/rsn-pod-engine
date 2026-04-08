@@ -158,9 +158,9 @@ export default function LiveSessionPage() {
           <p className="text-sm text-gray-300">
             {transitionStatus === 'starting_session' && (isHost ? 'Starting event — main room is open' : 'Event is starting — waiting for host to begin matching...')}
             {transitionStatus === 'preparing_match' && (isHost ? 'Sending participants to breakout rooms...' : "You've been matched! Connecting to your partner...")}
-            {transitionStatus === 'round_ending' && (isHost ? 'Ending round — collecting participants...' : 'Round ending — wrapping up...')}
+            {transitionStatus === 'round_ending' && (isHost ? 'Ending round — collecting participants...' : 'Round ending...')}
             {transitionStatus === 'between_rounds' && (isHost ? 'Preparing next round...' : 'Getting ready for the next round...')}
-            {transitionStatus === 'session_ending' && (isHost ? 'Ending event — generating recaps...' : 'Event is wrapping up — preparing your recap...')}
+            {transitionStatus === 'session_ending' && (isHost ? 'Ending event — generating recaps...' : 'Preparing your recap...')}
           </p>
         </div>
       )}
@@ -265,7 +265,7 @@ const STATE_CONFIG: Record<string, { label: string; icon: React.ReactNode; color
   round_active:     { label: 'Round {round} Live', icon: <Radio className="h-3.5 w-3.5 animate-pulse" />, color: 'bg-red-500/10 text-red-400' },
   round_rating:     { label: 'Rating — Round {round}', icon: <ArrowLeftRight className="h-3.5 w-3.5" />, color: 'bg-amber-500/10 text-amber-400' },
   round_transition: { label: 'Back in main room', icon: <Shuffle className="h-3.5 w-3.5" />, color: 'bg-white/5 text-gray-300' },
-  closing_lobby:    { label: 'Event wrapping up', icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />, color: 'bg-white/5 text-gray-400' },
+  closing_lobby:    { label: 'Preparing recap', icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />, color: 'bg-white/5 text-gray-400' },
   completed:        { label: 'Event completed', icon: <CheckCircle2 className="h-3.5 w-3.5" />, color: 'bg-emerald-500/10 text-emerald-400' },
 };
 

@@ -339,7 +339,7 @@ export async function sendInviteEmail(
   const typeLabel = data.type === 'pod' ? 'a pod' : data.type === 'session' ? 'an event' : 'the platform';
   const targetLine = data.targetName ? ` — <strong>${data.targetName}</strong>` : '';
 
-  const subject = `${data.inviterName} invited you to RSN`;
+  const subject = `${data.inviterName} invited you to ${data.targetName || 'RSN'}`;
   const html = `
     <!DOCTYPE html>
     <html>

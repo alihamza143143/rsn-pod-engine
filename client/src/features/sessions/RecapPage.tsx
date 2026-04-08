@@ -411,7 +411,12 @@ export default function RecapPage() {
       {/* Host-only: full event recap */}
       {isHost && <HostRecapSection sessionId={sessionId!} />}
 
-      <div className="flex justify-center">
+      <div className="flex justify-center gap-3">
+        {session?.podId && (
+          <Button onClick={() => navigate(`/pods/${session.podId}`)} variant="secondary" className="px-8">
+            Back to Pod
+          </Button>
+        )}
         <Button onClick={() => navigate('/sessions')} className="px-8">
           Back to Events
         </Button>

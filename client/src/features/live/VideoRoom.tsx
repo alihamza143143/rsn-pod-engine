@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import { useSessionStore } from '@/stores/sessionStore';
 import { formatTime } from '@/lib/utils';
-import { Video, Clock, Mic, MicOff, VideoOff, Wifi, UserX, ArrowLeft } from 'lucide-react';
+import { Video, Clock, Mic, MicOff, VideoOff, Wifi, UserX, ArrowLeft, Sparkles } from 'lucide-react';
 // Lazy-load track processors (may not be available in all environments)
 let _bgBlur: any = null;
 let _vBg: any = null;
@@ -264,10 +264,10 @@ function MediaControls() {
         className={`p-2 rounded-full transition-colors ${camEnabled ? 'bg-gray-200 hover:bg-gray-300 text-gray-700' : 'bg-red-100 text-red-500 hover:bg-red-200'}`}>
         {camEnabled ? <Video className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}
       </button>
-      <button onClick={() => setShowBgPanel(!showBgPanel)} title="Virtual Background"
-        className={`px-2.5 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-1 ${bgMode !== 'disabled' ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
-        <span className="sr-only">Virtual Background</span>
-        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="m3 17 5-5 4 4 4-6 5 7"/></svg>
+      <button onClick={() => setShowBgPanel(!showBgPanel)} title="Background effects"
+        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium transition-colors ${bgMode !== 'disabled' ? 'bg-indigo-500/80 text-white' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'}`}>
+        <Sparkles className="h-4 w-4" />
+        BG
       </button>
 
       {/* Background effects panel */}

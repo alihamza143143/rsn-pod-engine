@@ -50,8 +50,8 @@ export default function MatchingOverlay({ roundNumber }: Props) {
             </div>
 
             <div>
-              <h2 className="text-xl font-semibold text-white">Matching people...</h2>
-              <p className="text-sm text-gray-400 mt-1">Finding the best connections for Round {roundNumber}</p>
+              <h2 className="text-xl font-semibold text-white">Matching people now</h2>
+              <p className="text-sm text-gray-400 mt-1">Pairing you up for Round {roundNumber}</p>
             </div>
 
             {/* Animated progress dots */}

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/Button';
 import Avatar from '@/components/ui/Avatar';
 import { Spinner } from '@/components/ui/Spinner';
 import { CheckCircle, Users, Star, Handshake, ArrowRight, UserCheck, CircleDot } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
 
 interface Connection {
@@ -65,6 +66,13 @@ export default function SessionComplete({ sessionId }: Props) {
   const [roundsAttended, setRoundsAttended] = useState(0);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
+
+  const { data: session } = useQuery({
+    queryKey: ['session', sessionId],
+    queryFn: () => api.get(`/sessions/${sessionId}`).then(r => r.data.data),
+    enabled: !!sessionId,
+  });
+  const podId = session?.podId;
 
   const fetchRecap = async () => {
     setLoading(true);
@@ -225,6 +233,11 @@ export default function SessionComplete({ sessionId }: Props) {
           <Button onClick={() => navigate(`/sessions/${sessionId}/recap`)} variant="secondary" className="flex-1">
             Full Recap <ArrowRight className="h-4 w-4 ml-1" />
           </Button>
+          {podId && (
+            <Button onClick={() => navigate(`/pods/${podId}`)} variant="secondary" className="flex-1">
+              Back to Pod
+            </Button>
+          )}
           <Button onClick={() => navigate('/sessions')} className="flex-1">
             Back to Events
           </Button>
