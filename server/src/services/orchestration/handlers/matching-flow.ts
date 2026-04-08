@@ -334,6 +334,66 @@ export async function handleHostRegenerateMatches(
   }
 }
 
+// ─── Host Force Match (manually pair two specific participants) ──────────────
+
+export async function handleHostForceMatch(
+  io: SocketServer,
+  socket: Socket,
+  data: { sessionId: string; userIdA: string; userIdB: string }
+): Promise<void> {
+  try {
+    if (!await verifyHost(socket, data.sessionId)) return;
+
+    const activeSession = activeSessions.get(data.sessionId);
+    if (!activeSession) {
+      socket.emit('error', { code: 'INVALID_STATE', message: 'Event is not active' });
+      return;
+    }
+
+    const roundNumber = activeSession.pendingRoundNumber;
+    if (roundNumber == null) {
+      socket.emit('error', { code: 'INVALID_STATE', message: 'No pending round to add matches to' });
+      return;
+    }
+
+    // Normalize IDs (A < B for consistency)
+    const normA = data.userIdA < data.userIdB ? data.userIdA : data.userIdB;
+    const normB = data.userIdA < data.userIdB ? data.userIdB : data.userIdA;
+
+    // Cancel any existing matches containing either participant for this round
+    const existing = await query(
+      `SELECT id FROM matches WHERE session_id = $1 AND round_number = $2
+       AND (participant_a_id = $3 OR participant_b_id = $3 OR participant_c_id = $3
+         OR participant_a_id = $4 OR participant_b_id = $4 OR participant_c_id = $4)
+       AND status != 'cancelled'`,
+      [data.sessionId, roundNumber, data.userIdA, data.userIdB]
+    );
+
+    if (existing.rows.length > 0) {
+      for (const row of existing.rows) {
+        await query(`UPDATE matches SET status = 'cancelled' WHERE id = $1`, [row.id]);
+      }
+    }
+
+    // Create the manual match
+    const { v4: uuid } = await import('uuid');
+    const matchId = uuid();
+    await query(
+      `INSERT INTO matches (id, session_id, round_number, participant_a_id, participant_b_id, status)
+       VALUES ($1, $2, $3, $4, $5, 'scheduled')`,
+      [matchId, data.sessionId, roundNumber, normA, normB]
+    );
+
+    logger.info({ sessionId: data.sessionId, matchId, userA: normA, userB: normB }, 'Manual match created by host');
+
+    // Re-send updated preview
+    await sendMatchPreview(io, socket, data.sessionId, roundNumber, activeSession.hostUserId);
+  } catch (err: any) {
+    logger.error({ err }, 'Error creating manual match');
+    socket.emit('error', { code: 'FORCE_MATCH_FAILED', message: err.message });
+  }
+}
+
 // ─── Host Cancel Preview ────────────────────────────────────────────────────
 
 export async function handleHostCancelPreview(

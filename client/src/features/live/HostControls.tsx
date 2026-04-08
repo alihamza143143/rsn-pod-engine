@@ -22,6 +22,9 @@ export default function HostControls({ sessionId }: Props) {
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [showBroadcast, setShowBroadcast] = useState(false);
   const [swapMode, setSwapMode] = useState<string | null>(null); // userId of first selected participant for swap
+  const [manualMatchMode, setManualMatchMode] = useState(false);
+  const [manualA, setManualA] = useState<string | null>(null);
+  const [manualB, setManualB] = useState<string | null>(null);
 
   const sessionStarted = sessionStatus !== 'scheduled' || transitionStatus === 'starting_session' || currentRound > 0;
   const isSessionEnding = transitionStatus === 'session_ending';
@@ -196,8 +199,52 @@ export default function HostControls({ sessionId }: Props) {
                   {generating ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
                   Re-match
                 </button>
+                <button
+                  onClick={() => { setManualMatchMode(!manualMatchMode); setManualA(null); setManualB(null); }}
+                  className="flex items-center gap-1 text-xs text-gray-500 hover:text-emerald-600 transition-colors px-2 py-1 rounded hover:bg-emerald-50"
+                  title="Manually pair two participants"
+                >
+                  <UserPlus className="h-3 w-3" />
+                  Manual Match
+                </button>
               </div>
             </div>
+            {manualMatchMode && (
+              <div className="flex items-center gap-2 mb-2 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                <select
+                  value={manualA || ''}
+                  onChange={e => setManualA(e.target.value || null)}
+                  className="text-xs border border-gray-300 rounded px-2 py-1 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                >
+                  <option value="">Select person 1</option>
+                  {participants.filter(p => p.userId !== hostUserId && !cohosts.has(p.userId)).map(p => (
+                    <option key={p.userId} value={p.userId}>{p.displayName}</option>
+                  ))}
+                </select>
+                <span className="text-gray-400 text-xs">+</span>
+                <select
+                  value={manualB || ''}
+                  onChange={e => setManualB(e.target.value || null)}
+                  className="text-xs border border-gray-300 rounded px-2 py-1 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                >
+                  <option value="">Select person 2</option>
+                  {participants.filter(p => p.userId !== hostUserId && !cohosts.has(p.userId) && p.userId !== manualA).map(p => (
+                    <option key={p.userId} value={p.userId}>{p.displayName}</option>
+                  ))}
+                </select>
+                <Button size="sm" disabled={!manualA || !manualB} onClick={() => {
+                  socket?.emit('host:force_match' as any, { sessionId, userIdA: manualA, userIdB: manualB });
+                  setManualMatchMode(false);
+                  setManualA(null);
+                  setManualB(null);
+                }}>
+                  Pair
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => { setManualMatchMode(false); setManualA(null); setManualB(null); }}>
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            )}
             {matchPreview.warnings && matchPreview.warnings.length > 0 && (
               <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/20 px-3 py-2 mb-2">
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-400 mt-0.5 shrink-0" />

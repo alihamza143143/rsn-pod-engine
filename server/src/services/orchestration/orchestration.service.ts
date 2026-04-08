@@ -38,7 +38,7 @@ import {
 import {
   handleHostGenerateMatches, handleHostConfirmRound, handleHostSwapMatch,
   handleHostExcludeFromRound, handleHostRegenerateMatches, handleHostCancelPreview,
-  emitHostDashboard, injectMatchingFlowDeps,
+  handleHostForceMatch, emitHostDashboard, injectMatchingFlowDeps,
 } from './handlers/matching-flow';
 
 // Handlers — Round Lifecycle
@@ -195,6 +195,7 @@ export function initOrchestration(socketServer: SocketServer): void {
     wrapHandler('host:exclude_participant', socket, handleHostExcludeFromRound);
     wrapHandler('host:regenerate_matches', socket, handleHostRegenerateMatches);
     wrapHandler('host:cancel_preview', socket, handleHostCancelPreview);
+    wrapHandler('host:force_match', socket, handleHostForceMatch);
 
     // ── Chat Events (unguarded) ──
     socket.on('chat:send', async (data) => {
