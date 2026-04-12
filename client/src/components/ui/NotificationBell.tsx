@@ -240,6 +240,12 @@ export default function NotificationBell() {
       }
     }
 
+    // Ensure registration before navigating — even if invite shows 'accepted',
+    // the registration might not have completed from a previous attempt
+    if (n.sessionId) {
+      try { await api.post(`/sessions/${n.sessionId}/register`); } catch { /* already registered is fine */ }
+    }
+
     // Navigate to destination
     const dest = getDestination(n);
     if (dest) {
