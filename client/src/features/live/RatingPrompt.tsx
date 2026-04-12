@@ -154,8 +154,11 @@ export default function RatingPrompt(_props: Props) {
     : currentMatch ? [currentMatch] : [];
 
   const noMatchData = !currentMatchId || partners.length === 0;
+  const isLastRound = currentRound >= totalRounds && totalRounds > 0;
+  const isLastPartner = currentPartnerIdx >= partners.length - 1;
+  const allDone = currentPartnerIdx >= partners.length && submissionState === null;
 
-  // Handle missing match data safely via useEffect (not during render)
+  // ALL hooks MUST be above any conditional returns (React Rules of Hooks)
   useEffect(() => {
     if (noMatchData && !hasRedirected.current) {
       hasRedirected.current = true;
@@ -164,11 +167,15 @@ export default function RatingPrompt(_props: Props) {
     }
   }, [noMatchData, addToast, setPhase]);
 
-  if (noMatchData) return null;
+  useEffect(() => {
+    if (allDone && !hasRedirected.current) {
+      hasRedirected.current = true;
+      setPhase('lobby');
+    }
+  }, [allDone, setPhase]);
 
-  const isLastRound = currentRound >= totalRounds && totalRounds > 0;
-  const isLastPartner = currentPartnerIdx >= partners.length - 1;
-  const allDone = currentPartnerIdx >= partners.length && submissionState === null;
+  if (noMatchData) return null;
+  if (allDone) return null;
 
   // Show the brief confirmation after submitting a rating
   if (submissionState !== null) {
@@ -186,16 +193,6 @@ export default function RatingPrompt(_props: Props) {
       </div>
     );
   }
-
-  // All partners rated — return to lobby immediately, don't wait for rating window timer
-  useEffect(() => {
-    if (allDone && !hasRedirected.current) {
-      hasRedirected.current = true;
-      setPhase('lobby');
-    }
-  }, [allDone, setPhase]);
-
-  if (allDone) return null;
 
   const partner = partners[currentPartnerIdx];
 
