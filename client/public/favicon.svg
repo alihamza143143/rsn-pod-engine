@@ -1,13 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <rect width="64" height="64" rx="8" fill="white"/>
-  <!-- Black sheep silhouette — bold, fills the square -->
-  <g transform="translate(6, 6) scale(0.81)">
-    <ellipse cx="38" cy="30" rx="24" ry="18" fill="#1a1a2e"/>
-    <circle cx="18" cy="24" r="9" fill="#1a1a2e"/>
-    <circle cx="13" cy="20" r="5" fill="#1a1a2e"/>
-    <circle cx="11" cy="19" r="2" fill="white"/>
-    <ellipse cx="22" cy="16" rx="4" ry="6" fill="#1a1a2e" transform="rotate(-20 22 16)"/>
-    <rect x="22" y="46" width="5" height="10" rx="2" fill="#1a1a2e"/>
-    <rect x="42" y="46" width="5" height="10" rx="2" fill="#1a1a2e"/>
-  </g>
+  <!-- RSN sheep — bold silhouette, no background, fills the frame -->
+  <!-- Woolly body -->
+  <ellipse cx="36" cy="32" rx="26" ry="20" fill="#1a1a2e"/>
+  <!-- Head -->
+  <circle cx="14" cy="25" r="11" fill="#1a1a2e"/>
+  <!-- Snout -->
+  <circle cx="8" cy="22" r="6" fill="#1a1a2e"/>
+  <!-- Eye -->
+  <circle cx="10" cy="20" r="2.5" fill="white"/>
+  <!-- Ear -->
+  <ellipse cx="19" cy="15" rx="4" ry="7" fill="#1a1a2e" transform="rotate(-15 19 15)"/>
+  <!-- Front legs -->
+  <rect x="18" y="49" width="7" height="13" rx="3" fill="#1a1a2e"/>
+  <!-- Back legs -->
+  <rect x="42" y="49" width="7" height="13" rx="3" fill="#1a1a2e"/>
 </svg>
