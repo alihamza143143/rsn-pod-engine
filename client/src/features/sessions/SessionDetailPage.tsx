@@ -42,11 +42,9 @@ export default function SessionDetailPage() {
   const [editScheduledAt, setEditScheduledAt] = useState('');
   const [editNumberOfRounds, setEditNumberOfRounds] = useState(5);
   const [editRoundDurationMinutes, setEditRoundDurationMinutes] = useState(8);
-  const [editRatingWindowSeconds, setEditRatingWindowSeconds] = useState(30);
   const [editTimerVisibility, setEditTimerVisibility] = useState('always_visible');
   const [editMaxParticipants, setEditMaxParticipants] = useState(500);
-  const [editClosingLobbyDuration, setEditClosingLobbyDuration] = useState(120);
-  const [editNoShowTimeout, setEditNoShowTimeout] = useState(60);
+  const [editMatchingTemplateId, setEditMatchingTemplateId] = useState('');
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteLink, setInviteLink] = useState('');
@@ -73,6 +71,11 @@ export default function SessionDetailPage() {
     queryKey: ['session-participants', sessionId],
     queryFn: () => api.get(`/sessions/${sessionId}/participants`).then(r => r.data.data ?? []),
     enabled: !!sessionId,
+  });
+
+  const { data: templates } = useQuery({
+    queryKey: ['matching-templates'],
+    queryFn: () => api.get('/matching-templates').then(r => r.data.data ?? []),
   });
 
   const isHost = session?.hostUserId === user?.id;
@@ -158,11 +161,9 @@ export default function SessionDetailPage() {
     setEditScheduledAt(session?.scheduledAt ? new Date(session.scheduledAt).toISOString().slice(0, 16) : '');
     setEditNumberOfRounds(session?.config?.numberOfRounds ?? 5);
     setEditRoundDurationMinutes(Math.round((session?.config?.roundDurationSeconds ?? 480) / 60));
-    setEditRatingWindowSeconds(session?.config?.ratingWindowSeconds ?? 30);
     setEditTimerVisibility(session?.config?.timerVisibility ?? 'always_visible');
     setEditMaxParticipants(session?.config?.maxParticipants ?? 500);
-    setEditClosingLobbyDuration(session?.config?.closingLobbyDurationSeconds ?? 120);
-    setEditNoShowTimeout(session?.config?.noShowTimeoutSeconds ?? 60);
+    setEditMatchingTemplateId(session?.config?.matchingTemplateId ?? '');
     setEditOpen(true);
   };
 
@@ -810,11 +811,9 @@ export default function SessionDetailPage() {
           body.config = {
             numberOfRounds: editNumberOfRounds,
             roundDurationSeconds: editRoundDurationMinutes * 60,
-            ratingWindowSeconds: editRatingWindowSeconds,
             timerVisibility: editTimerVisibility,
             maxParticipants: editMaxParticipants,
-            closingLobbyDurationSeconds: editClosingLobbyDuration,
-            noShowTimeoutSeconds: editNoShowTimeout,
+            ...(editMatchingTemplateId && { matchingTemplateId: editMatchingTemplateId }),
           };
           updateMutation.mutate(body);
         }} className="space-y-4">
@@ -828,10 +827,10 @@ export default function SessionDetailPage() {
           </div>
           <Input label="Scheduled At" type="datetime-local" value={editScheduledAt} onChange={e => setEditScheduledAt(e.target.value)} />
 
-          {/* Event Config Fields */}
+          {/* Timing Configuration — matches Create Event form */}
           <div className="border-t border-gray-200 pt-4 mt-4">
             <h3 className="text-sm font-semibold text-[#1a1a2e] mb-3 flex items-center gap-2">
-              <Settings className="h-4 w-4 text-rsn-red" /> Event Configuration
+              <Clock className="h-4 w-4 text-rsn-red" /> Timing Configuration
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -841,7 +840,7 @@ export default function SessionDetailPage() {
                   onChange={e => setEditNumberOfRounds(Number(e.target.value))}
                   className="w-full rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm focus:border-[#1a1a2e] focus:ring-1 focus:ring-[#1a1a2e] outline-none"
                 />
-                <p className="text-xs text-gray-400 mt-1">1 - 20 rounds</p>
+                <p className="text-xs text-gray-400 mt-1">1 – 20 rounds</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">Round Duration (minutes)</label>
@@ -850,16 +849,7 @@ export default function SessionDetailPage() {
                   onChange={e => setEditRoundDurationMinutes(Number(e.target.value))}
                   className="w-full rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm focus:border-[#1a1a2e] focus:ring-1 focus:ring-[#1a1a2e] outline-none"
                 />
-                <p className="text-xs text-gray-400 mt-1">1 - 60 minutes per round</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Rating Window (seconds)</label>
-                <input
-                  type="number" min={10} max={120} value={editRatingWindowSeconds}
-                  onChange={e => setEditRatingWindowSeconds(Number(e.target.value))}
-                  className="w-full rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm focus:border-[#1a1a2e] focus:ring-1 focus:ring-[#1a1a2e] outline-none"
-                />
-                <p className="text-xs text-gray-400 mt-1">10 - 120 seconds</p>
+                <p className="text-xs text-gray-400 mt-1">1 – 60 minutes per round</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1">Timer Visibility</label>
@@ -875,34 +865,38 @@ export default function SessionDetailPage() {
                   <option value="last_60s">Show last 60 seconds</option>
                   <option value="last_120s">Show last 2 minutes</option>
                 </select>
+                <p className="text-xs text-gray-400 mt-1">When participants can see the countdown</p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Max Participants</label>
-                <input
-                  type="number" min={2} max={10000} value={editMaxParticipants}
-                  onChange={e => setEditMaxParticipants(Number(e.target.value))}
+                <label className="block text-sm font-medium text-gray-600 mb-1">Matching Template</label>
+                <select
+                  value={editMatchingTemplateId}
+                  onChange={e => setEditMatchingTemplateId(e.target.value)}
                   className="w-full rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm focus:border-[#1a1a2e] focus:ring-1 focus:ring-[#1a1a2e] outline-none"
-                />
-                <p className="text-xs text-gray-400 mt-1">2 - 10,000</p>
+                >
+                  <option value="">Default (balanced)</option>
+                  {(templates || []).map((t: any) => (
+                    <option key={t.id} value={t.id}>{t.name}{t.isDefault ? ' (default)' : ''}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-400 mt-1">How participants are matched — affects scoring weights</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Closing Lobby Duration (sec)</label>
-                <input
-                  type="number" min={30} max={3600} value={editClosingLobbyDuration}
-                  onChange={e => setEditClosingLobbyDuration(Number(e.target.value))}
-                  className="w-full rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm focus:border-[#1a1a2e] focus:ring-1 focus:ring-[#1a1a2e] outline-none"
-                />
-                <p className="text-xs text-gray-400 mt-1">30 - 3600 seconds</p>
-              </div>
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-600 mb-1">No-Show Timeout (seconds)</label>
-                <input
-                  type="number" min={15} max={300} value={editNoShowTimeout}
-                  onChange={e => setEditNoShowTimeout(Number(e.target.value))}
-                  className="w-full rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm focus:border-[#1a1a2e] focus:ring-1 focus:ring-[#1a1a2e] outline-none"
-                />
-                <p className="text-xs text-gray-400 mt-1">15 - 300 seconds</p>
-              </div>
+            </div>
+          </div>
+
+          {/* Capacity */}
+          <div className="border-t border-gray-200 pt-4 mt-4">
+            <h3 className="text-sm font-semibold text-[#1a1a2e] mb-3 flex items-center gap-2">
+              <Users className="h-4 w-4 text-rsn-red" /> Capacity
+            </h3>
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-1">Max Participants</label>
+              <input
+                type="number" min={2} max={10000} value={editMaxParticipants}
+                onChange={e => setEditMaxParticipants(Number(e.target.value))}
+                className="w-full rounded-lg bg-gray-100 border border-gray-200 px-3 py-2 text-gray-800 text-sm focus:border-[#1a1a2e] focus:ring-1 focus:ring-[#1a1a2e] outline-none"
+              />
+              <p className="text-xs text-gray-400 mt-1">2 – 10,000 participants</p>
             </div>
           </div>
 
