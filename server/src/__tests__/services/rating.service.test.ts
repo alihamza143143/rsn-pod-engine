@@ -97,7 +97,7 @@ describe('Rating Service', () => {
 
     it('should throw when match is not in a ratable state', async () => {
       mockQuery.mockResolvedValueOnce({
-        rows: [{ ...mockMatch, status: 'scheduled' }],
+        rows: [{ ...mockMatch, status: 'cancelled' }],
         rowCount: 1,
       });
 
