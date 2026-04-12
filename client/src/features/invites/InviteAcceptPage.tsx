@@ -89,7 +89,8 @@ export default function InviteAcceptPage() {
       qc.invalidateQueries({ queryKey: ['session-participants'] });
       qc.invalidateQueries({ queryKey: ['session-detail'] });
       const destination = getDestination(data);
-      navigate(destination, { replace: true });
+      // Full page reload ensures fresh data — React Router navigate can hit stale cache
+      setTimeout(() => { window.location.href = destination; }, 50);
     } catch (err: any) {
       const errCode = err?.response?.data?.error?.code;
       // "Already a member" or "invite used/expired but user already has access"
@@ -108,7 +109,7 @@ export default function InviteAcceptPage() {
             try { await api.post(`/invites/${code}/mark-accepted`); } catch { /* best effort */ }
           }
           addToast('You\'re already a member — taking you there now', 'success');
-          navigate(destination, { replace: true });
+          setTimeout(() => { window.location.href = destination; }, 50);
           return;
         }
       }
