@@ -97,6 +97,7 @@ export interface CreatePodInput {
   visibility?: PodVisibility;
   maxMembers?: number;
   rules?: string;
+  allowMemberInvites?: boolean;
 }
 
 export interface UpdatePodInput {

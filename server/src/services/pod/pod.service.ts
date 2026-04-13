@@ -32,8 +32,8 @@ export async function createPod(userId: string, input: CreatePodInput): Promise<
   const podId = uuid();
 
   const result = await query<Pod>(
-    `INSERT INTO pods (id, name, description, pod_type, orchestration_mode, communication_mode, visibility, status, max_members, rules, created_by)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10)
+    `INSERT INTO pods (id, name, description, pod_type, orchestration_mode, communication_mode, visibility, status, max_members, rules, created_by, allow_member_invites)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', $8, $9, $10, $11)
      RETURNING ${POD_COLUMNS}`,
     [
       podId,
@@ -46,6 +46,7 @@ export async function createPod(userId: string, input: CreatePodInput): Promise<
       input.maxMembers || null,
       input.rules || null,
       userId,
+      input.allowMemberInvites ?? false,
     ]
   );
 

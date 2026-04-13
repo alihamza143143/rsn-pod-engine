@@ -459,7 +459,7 @@ export default function PodDetailPage() {
               <Calendar className="h-4 w-4 mr-2" /> Schedule Event
             </Button>
           )}
-          {isDirectorOrHost && (
+          {(isDirectorOrHost || (isMember && pod?.allowMemberInvites)) && (
             <Button variant="secondary" onClick={() => { setInviteLink(''); setInviteEmail(''); setInviteOpen(true); }}>
               <Mail className="h-4 w-4 mr-2" /> Invite Members
             </Button>

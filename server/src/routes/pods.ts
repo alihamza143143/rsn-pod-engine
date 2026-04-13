@@ -22,6 +22,7 @@ const createPodSchema = z.object({
   visibility:        z.nativeEnum(PodVisibility).optional(),
   maxMembers:        z.number().int().positive().max(10000).optional(),
   rules:             z.string().max(5000).optional(),
+  allowMemberInvites: z.boolean().optional(),
 });
 
 const updatePodSchema = z.object({
