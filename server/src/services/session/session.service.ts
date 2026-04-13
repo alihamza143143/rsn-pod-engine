@@ -304,6 +304,13 @@ export async function registerParticipant(sessionId: string, userId: string, use
       [sessionId, userId]
     );
 
+    // Sync invite status: if user had a pending invite for this session, mark it accepted
+    await client.query(
+      `UPDATE invites SET status = 'accepted', accepted_by_user_id = COALESCE(accepted_by_user_id, $1), accepted_at = COALESCE(accepted_at, NOW())
+       WHERE session_id = $2 AND status = 'pending' AND (invitee_email = (SELECT email FROM users WHERE id = $1) OR accepted_by_user_id = $1)`,
+      [userId, sessionId]
+    );
+
     logger.info({ sessionId, userId }, 'Participant registered');
     return result.rows[0];
   });
