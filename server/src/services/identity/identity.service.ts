@@ -622,9 +622,17 @@ export async function getUsers(params: {
   }
 
   if (params.search) {
-    whereClause += ` AND (display_name ILIKE $${paramIdx} OR email ILIKE $${paramIdx} OR first_name ILIKE $${paramIdx} OR last_name ILIKE $${paramIdx})`;
+    // Prefix match on names, contains match on email — so "a" finds "Ali" not "Beatrice"
+    const prefixParam = paramIdx;
+    values.push(`${params.search}%`);
+    paramIdx++;
+    const containsParam = paramIdx;
     values.push(`%${params.search}%`);
     paramIdx++;
+    whereClause += ` AND (
+      display_name ILIKE $${prefixParam} OR first_name ILIKE $${prefixParam} OR last_name ILIKE $${prefixParam}
+      OR display_name ILIKE $${containsParam} OR email ILIKE $${containsParam}
+    )`;
   }
 
   if (params.industry) {
@@ -639,14 +647,21 @@ export async function getUsers(params: {
   );
   const total = parseInt(countResult.rows[0].count, 10);
 
-  // Add prefix search param for relevance sorting (prefix matches ranked first)
+  // Relevance scoring: name-starts-with first, name-contains second, email-only last
   let relevanceOrder = '';
   if (params.search) {
+    const relPrefix = paramIdx;
     values.push(`${params.search.toLowerCase()}%`);
-    relevanceOrder = `CASE WHEN LOWER(display_name) LIKE $${paramIdx} THEN 0
-                           WHEN LOWER(email) LIKE $${paramIdx} THEN 1
-                           ELSE 2 END ASC,`;
     paramIdx++;
+    const relContains = paramIdx;
+    values.push(`%${params.search.toLowerCase()}%`);
+    paramIdx++;
+    relevanceOrder = `CASE
+      WHEN LOWER(display_name) LIKE $${relPrefix} OR LOWER(first_name) LIKE $${relPrefix} THEN 0
+      WHEN LOWER(last_name) LIKE $${relPrefix} THEN 1
+      WHEN LOWER(display_name) LIKE $${relContains} THEN 2
+      WHEN LOWER(email) LIKE $${relContains} THEN 3
+      ELSE 4 END ASC,`;
   }
 
   values.push(pageSize, offset);
