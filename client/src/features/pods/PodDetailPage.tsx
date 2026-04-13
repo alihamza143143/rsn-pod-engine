@@ -56,8 +56,7 @@ const VISIBILITY_CONFIG: Record<string, { label: string; icon: typeof Eye; color
   public:              { label: 'Public',               icon: Eye,    color: 'text-emerald-400', desc: 'Anyone can join directly' },
   invite_only:         { label: 'Invite Only',          icon: Shield, color: 'text-amber-400',   desc: 'Requires an invite link' },
   private:             { label: 'Private',              icon: Lock,   color: 'text-red-400',     desc: 'Hidden, invite only' },
-  public_with_approval:{ label: 'Public + Approval',   icon: UserCheck, color: 'text-indigo-400', desc: 'Visible to all, director approves' },
-  request_to_join:     { label: 'Request to Join',      icon: UserPlus,  color: 'text-blue-400',  desc: 'Open requests with optional rules' },
+  public_with_approval:{ label: 'Public with Approval', icon: UserCheck, color: 'text-indigo-400', desc: 'Anyone can find and request to join; director approves' },
 };
 
 const POD_TYPES_OPTIONS = [
@@ -74,8 +73,7 @@ const POD_TYPES_OPTIONS = [
 const VISIBILITY_OPTIONS = [
   { value: 'private',              label: 'Private — invite only, hidden from browse' },
   { value: 'invite_only',          label: 'Invite Only — discoverable but requires invite' },
-  { value: 'public_with_approval', label: 'Public + Approval — anyone can request, you approve' },
-  { value: 'request_to_join',      label: 'Request to Join — open requests with optional rules' },
+  { value: 'public_with_approval', label: 'Public with Approval — anyone can request, you approve' },
   { value: 'public',               label: 'Public — anyone can join directly' },
 ];
 
@@ -432,7 +430,7 @@ export default function PodDetailPage() {
               <p className="text-sm text-gray-400 self-center">
                 {pod.visibility === 'invite_only'
                   ? 'This pod is invite-only. Request to join or use an invite link.'
-                  : pod.visibility === 'public_with_approval' || pod.visibility === 'request_to_join'
+                  : pod.visibility === 'public_with_approval'
                   ? 'Your request will be reviewed by the pod director.'
                   : 'This is a private pod. Request access from the director.'}
               </p>

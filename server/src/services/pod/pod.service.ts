@@ -169,7 +169,7 @@ export async function listPods(params: {
     paramIdx++;
   }
 
-  // Browse mode: show all non-private pods (includes public_with_approval and request_to_join)
+  // Browse mode: show all non-private pods (includes public_with_approval)
   if (params.browse) {
     whereClause += ` AND p.visibility NOT IN ('private')`;
   }
@@ -423,10 +423,7 @@ export async function joinPod(podId: string, userId: string): Promise<PodMember>
     throw new ForbiddenError('This pod requires an invite to join');
   }
 
-  if (
-    pod.visibility === PodVisibility.PUBLIC_WITH_APPROVAL ||
-    pod.visibility === PodVisibility.REQUEST_TO_JOIN
-  ) {
+  if (pod.visibility === PodVisibility.PUBLIC_WITH_APPROVAL) {
     throw new ForbiddenError('This pod requires approval. Use "Request to Join" instead.');
   }
 
@@ -450,7 +447,7 @@ export async function requestToJoin(podId: string, userId: string): Promise<PodM
     return addMember(podId, userId, PodMemberRole.MEMBER);
   }
 
-  // invite_only, public_with_approval, request_to_join → pending approval
+  // invite_only, public_with_approval → pending approval
   return addMember(podId, userId, PodMemberRole.MEMBER, PodMemberStatus.PENDING_APPROVAL);
 }
 

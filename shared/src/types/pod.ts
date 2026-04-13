@@ -28,8 +28,7 @@ export enum PodVisibility {
   PRIVATE              = 'private',
   INVITE_ONLY          = 'invite_only',
   PUBLIC               = 'public',
-  PUBLIC_WITH_APPROVAL = 'public_with_approval',  // anyone can find + request; director approves
-  REQUEST_TO_JOIN      = 'request_to_join',        // request flow with optional rules/agreement
+  PUBLIC_WITH_APPROVAL = 'public_with_approval',  // anyone can find + request; director approves; optional rules/agreement
 }
 
 export enum PodStatus {

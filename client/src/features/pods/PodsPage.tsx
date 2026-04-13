@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Users, Plus, Globe, Lock, Shield, Eye, UserCheck, UserPlus, Search } from 'lucide-react';
+import { Users, Plus, Globe, Lock, Shield, Eye, UserCheck, Search } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -13,11 +13,10 @@ import CreatePodModal from './CreatePodModal';
 type PodFilter = 'browse' | 'active' | 'archived';
 
 const VISIBILITY_CONFIG: Record<string, { label: string; icon: typeof Eye; variant: 'default' | 'warning' | 'info' | 'success' }> = {
-  public:               { label: 'Public',             icon: Eye,       variant: 'info' },
-  invite_only:          { label: 'Invite Only',         icon: Shield,    variant: 'warning' },
-  private:              { label: 'Private',             icon: Lock,      variant: 'default' },
-  public_with_approval: { label: 'Public + Approval',  icon: UserCheck, variant: 'info' },
-  request_to_join:      { label: 'Request to Join',     icon: UserPlus,  variant: 'success' },
+  public:               { label: 'Public',              icon: Eye,       variant: 'info' },
+  invite_only:          { label: 'Invite Only',          icon: Shield,    variant: 'warning' },
+  private:              { label: 'Private',              icon: Lock,      variant: 'default' },
+  public_with_approval: { label: 'Public with Approval', icon: UserCheck, variant: 'info' },
 };
 
 export default function PodsPage() {

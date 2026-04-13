@@ -41,7 +41,6 @@ const VISIBILITY_OPTIONS = [
   { value: 'private',              label: 'Private',                desc: 'Invite only, hidden from browse' },
   { value: 'invite_only',          label: 'Invite Only',            desc: 'Discoverable but requires an invite link' },
   { value: 'public_with_approval', label: 'Public with Approval',   desc: 'Anyone can find and request to join; you approve' },
-  { value: 'request_to_join',      label: 'Request to Join',        desc: 'Open requests with optional rules/agreement' },
   { value: 'public',               label: 'Public (Open Join)',      desc: 'Anyone can join immediately' },
 ];
 
