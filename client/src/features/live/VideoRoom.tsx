@@ -139,19 +139,20 @@ function VideoStage() {
             </div>
           </div>
 
-          {/* Mobile 1:1: stacked layout — equal split, both clearly visible */}
+          {/* Mobile 1:1: WhatsApp/Google Meet style — partner full screen, self-view PIP top-right */}
           {!isTrio && (
-            <div className="md:hidden flex flex-col h-full gap-2">
-              <div className="flex-1 min-h-0 cursor-pointer" onClick={() => setPinnedSid(remoteTracks[0].participant.sid)}>
+            <div className="md:hidden h-full relative">
+              <div className="h-full cursor-pointer" onClick={() => setPinnedSid(remoteTracks[0].participant.sid)}>
                 <VideoTile trackRef={remoteTracks[0]} label={remoteTracks[0].participant.name || currentPartners[0]?.displayName || 'Partner'} />
               </div>
-              <div className="flex-1 min-h-0 cursor-pointer" onClick={() => setPinnedSid(localParticipant.sid)}>
+              <div className="absolute top-3 right-3 w-28 h-40 rounded-xl overflow-hidden shadow-lg border-2 border-white/80 z-10"
+                onClick={() => setPinnedSid(localParticipant.sid)}>
                 <VideoTile trackRef={localTrack} label="You" />
               </div>
             </div>
           )}
 
-          {/* Mobile trio: grid + floating self-view */}
+          {/* Mobile trio: remote participants split screen, self-view PIP top-right */}
           {isTrio && (
             <div className="md:hidden h-full relative">
               <div className="h-full grid grid-cols-1 gap-2">
@@ -161,8 +162,7 @@ function VideoStage() {
                   </div>
                 ))}
               </div>
-              {/* Floating self-view — tap to pin full screen */}
-              <div className="absolute bottom-3 right-3 w-44 h-32 rounded-xl overflow-hidden shadow-lg border-2 border-white/80 z-10"
+              <div className="absolute top-3 right-3 w-28 h-40 rounded-xl overflow-hidden shadow-lg border-2 border-white/80 z-10"
                 onClick={() => setPinnedSid(localParticipant.sid)}>
                 <VideoTile trackRef={localTrack} label="You" />
               </div>
