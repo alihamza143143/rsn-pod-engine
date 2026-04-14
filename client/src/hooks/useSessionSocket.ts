@@ -295,10 +295,11 @@ export default function useSessionSocket(sessionId: string) {
     });
 
     socket.on('match:reassigned', (data: any) => {
-      // Same guards as match:assigned
+      // Reassignment is an explicit action (host or auto) — only block during rating/completed
       const reassignState = useSessionStore.getState();
       if (reassignState.sessionStatus === 'round_rating' || reassignState.sessionStatus === 'completed') return;
-      if (reassignState.leftCurrentRound) return;
+      // NOTE: leftCurrentRound does NOT block reassignment — host/system override
+      store.setLeftCurrentRound(false); // Clear the flag — user is being put back in a room
       store.setPartnerDisconnected(false);
       store.setMatch({ userId: data.newPartnerId, displayName: data.partnerDisplayName || data.newPartnerId }, data.matchId || null);
       store.setPhase('matched');
@@ -327,12 +328,14 @@ export default function useSessionSocket(sessionId: string) {
 
     socket.on('match:return_to_lobby', () => {
       // Returned to lobby from breakout room (left conversation or partner left)
+      clearTimer(); // Stop round timer — this user's room participation is over
       store.setLiveKitToken(null, null);
       store.setMatch(null);
       store.setRoomId(null);
       store.setByeRound(false);
       store.setPartnerDisconnected(false);
       store.setTransitionStatus(null);
+      store.setTimer(0); // Clear displayed timer
       store.setLeftCurrentRound(true); // Prevent re-entry via stale match:assigned
       store.setPhase('lobby');
     });

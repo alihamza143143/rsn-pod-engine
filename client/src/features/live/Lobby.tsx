@@ -417,7 +417,7 @@ function useHostPresence(gracePeriodMs = 15000): boolean | null {
 }
 
 function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
-  const { participants, isByeRound, currentRound, totalRounds, transitionStatus, sessionStatus, hostUserId, preparingMatches } = useSessionStore();
+  const { participants, isByeRound, currentRound, totalRounds, transitionStatus, sessionStatus, hostUserId, preparingMatches, leftCurrentRound } = useSessionStore();
   const hostOnline = useHostPresence();
 
   // Session hasn't been started yet by host
@@ -468,6 +468,16 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
           <h2 className="text-xl font-bold text-[#1a1a2e]">Event Starting</h2>
           <p className="text-gray-400 text-sm">
             {isHost ? 'Main room is open — use Match People below when ready.' : 'Waiting for the host to begin matching...'}
+          </p>
+        </div>
+      ) : leftCurrentRound && !isHost && sessionStatus === 'round_active' ? (
+        <div className="flex flex-col items-center gap-3">
+          <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-blue-500/10 text-blue-400">
+            <Users className="h-7 w-7" />
+          </div>
+          <h2 className="text-xl font-bold text-[#1a1a2e]">Back in Main Room</h2>
+          <p className="text-gray-400 text-sm max-w-xs">
+            You've returned from your breakout room. The host may match you again or the round will end shortly.
           </p>
         </div>
       ) : (sessionStatus === 'round_active' || sessionStatus === 'round_rating') ? (
