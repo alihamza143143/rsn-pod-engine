@@ -298,6 +298,15 @@ export async function handleJoinSession(
             data.sessionId, userId, ParticipantStatus.IN_ROUND
           ).catch(() => {});
 
+          // Generate inline token for instant reconnection (FIX 15B)
+          const { config: reconnectConfig } = await import('../../../config');
+          let reconnectToken: string | null = null;
+          try {
+            const userDisplayName = (socket.data as any)?.displayName || 'User';
+            const vt = await videoService.issueJoinToken(userId, userMatch.roomId || '', userDisplayName);
+            reconnectToken = vt.token;
+          } catch { /* non-fatal — client falls back to API fetch */ }
+
           socket.emit('match:assigned', {
             matchId: userMatch.id,
             partnerId: partners[0].userId,
@@ -305,6 +314,8 @@ export async function handleJoinSession(
             partners,
             roomId: userMatch.roomId || '',
             roundNumber: activeSession.currentRound,
+            token: reconnectToken,
+            livekitUrl: reconnectConfig.livekit.host,
           });
         }
       }
@@ -411,9 +422,13 @@ export function handleHeartbeat(
 
   const activeSession = activeSessions.get(data.sessionId);
   if (activeSession) {
+    // Preserve reconnectedAt — overwriting it causes the disconnect timeout
+    // to miss the reconnection and falsely mark the user as no_show (FIX 15A)
+    const existing = activeSession.presenceMap.get(userId);
     activeSession.presenceMap.set(userId, {
       lastHeartbeat: new Date(),
       socketId: socket.id,
+      reconnectedAt: existing?.reconnectedAt,
     });
   }
 }

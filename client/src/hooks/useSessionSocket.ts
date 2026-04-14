@@ -488,6 +488,12 @@ export default function useSessionSocket(sessionId: string) {
       store.setReconnecting(false);
       store.setConnectionStatus('connected');
       store.setError(null);
+      // Clear stale LiveKit token — server will send fresh one via match:assigned (FIX 15E)
+      // If in matched phase, VideoRoom backup fetch will also re-request if needed
+      const currentPhase = useSessionStore.getState().phase;
+      if (currentPhase === 'matched') {
+        store.setLiveKitToken(null, null);
+      }
       socket.emit('session:join', { sessionId });
     };
 

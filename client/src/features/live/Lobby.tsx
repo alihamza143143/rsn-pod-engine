@@ -202,8 +202,15 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
 function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?: string }) {
   const { localParticipant } = useLocalParticipant();
   const { hostMuteCommand, setHostMuteCommand } = useSessionStore();
-  const [micEnabled, setMicEnabled] = useState(isHost); // Host unmuted by default, others muted
-  const [camEnabled, setCamEnabled] = useState(true);
+  // Restore camera/mic preference from sessionStorage (FIX 15D — survives refresh)
+  const [micEnabled, setMicEnabled] = useState(() => {
+    const saved = sessionStorage.getItem('rsn_mic');
+    return saved !== null ? saved === 'true' : isHost;
+  });
+  const [camEnabled, setCamEnabled] = useState(() => {
+    const saved = sessionStorage.getItem('rsn_cam');
+    return saved !== null ? saved === 'true' : true;
+  });
   const [allMuted, setAllMuted] = useState(false);
   const [bgMode, setBgMode] = useState('disabled');
   const [showBgPanel, setShowBgPanel] = useState(false);
@@ -232,15 +239,18 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
       const target = !hostMuteCommand; // hostMuteCommand=true means "mute", so !true = false = mute
       localParticipant.setMicrophoneEnabled(target);
       setMicEnabled(target);
+      sessionStorage.setItem('rsn_mic', String(target));
       setHostMuteCommand(null);
       setTimeout(() => setHostMuteProcessing(false), 500);
     }
   }, [hostMuteCommand, isHost, localParticipant, setHostMuteCommand]);
 
   const toggleMic = useCallback(async () => {
-    if (hostMuteProcessing) return; // Don't allow toggle while host command is being applied
-    await localParticipant.setMicrophoneEnabled(!micEnabled);
-    setMicEnabled(!micEnabled);
+    if (hostMuteProcessing) return;
+    const next = !micEnabled;
+    await localParticipant.setMicrophoneEnabled(next);
+    setMicEnabled(next);
+    sessionStorage.setItem('rsn_mic', String(next));
   }, [localParticipant, micEnabled, hostMuteProcessing]);
 
   const toggleCam = useCallback(async () => {
@@ -267,8 +277,12 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
         }
       }
     }
-    // Always sync from actual state after 500ms
-    setTimeout(() => setCamEnabled(localParticipant.isCameraEnabled), 500);
+    // Always sync from actual state after 500ms + persist preference
+    setTimeout(() => {
+      const actual = localParticipant.isCameraEnabled;
+      setCamEnabled(actual);
+      sessionStorage.setItem('rsn_cam', String(actual));
+    }, 500);
   }, [localParticipant, camEnabled]);
 
   const handleMuteAll = useCallback(() => {

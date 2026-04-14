@@ -538,9 +538,14 @@ export async function endRatingWindow(
         currentRound: roundNumber,
       });
 
-      // Re-issue lobby tokens to all connected participants for video mosaic
+      // Re-issue lobby tokens to all connected participants for video mosaic (FIX 15F: dynamic TTL)
       const session = await sessionService.getSessionById(sessionId);
       if (session.lobbyRoomId) {
+        const lobbyRoundsRemaining = Math.max(1, (activeSession.config.numberOfRounds || 5) - roundNumber);
+        const lobbyRoundDuration = activeSession.config.roundDurationSeconds || 480;
+        const lobbyRatingWindow = activeSession.config.ratingWindowSeconds || 10;
+        const lobbyTtl = Math.max(1800, Math.min(14400, lobbyRoundsRemaining * (lobbyRoundDuration + lobbyRatingWindow + 30) + 600));
+
         const socketsInRoom = await io.in(sessionRoom(sessionId)).fetchSockets();
         const { config: appConfig } = await import('../../../config');
         for (const s of socketsInRoom) {
@@ -548,7 +553,7 @@ export async function endRatingWindow(
             const uid = (s.data as any)?.userId;
             const dName = (s.data as any)?.displayName || 'User';
             if (!uid) continue;
-            const lobbyToken = await videoService.issueJoinToken(uid, session.lobbyRoomId, dName);
+            const lobbyToken = await videoService.issueJoinToken(uid, session.lobbyRoomId, dName, lobbyTtl);
             s.emit('lobby:token', {
               token: lobbyToken.token,
               livekitUrl: appConfig.livekit.host,
@@ -572,9 +577,10 @@ export async function endRatingWindow(
         currentRound: roundNumber,
       });
 
-      // Re-issue lobby tokens so participants see each other for goodbyes
+      // Re-issue lobby tokens so participants see each other for goodbyes (FIX 15F: dynamic TTL)
       const session = await sessionService.getSessionById(sessionId);
       if (session.lobbyRoomId) {
+        const closingTtl = 1800; // 30 min — closing lobby is just goodbyes + recap transition
         const socketsInRoom = await io.in(sessionRoom(sessionId)).fetchSockets();
         const { config: appConfig } = await import('../../../config');
         for (const s of socketsInRoom) {
@@ -582,7 +588,7 @@ export async function endRatingWindow(
             const uid = (s.data as any)?.userId;
             const dName = (s.data as any)?.displayName || 'User';
             if (!uid) continue;
-            const lobbyToken = await videoService.issueJoinToken(uid, session.lobbyRoomId, dName);
+            const lobbyToken = await videoService.issueJoinToken(uid, session.lobbyRoomId, dName, closingTtl);
             s.emit('lobby:token', {
               token: lobbyToken.token,
               livekitUrl: appConfig.livekit.host,

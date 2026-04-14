@@ -149,12 +149,16 @@ export default function LiveSessionPage() {
       {connectionStatus === 'disconnected' && (
         <div className="bg-red-500/10 px-4 py-2 flex items-center justify-center gap-2">
           <WifiOff className="h-4 w-4 text-red-400" />
-          <p className="text-sm text-red-400">You've been disconnected</p>
+          <p className="text-sm text-red-400">
+            {transitionStatus === 'evicted'
+              ? 'You connected from another device or tab'
+              : 'You\'ve been disconnected'}
+          </p>
           <button
-            onClick={() => connectSocket()}
+            onClick={() => { if (transitionStatus === 'evicted') { window.location.reload(); } else { connectSocket(); } }}
             className="ml-2 flex items-center gap-1 text-sm text-red-400 hover:text-red-300 underline"
           >
-            <RefreshCw className="h-3 w-3" /> Rejoin
+            <RefreshCw className="h-3 w-3" /> {transitionStatus === 'evicted' ? 'Rejoin here' : 'Rejoin'}
           </button>
         </div>
       )}
