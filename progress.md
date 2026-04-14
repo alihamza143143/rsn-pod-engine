@@ -322,6 +322,17 @@ Approach: 5-phase fix, each verified against actual code with full-stack trace
 - AdminEmailPage: new — toggle per email type with descriptions and subject preview
 - CreateSessionPage: event type dropdown + scheduledAt defaults to now
 
+### What's Done (Change 4.0 — Phase 1: Quick Wins, April 14, 2026)
+
+Source: Stefan review items Fix 10–15, Dr Architecture audit methodology
+Approach: Full codebase+DB+client+server audit before any code, architectural decisions not patches
+
+**Fix 10 — Mobile Lobby Video Layout: Controls Overlapping Names (COMPLETE)**
+- Lobby.tsx: Name label on local tile capped to `max-w-[calc(100%-8rem)]` to reserve space for media controls (Mute/Cam/BG)
+- Remote tiles (no controls) keep `max-w-[90%]` — no visual change for non-local tiles
+- Verified: tsc clean, 266 tests pass
+- Files: client/src/features/live/Lobby.tsx
+
 ### What's Next
 
 **All 6 phases complete.** Platform is production-ready for the features in the Change 1.4 doc.

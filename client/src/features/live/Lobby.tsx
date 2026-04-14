@@ -106,7 +106,7 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
             </div>
           </div>
         )}
-        <div className="absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm rounded px-2 py-0.5 text-[11px] text-white truncate max-w-[90%] flex items-center gap-1.5">
+        <div className={`absolute bottom-2 left-2 bg-black/60 backdrop-blur-sm rounded px-2 py-0.5 text-[11px] text-white truncate flex items-center gap-1.5 ${isLocal ? 'max-w-[calc(100%-8rem)]' : 'max-w-[90%]'}`}>
           {name}
           {trackRef.participant.identity === hostUserId && (
             <span className="text-[9px] font-medium text-amber-300 ml-0.5">(Host)</span>
