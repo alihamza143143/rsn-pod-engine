@@ -30,7 +30,7 @@ export default function HostControls({ sessionId }: Props) {
   const sessionStarted = sessionStatus !== 'scheduled' || transitionStatus === 'starting_session' || currentRound > 0;
   const isSessionEnding = transitionStatus === 'session_ending';
   const allRoundsDone = currentRound >= totalRounds && totalRounds > 0;
-  const isInRound = phase === 'matched' || phase === 'rating';
+  const isInRound = sessionStatus === 'round_active' || sessionStatus === 'round_rating' || phase === 'matched' || phase === 'rating';
 
   const startSession = () => socket?.emit('host:start_session', { sessionId });
   const endCurrentRound = () => {
@@ -460,14 +460,14 @@ export default function HostControls({ sessionId }: Props) {
             )}
 
             {/* Pause/Resume during round */}
-            {isInRound && phase === 'matched' && (
+            {isInRound && sessionStatus === 'round_active' && (
               <Button size="sm" variant="secondary" onClick={togglePause}>
                 {isPaused ? <><Play className="h-4 w-4 mr-1" /> Resume</> : <><Pause className="h-4 w-4 mr-1" /> Pause</>}
               </Button>
             )}
 
             {/* Extend round by 2 minutes */}
-            {isInRound && phase === 'matched' && (
+            {isInRound && sessionStatus === 'round_active' && (
               <Button size="sm" variant="secondary" onClick={() => {
                 socket?.emit('host:extend_round', { sessionId, additionalSeconds: 120 });
               }} title="Add 2 minutes to the current round">
@@ -476,7 +476,7 @@ export default function HostControls({ sessionId }: Props) {
             )}
 
             {/* End current round early — moves to rating, NOT end event */}
-            {isInRound && phase === 'matched' && (
+            {isInRound && sessionStatus === 'round_active' && (
               <Button size="sm" variant="secondary" onClick={endCurrentRound} title="End round early — goes to rating">
                 <SkipForward className="h-4 w-4 mr-1" /> End Round
               </Button>

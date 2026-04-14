@@ -773,7 +773,13 @@ export async function handleHostMoveToRoom(
     io.to(userRoom(currentPartnerId)).emit('match:return_to_lobby', { reason: 'partner_left' });
 
     // Create new match: user joins the target room participants
-    const newRoomId = `move-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const moveSlug = `move-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const newRoomId = `session-${sessionId}-round-${activeSession.currentRound}-${moveSlug}`;
+    try {
+      await videoService.createMatchRoom(sessionId, activeSession.currentRound, moveSlug);
+    } catch (err) {
+      logger.warn({ err, newRoomId }, 'LiveKit room creation failed for move (may already exist)');
+    }
     const allParticipants = [...targetParticipants, userId];
     const [pA, pB] = allParticipants[0] < allParticipants[1]
       ? [allParticipants[0], allParticipants[1]] : [allParticipants[1], allParticipants[0]];
