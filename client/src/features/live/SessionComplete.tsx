@@ -113,8 +113,8 @@ export default function SessionComplete({ sessionId }: Props) {
           <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-500/20 text-emerald-500 mb-4">
             <CheckCircle className="h-8 w-8" />
           </div>
-          <h2 className="text-xl font-bold text-gray-900 mb-2">Event Complete!</h2>
-          <p className="text-gray-500">Event finished — view your recap or go back to your pod.</p>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Event ended</h2>
+          <p className="text-gray-500">Here's your recap</p>
         </div>
 
         {loading ? (

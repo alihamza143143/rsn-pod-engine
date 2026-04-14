@@ -417,7 +417,7 @@ function useHostPresence(gracePeriodMs = 15000): boolean | null {
 }
 
 function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
-  const { participants, isByeRound, currentRound, totalRounds, transitionStatus, sessionStatus, hostUserId, preparingMatches, leftCurrentRound } = useSessionStore();
+  const { participants, isByeRound, transitionStatus, sessionStatus, hostUserId, preparingMatches, leftCurrentRound } = useSessionStore();
   const hostOnline = useHostPresence();
 
   // Session hasn't been started yet by host
@@ -433,59 +433,53 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
           <h2 className="text-xl font-bold text-[#1a1a2e]">All rounds complete</h2>
           <p className="text-gray-400 text-sm max-w-xs">
             {isHost
-              ? 'You can start another round or end the event below.'
+              ? 'Start another round or end the event below.'
               : 'The host will wrap up shortly. Feel free to chat!'}
           </p>
         </div>
       ) : isByeRound ? (
         <>
-          <h2 className="text-xl font-bold text-[#1a1a2e]">Waiting for Next Round</h2>
-          <p className="text-gray-400 text-sm">You'll be matched in the next one!</p>
-          <p className="text-xs text-gray-500 mt-1">The current round is still in progress.</p>
+          <h2 className="text-xl font-bold text-[#1a1a2e]">Sitting this one out</h2>
+          <p className="text-gray-400 text-sm">You'll be matched in the next round</p>
         </>
       ) : transitionStatus === 'session_ending' ? (
         <div className="flex flex-col items-center gap-2">
           <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
-          <p className="text-gray-300 text-sm font-medium">Event complete — preparing your recap...</p>
+          <p className="text-gray-300 text-sm font-medium">Wrapping up...</p>
         </div>
       ) : transitionStatus === 'between_rounds' ? (
         <div className="flex flex-col items-center gap-2">
           <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
-          <h2 className="text-xl font-bold text-[#1a1a2e]">Getting Ready</h2>
-          <p className="text-gray-400 text-sm">Preparing round {(currentRound || 0) + 1} of {totalRounds}...</p>
+          <h2 className="text-xl font-bold text-[#1a1a2e]">Next round starting...</h2>
         </div>
       ) : preparingMatches && !isHost ? (
         <div className="flex flex-col items-center gap-2">
           <div className="relative h-10 w-10">
             <Loader2 className="h-10 w-10 text-indigo-500 animate-spin" />
           </div>
-          <h2 className="text-xl font-bold text-[#1a1a2e]">Finding Your Match</h2>
-          <p className="text-gray-400 text-sm">The host is generating matches — get ready!</p>
+          <h2 className="text-xl font-bold text-[#1a1a2e]">Finding your match...</h2>
         </div>
       ) : transitionStatus === 'starting_session' ? (
         <div className="flex flex-col items-center gap-2">
           <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
-          <h2 className="text-xl font-bold text-[#1a1a2e]">Event Starting</h2>
-          <p className="text-gray-400 text-sm">
-            {isHost ? 'Main room is open — use Match People below when ready.' : 'Waiting for the host to begin matching...'}
-          </p>
+          <h2 className="text-xl font-bold text-[#1a1a2e]">Starting...</h2>
         </div>
       ) : leftCurrentRound && !isHost && sessionStatus === 'round_active' ? (
         <div className="flex flex-col items-center gap-3">
           <div className="inline-flex items-center justify-center h-14 w-14 rounded-full bg-blue-500/10 text-blue-400">
             <Users className="h-7 w-7" />
           </div>
-          <h2 className="text-xl font-bold text-[#1a1a2e]">Back in Main Room</h2>
+          <h2 className="text-xl font-bold text-[#1a1a2e]">You're in the lobby</h2>
           <p className="text-gray-400 text-sm max-w-xs">
-            You've returned from your breakout room. The host may match you again or the round will end shortly.
+            The host may assign you to a new room
           </p>
         </div>
       ) : (sessionStatus === 'round_active' || sessionStatus === 'round_rating') ? (
         <div className="flex flex-col items-center gap-2">
           <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
-          <h2 className="text-xl font-bold text-[#1a1a2e]">Round in Progress</h2>
+          <h2 className="text-xl font-bold text-[#1a1a2e]">Breakout rooms in progress</h2>
           <p className="text-gray-400 text-sm">
-            {isHost ? 'Monitoring breakout rooms...' : 'Waiting for this round to finish'}
+            {isHost ? 'Monitoring rooms' : 'You\'ll be back when the round ends'}
           </p>
         </div>
       ) : isScheduled ? (
@@ -493,13 +487,13 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
           <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-white/10 text-gray-300 mx-auto">
             <Sparkles className="h-6 w-6" />
           </div>
-          <h2 className="text-xl font-bold text-[#1a1a2e]">Waiting Room</h2>
+          <h2 className="text-xl font-bold text-[#1a1a2e]">Lobby</h2>
           <p className="text-gray-400 text-sm">
             {isHost
-              ? 'You\'re the host — click Start Event below when everyone is ready'
+              ? 'Click Start Event below when everyone is ready'
               : hostOnline
-                ? 'The host is here! They\'ll start the event shortly.'
-                : 'Waiting for the host to join and start the event...'}
+                ? 'Host has joined — starting soon'
+                : 'Waiting for host to start'}
           </p>
         </>
       ) : (
@@ -507,10 +501,10 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
           <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-white/10 text-gray-300 mx-auto">
             <Sparkles className="h-6 w-6" />
           </div>
-          <h2 className="text-xl font-bold text-[#1a1a2e]">Main Room</h2>
+          <h2 className="text-xl font-bold text-[#1a1a2e]">Lobby</h2>
           {isHost && (
             <p className="text-gray-400 text-sm">
-              You're the host — click Match People below when ready
+              Click Match People below when ready
             </p>
           )}
         </>

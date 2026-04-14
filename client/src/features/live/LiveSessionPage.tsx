@@ -81,8 +81,8 @@ export default function LiveSessionPage() {
   const handleLeave = () => {
     const inActivePhase = phase === 'matched' || phase === 'rating';
     const message = inActivePhase
-      ? 'You are in an active round. Leaving now will end your current conversation and you may miss this round. Are you sure?'
-      : 'Are you sure you want to leave this event?';
+      ? 'You\'re in a breakout room. Leaving will end your conversation. Leave event?'
+      : 'Leave this event?';
     if (!confirm(message)) return;
     getSocket()?.emit('session:leave', { sessionId: sessionId! });
     disconnectSocket();
@@ -137,24 +137,24 @@ export default function LiveSessionPage() {
       {connectionStatus === 'connecting' && (
         <div className="bg-gray-100 px-4 py-2 flex items-center justify-center gap-2">
           <Loader2 className="h-4 w-4 text-gray-400 animate-spin" />
-          <p className="text-sm text-gray-400">Connecting to event...</p>
+          <p className="text-sm text-gray-400">Joining...</p>
         </div>
       )}
       {connectionStatus === 'reconnecting' && (
         <div className="bg-amber-500/10 px-4 py-2 flex items-center justify-center gap-2">
           <WifiOff className="h-4 w-4 text-amber-400" />
-          <p className="text-sm text-amber-400">Connection lost — reconnecting...</p>
+          <p className="text-sm text-amber-400">Reconnecting...</p>
         </div>
       )}
       {connectionStatus === 'disconnected' && (
         <div className="bg-red-500/10 px-4 py-2 flex items-center justify-center gap-2">
           <WifiOff className="h-4 w-4 text-red-400" />
-          <p className="text-sm text-red-400">Disconnected from server.</p>
+          <p className="text-sm text-red-400">You've been disconnected</p>
           <button
             onClick={() => connectSocket()}
             className="ml-2 flex items-center gap-1 text-sm text-red-400 hover:text-red-300 underline"
           >
-            <RefreshCw className="h-3 w-3" /> Reconnect
+            <RefreshCw className="h-3 w-3" /> Rejoin
           </button>
         </div>
       )}
@@ -167,17 +167,11 @@ export default function LiveSessionPage() {
         </div>
       )}
 
-      {/* Transition status overlay */}
-      {transitionStatus && (
+      {/* Transition status — only show session_ending (others flash too fast or duplicate lobby UI) */}
+      {transitionStatus === 'session_ending' && (
         <div className="bg-gray-100 px-4 py-2 flex items-center justify-center gap-2">
           <Loader2 className="h-4 w-4 text-blue-400 animate-spin" />
-          <p className="text-sm text-gray-300">
-            {transitionStatus === 'starting_session' && (isHost ? 'Starting event — main room is open' : 'Event is starting — waiting for host to begin matching...')}
-            {transitionStatus === 'preparing_match' && (isHost ? 'Sending participants to breakout rooms...' : "You've been matched! Connecting to your partner...")}
-            {transitionStatus === 'round_ending' && (isHost ? 'Ending round — collecting participants...' : 'Round ending...')}
-            {transitionStatus === 'between_rounds' && (isHost ? 'Preparing next round...' : 'Next round starting soon...')}
-            {transitionStatus === 'session_ending' && (isHost ? 'Ending event — generating recaps...' : 'Preparing your recap...')}
-          </p>
+          <p className="text-sm text-gray-300">Wrapping up...</p>
         </div>
       )}
 
@@ -260,13 +254,13 @@ export default function LiveSessionPage() {
 /* ─── Persistent Event State Banner ─────────────────────────────────────── */
 
 const STATE_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  scheduled:        { label: 'Event not started yet', icon: <Users className="h-3.5 w-3.5" />, color: 'bg-white/5 text-gray-400' },
-  lobby_open:       { label: 'Main Room', icon: <Mic className="h-3.5 w-3.5" />, color: 'bg-white/5 text-gray-300' },
-  round_active:     { label: 'Round {round} Live', icon: <Radio className="h-3.5 w-3.5 animate-pulse" />, color: 'bg-red-500/10 text-red-400' },
-  round_rating:     { label: 'Rating — Round {round}', icon: <ArrowLeftRight className="h-3.5 w-3.5" />, color: 'bg-amber-500/10 text-amber-400' },
-  round_transition: { label: 'Back in main room', icon: <Shuffle className="h-3.5 w-3.5" />, color: 'bg-white/5 text-gray-300' },
-  closing_lobby:    { label: 'Preparing recap', icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />, color: 'bg-white/5 text-gray-400' },
-  completed:        { label: 'Event completed', icon: <CheckCircle2 className="h-3.5 w-3.5" />, color: 'bg-emerald-500/10 text-emerald-400' },
+  scheduled:        { label: 'Waiting to start', icon: <Users className="h-3.5 w-3.5" />, color: 'bg-white/5 text-gray-400' },
+  lobby_open:       { label: 'Lobby', icon: <Mic className="h-3.5 w-3.5" />, color: 'bg-white/5 text-gray-300' },
+  round_active:     { label: 'Breakout Rooms · Round {round}', icon: <Radio className="h-3.5 w-3.5 animate-pulse" />, color: 'bg-red-500/10 text-red-400' },
+  round_rating:     { label: 'Rating', icon: <ArrowLeftRight className="h-3.5 w-3.5" />, color: 'bg-amber-500/10 text-amber-400' },
+  round_transition: { label: 'Lobby', icon: <Shuffle className="h-3.5 w-3.5" />, color: 'bg-white/5 text-gray-300' },
+  closing_lobby:    { label: 'Wrapping up', icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />, color: 'bg-white/5 text-gray-400' },
+  completed:        { label: 'Event ended', icon: <CheckCircle2 className="h-3.5 w-3.5" />, color: 'bg-emerald-500/10 text-emerald-400' },
 };
 
 function EventStateBanner({ sessionStatus, currentRound, totalRounds }: { sessionStatus: string; currentRound: number; totalRounds: number; phase?: string }) {

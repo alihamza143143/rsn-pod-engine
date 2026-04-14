@@ -6,7 +6,7 @@ interface Props {
   roundNumber: number;
 }
 
-export default function MatchingOverlay({ roundNumber }: Props) {
+export default function MatchingOverlay(_props: Props) {
   const [phase, setPhase] = useState<'matching' | 'result'>('matching');
   const [countdown, setCountdown] = useState(3);
 
@@ -62,8 +62,7 @@ export default function MatchingOverlay({ roundNumber }: Props) {
             </div>
 
             <div>
-              <h2 className="text-xl font-semibold text-white">Matching people now</h2>
-              <p className="text-sm text-gray-400 mt-1">Pairing you up for Round {roundNumber}</p>
+              <h2 className="text-xl font-semibold text-white">Finding your match...</h2>
             </div>
 
             {/* Animated progress dots */}
@@ -92,10 +91,10 @@ export default function MatchingOverlay({ roundNumber }: Props) {
 
             <div>
               <h2 className="text-xl font-semibold text-white">
-                You've been matched!
+                Matched!
               </h2>
               <p className="text-sm text-gray-400 mt-1">
-                {countdown > 0 ? `Entering breakout room in ${countdown}...` : 'Connecting you to your breakout room...'}
+                {countdown > 0 ? `Joining room in ${countdown}...` : 'Joining room...'}
               </p>
             </div>
           </>
