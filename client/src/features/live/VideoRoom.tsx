@@ -370,8 +370,12 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
   const partnerDisconnected = useSessionStore(s => s.partnerDisconnected);
   const { setLiveKitToken } = useSessionStore.getState();
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const retryCountRef = useRef(0);
+  const connectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { sessionId } = useParams();
+
+  // Backup token fetch if not provided inline
   useEffect(() => {
     if (!liveKitToken && sessionId) {
       api.post(`/sessions/${sessionId}/token`, currentRoomId ? { roomId: currentRoomId } : {}).then(res => {
@@ -381,6 +385,31 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
       }).catch(() => setConnectionError('Failed to get video room access'));
     }
   }, [liveKitToken, sessionId, currentRoomId]);
+
+  // Connection timeout — if stuck on "Connecting" for 15s, show actionable UI
+  useEffect(() => {
+    if (liveKitToken && !connectionError) {
+      connectTimeoutRef.current = setTimeout(() => {
+        if (useSessionStore.getState().phase === 'matched' && !connectionError) {
+          setConnectionError('Video connection is taking too long. Your network may be slow.');
+        }
+      }, 15000);
+    }
+    return () => { if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current); };
+  }, [liveKitToken, connectionError]);
+
+  const handleRetry = () => {
+    setConnectionError(null);
+    setRetrying(true);
+    retryCountRef.current = 0;
+    setLiveKitToken(null, null);
+    // Token will be re-fetched by the backup useEffect above
+    setTimeout(() => setRetrying(false), 2000);
+  };
+
+  const handleReturnToLobby = () => {
+    if (sessionId) getSocket()?.emit('participant:leave_conversation', { sessionId });
+  };
 
   if (isByeRound) {
     return (
@@ -406,25 +435,41 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
           <div className="h-20 w-20 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
             <VideoOff className="h-8 w-8 text-red-400" />
           </div>
-          <h3 className="text-lg font-semibold text-white mb-2">Video Error</h3>
-          <p className="text-gray-400 text-sm mb-3">{connectionError}</p>
-          <button
-            onClick={() => { setConnectionError(null); setLiveKitToken('', ''); }}
-            className="text-sm text-blue-400 hover:text-blue-300 underline"
-          >Retry</button>
+          <h3 className="text-lg font-semibold text-white mb-2">Video Connection Issue</h3>
+          <p className="text-gray-400 text-sm mb-4">{connectionError}</p>
+          <div className="flex flex-col gap-2">
+            <button
+              onClick={handleRetry}
+              className="w-full px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              Try Again
+            </button>
+            <button
+              onClick={handleReturnToLobby}
+              className="w-full px-4 py-2.5 bg-white/10 hover:bg-white/20 text-gray-300 text-sm rounded-lg transition-colors"
+            >
+              Return to Main Room
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
-  if (!liveKitToken || !livekitUrl) {
+  if (!liveKitToken || !livekitUrl || retrying) {
     return (
       <div className="flex-1 flex items-center justify-center p-4 bg-[#202124]">
         <div className="max-w-md w-full text-center bg-[#292a2d] rounded-2xl p-8">
           <div className="h-16 w-16 rounded-full bg-[#3c4043] flex items-center justify-center mx-auto mb-4 animate-pulse">
             <Video className="h-6 w-6 text-gray-400" />
           </div>
-          <p className="text-gray-400 text-sm">Connecting to video room — please wait...</p>
+          <p className="text-gray-400 text-sm">{retrying ? 'Reconnecting...' : 'Connecting to video room — please wait...'}</p>
+          <button
+            onClick={handleReturnToLobby}
+            className="mt-4 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+          >
+            Return to Main Room
+          </button>
         </div>
       </div>
     );
@@ -441,31 +486,36 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
         videoCaptureDefaults: { resolution: { width: 1280, height: 720, frameRate: 30 } },
       }}
       onDisconnected={() => {
-        // Ignore disconnect during normal round transitions (server closes the room)
         if (useSessionStore.getState().phase !== 'matched') return;
+        if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
         setTimeout(() => {
           if (useSessionStore.getState().phase !== 'matched') return;
-          // Auto-retry once before showing error
-          if (retryCountRef.current < 1) {
+          if (retryCountRef.current < 2) {
             retryCountRef.current++;
+            setRetrying(true);
             setLiveKitToken(null, null);
+            setTimeout(() => setRetrying(false), 2000);
           } else {
-            setConnectionError('Video connection interrupted — try refreshing if the issue persists');
+            setConnectionError('Video connection lost. Your network may be unstable.');
           }
-        }, 3000);
+        }, 2000);
       }}
       onError={(err) => {
         if (useSessionStore.getState().phase !== 'matched') return;
+        if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current);
         setTimeout(() => {
           if (useSessionStore.getState().phase !== 'matched') return;
-          // Auto-retry once before showing error
-          if (retryCountRef.current < 1) {
+          if (retryCountRef.current < 2) {
             retryCountRef.current++;
+            setRetrying(true);
             setLiveKitToken(null, null);
+            setTimeout(() => setRetrying(false), 2000);
           } else {
-            setConnectionError(err?.message || 'Video connection error');
+            setConnectionError(err?.message?.includes('publishing rejected')
+              ? 'Camera could not connect. Check your permissions and try again.'
+              : 'Video connection failed. Please try again.');
           }
-        }, 3000);
+        }, 2000);
       }}
       className="flex-1 flex flex-col"
     >
