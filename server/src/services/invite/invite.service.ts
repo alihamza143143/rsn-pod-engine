@@ -64,6 +64,13 @@ export async function createInvite(userId: string, input: CreateInviteInput, use
     }
   }
 
+  // Platform invites: only admin/super_admin can invite to the platform
+  if (!input.type || input.type === InviteType.PLATFORM) {
+    if (!isAdmin) {
+      throw new AppError(403, 'AUTH_FORBIDDEN', 'Only admins can send platform invitations');
+    }
+  }
+
   // Platform invites: reject if user is already registered
   if ((!input.type || input.type === InviteType.PLATFORM) && input.inviteeEmail) {
     const existingUser = await query<{ id: string }>(
