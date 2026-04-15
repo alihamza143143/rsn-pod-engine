@@ -1,12 +1,15 @@
 // ─── Join Request Service ─────────────────────────────────────────────────────
 // Handles the "Request to Join" flow: submission, listing, approval, decline.
 
+import crypto from 'crypto';
 import { query } from '../../db';
 import logger from '../../config/logger';
 import config from '../../config';
 import { AppError } from '../../middleware/errors';
 import { ErrorCodes } from '@rsn/shared';
 import { sendJoinRequestConfirmationEmail, sendJoinRequestWelcomeEmail, sendJoinRequestDeclineEmail, sendJoinRequestReminderEmail } from '../email/email.service';
+
+const APPROVAL_LINK_EXPIRY_DAYS = 7;
 
 export interface JoinRequest {
   id: string;
@@ -176,8 +179,12 @@ export async function reviewJoinRequest(
 
   // Send approval/decline email (non-blocking)
   if (decision === 'approved') {
-    const loginUrl = `${config.clientUrl}/login`;
-    sendJoinRequestWelcomeEmail(reviewed.email, reviewed.fullName, loginUrl).catch(err =>
+    // Generate a 7-day magic link so approved users get one-click access
+    const approvalLoginUrl = await generateApprovalMagicLink(reviewed.email).catch(err => {
+      logger.warn({ err, email: reviewed.email }, 'Failed to generate approval magic link — falling back to login URL');
+      return `${config.clientUrl}/login`;
+    });
+    sendJoinRequestWelcomeEmail(reviewed.email, reviewed.fullName, approvalLoginUrl).catch(err =>
       logger.error({ err, email: reviewed.email }, 'Failed to send welcome email')
     );
 
@@ -359,4 +366,33 @@ export async function processAutoReminders(): Promise<{ reminded: number; expire
   }
 
   return { reminded, expired };
+}
+
+// ─── Approval Magic Link ─────────────────────────────────────────────────────
+
+/**
+ * Generate a magic link with 7-day expiry for approved join requests.
+ * Uses the same magic_links table as the normal auth flow.
+ */
+async function generateApprovalMagicLink(email: string): Promise<string> {
+  const normalizedEmail = email.toLowerCase().trim();
+  const token = crypto.randomBytes(32).toString('hex');
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const expiresAt = new Date(Date.now() + APPROVAL_LINK_EXPIRY_DAYS * 24 * 60 * 60 * 1000);
+
+  // Invalidate any existing magic links for this email
+  await query(
+    `UPDATE magic_links SET used_at = NOW() WHERE email = $1 AND used_at IS NULL AND expires_at > NOW()`,
+    [normalizedEmail]
+  );
+
+  // Store the hashed token with 7-day expiry
+  await query(
+    `INSERT INTO magic_links (email, token_hash, expires_at) VALUES ($1, $2, $3)`,
+    [normalizedEmail, tokenHash, expiresAt]
+  );
+
+  const magicLinkUrl = `${config.clientUrl}/auth/verify?token=${token}`;
+  logger.info({ email: normalizedEmail }, 'Approval magic link generated (7-day expiry)');
+  return magicLinkUrl;
 }

@@ -6,6 +6,7 @@ import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
 import { query } from '../db';
 import { ApiResponse, UserRole } from '@rsn/shared';
+import * as joinRequestService from '../services/join-request/join-request.service';
 
 const router = Router();
 
@@ -228,16 +229,21 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const { requestIds, action, notes } = req.body;
-      const status = action === 'approve' ? 'approved' : 'declined';
+      const decision = action === 'approve' ? 'approved' : 'declined';
 
-      const result = await query(
-        `UPDATE join_requests SET status = $1, reviewed_by = $2, reviewed_at = NOW(), admin_notes = $3, updated_at = NOW()
-         WHERE id = ANY($4::uuid[]) AND status = 'pending'
-         RETURNING id`,
-        [status, req.user!.userId, notes || null, requestIds]
-      );
+      // Process each request through the service so emails + notifications are sent
+      let affected = 0;
+      for (const id of requestIds) {
+        try {
+          await joinRequestService.reviewJoinRequest(id, decision, req.user!.userId, notes);
+          affected++;
+        } catch (err: any) {
+          // Skip individual failures (e.g. already reviewed) but continue
+          if (err?.statusCode !== 404) throw err;
+        }
+      }
 
-      const response: ApiResponse = { success: true, data: { affected: result.rowCount } };
+      const response: ApiResponse = { success: true, data: { affected } };
       return res.json(response);
     } catch (err) {
       return next(err);
