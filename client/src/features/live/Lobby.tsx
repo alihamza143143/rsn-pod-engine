@@ -215,19 +215,26 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
   const [bgMode, setBgMode] = useState('disabled');
   const [showBgPanel, setShowBgPanel] = useState(false);
 
+  // Sync BOTH mic and camera state from actual LiveKit track state
+  const mountedRef = useRef(false);
   useEffect(() => {
     if (localParticipant) {
       setCamEnabled(localParticipant.isCameraEnabled);
+      if (mountedRef.current) {
+        // On remount (returning from breakout): sync mic from actual track state
+        setMicEnabled(localParticipant.isMicrophoneEnabled);
+        sessionStorage.setItem('rsn_mic', String(localParticipant.isMicrophoneEnabled));
+      } else {
+        // First mount only: auto-mute participants (not host)
+        mountedRef.current = true;
+        if (!isHost) {
+          localParticipant.setMicrophoneEnabled(false);
+          setMicEnabled(false);
+          sessionStorage.setItem('rsn_mic', 'false');
+        }
+      }
     }
-  }, [localParticipant]);
-
-  // Auto-mute participants (not host) on mount
-  useEffect(() => {
-    if (!isHost) {
-      localParticipant.setMicrophoneEnabled(false);
-      setMicEnabled(false);
-    }
-  }, [isHost, localParticipant]);
+  }, [localParticipant, isHost]);
 
   // Guard: prevent user toggle while host mute command is being applied (race condition)
   const [hostMuteProcessing, setHostMuteProcessing] = useState(false);
