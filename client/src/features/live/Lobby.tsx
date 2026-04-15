@@ -431,7 +431,7 @@ function useHostPresence(gracePeriodMs = 15000): boolean | null {
 }
 
 function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
-  const { participants, isByeRound, transitionStatus, sessionStatus, hostUserId, preparingMatches, leftCurrentRound } = useSessionStore();
+  const { participants, isByeRound, transitionStatus, sessionStatus, hostUserId, leftCurrentRound } = useSessionStore();
   const hostOnline = useHostPresence();
 
   // Session hasn't been started yet by host
@@ -445,11 +445,11 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
             <Sparkles className="h-7 w-7" />
           </div>
           <h2 className="text-xl font-bold text-[#1a1a2e]">All rounds complete</h2>
-          <p className="text-gray-400 text-sm max-w-xs">
-            {isHost
-              ? 'Start another round or end the event below.'
-              : 'The host will wrap up shortly. Feel free to chat!'}
-          </p>
+          {isHost && (
+            <p className="text-gray-400 text-sm max-w-xs">
+              Start another round or end the event below.
+            </p>
+          )}
         </div>
       ) : isByeRound ? (
         <>
@@ -465,13 +465,6 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
         <div className="flex flex-col items-center gap-2">
           <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
           <h2 className="text-xl font-bold text-[#1a1a2e]">Next round starting...</h2>
-        </div>
-      ) : preparingMatches && !isHost ? (
-        <div className="flex flex-col items-center gap-2">
-          <div className="relative h-10 w-10">
-            <Loader2 className="h-10 w-10 text-indigo-500 animate-spin" />
-          </div>
-          <h2 className="text-xl font-bold text-[#1a1a2e]">Finding your match...</h2>
         </div>
       ) : transitionStatus === 'starting_session' ? (
         <div className="flex flex-col items-center gap-2">
@@ -489,13 +482,12 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
           </p>
         </div>
       ) : (sessionStatus === 'round_active' || sessionStatus === 'round_rating') ? (
-        <div className="flex flex-col items-center gap-2">
-          <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
-          <h2 className="text-xl font-bold text-[#1a1a2e]">Breakout rooms in progress</h2>
-          <p className="text-gray-400 text-sm">
-            {isHost ? 'Monitoring rooms' : 'You\'ll be back when the round ends'}
-          </p>
-        </div>
+        !isHost ? (
+          <div className="flex flex-col items-center gap-2">
+            <Loader2 className="h-5 w-5 text-gray-400 animate-spin" />
+            <h2 className="text-xl font-bold text-[#1a1a2e]">Round in progress</h2>
+          </div>
+        ) : null
       ) : isScheduled ? (
         <>
           <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-white/10 text-gray-300 mx-auto">

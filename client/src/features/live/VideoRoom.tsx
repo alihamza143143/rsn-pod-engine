@@ -392,7 +392,7 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
         if (useSessionStore.getState().phase === 'matched' && !connectionError) {
           setConnectionError('Video connection is taking too long. Your network may be slow.');
         }
-      }, 15000);
+      }, 30000);
     }
     return () => { if (connectTimeoutRef.current) clearTimeout(connectTimeoutRef.current); };
   }, [liveKitToken, connectionError]);

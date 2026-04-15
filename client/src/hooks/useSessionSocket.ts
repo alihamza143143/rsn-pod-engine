@@ -250,14 +250,16 @@ export default function useSessionSocket(sessionId: string) {
     });
 
     // ── Matching anticipation ──
+    // Host matching events — no participant-visible UI (host communicates verbally)
     socket.on('session:matching_preparing', () => {
       store.setPreparingMatches(true);
     });
     socket.on('session:matching_cancelled', () => {
       store.setPreparingMatches(false);
     });
-    socket.on('session:matching_in_progress', (data: any) => {
-      store.setMatchingOverlay({ roomCount: data.roomCount, roundNumber: data.roundNumber });
+    socket.on('session:matching_in_progress', () => {
+      store.setPreparingMatches(false);
+      // No matchingOverlay — participants only see the transition when match:assigned arrives
     });
 
     // ── Matching ──
