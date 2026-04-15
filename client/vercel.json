@@ -6,8 +6,9 @@
   "installCommand": "cd .. && npm install",
   "build": {
     "env": {
-      "VITE_API_URL": "https://sussex-demonstrates-ottawa-kitty.trycloudflare.com/api",
-      "VITE_SERVER_URL": "https://sussex-demonstrates-ottawa-kitty.trycloudflare.com"
+      "VITE_API_URL": "https://rsn-api-h04m.onrender.com/api",
+      "VITE_SERVER_URL": "https://rsn-api-h04m.onrender.com",
+      "VITE_SENTRY_DSN": "https://8d2c1cb564d76a30c57bde479241b450@o4511214831665152.ingest.de.sentry.io/4511214855192656"
     }
   },
   "rewrites": [

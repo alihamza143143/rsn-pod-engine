@@ -524,43 +524,42 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
       )}
 
       <div className="flex-1 flex flex-col p-4 gap-4 bg-[#202124] overflow-auto min-h-0 relative">
-        {/* Timer bar — single source of truth for time display */}
-        <div className="flex items-center justify-between bg-[#292a2d] rounded-xl px-4 py-3">
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-white font-medium">Breakout Room</span>
-            <span className="text-sm text-gray-500">|</span>
-            <span className="text-sm text-gray-400">Round {currentRound} of {totalRounds}</span>
+        {/* Timer bar — responsive: stacks on mobile */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-[#292a2d] rounded-xl px-3 py-2 sm:px-4 sm:py-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
+            <span className="text-xs sm:text-sm text-white font-medium">Breakout Room</span>
+            <span className="text-xs sm:text-sm text-gray-400">Round {currentRound}/{totalRounds}</span>
             <ConnectionIndicator />
             <MediaControls />
-            {!isHost && (
-              <>
-                <button
-                  onClick={() => {
-                    if (confirm('Return to the main room? Your conversation will end.')) {
-                      if (sessionId) getSocket()?.emit('participant:leave_conversation', { sessionId });
-                    }
-                  }}
-                  className="flex items-center gap-1 px-2.5 py-1 text-xs text-gray-400 hover:text-amber-400 hover:bg-white/5 rounded-lg transition-colors"
-                  title="Return to the main room"
-                >
-                  <ArrowLeft className="h-3 w-3" /> Return to Main Room
-                </button>
-                <button
-                  onClick={() => {
-                    if (confirm('Leave this event entirely? You will not be able to rejoin.')) {
-                      if (sessionId) getSocket()?.emit('session:leave', { sessionId });
-                      disconnectSocket();
-                      useSessionStore.getState().reset();
-                      window.location.href = '/sessions';
-                    }
-                  }}
-                  className="flex items-center gap-1 px-2.5 py-1 text-xs text-gray-400 hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors"
-                >
-                  <ArrowLeft className="h-3 w-3" /> Leave Event
-                </button>
-              </>
-            )}
           </div>
+          {!isHost && (
+            <div className="flex items-center gap-1 sm:gap-2">
+              <button
+                onClick={() => {
+                  if (confirm('Return to the main room? Your conversation will end.')) {
+                    if (sessionId) getSocket()?.emit('participant:leave_conversation', { sessionId });
+                  }
+                }}
+                className="flex items-center gap-1 px-2 py-1 text-[10px] sm:text-xs text-gray-400 hover:text-amber-400 hover:bg-white/5 rounded-lg transition-colors"
+                title="Return to the main room"
+              >
+                <ArrowLeft className="h-3 w-3" /> Main Room
+              </button>
+              <button
+                onClick={() => {
+                  if (confirm('Leave this event entirely? You will not be able to rejoin.')) {
+                    if (sessionId) getSocket()?.emit('session:leave', { sessionId });
+                    disconnectSocket();
+                    useSessionStore.getState().reset();
+                    window.location.href = '/sessions';
+                  }
+                }}
+                className="flex items-center gap-1 px-2 py-1 text-[10px] sm:text-xs text-gray-400 hover:text-red-400 hover:bg-white/5 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="h-3 w-3" /> Leave
+              </button>
+            </div>
+          )}
           {(() => {
             // Host always sees the timer regardless of visibility setting
             const showTimer = isHost ||
