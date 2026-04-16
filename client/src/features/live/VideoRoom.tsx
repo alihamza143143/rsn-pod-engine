@@ -145,7 +145,7 @@ function VideoStage() {
               <div className="h-full cursor-pointer" onClick={() => setPinnedSid(remoteTracks[0].participant.sid)}>
                 <VideoTile trackRef={remoteTracks[0]} label={remoteTracks[0].participant.name || currentPartners[0]?.displayName || 'Partner'} />
               </div>
-              <div className="absolute top-3 right-3 w-32 h-44 sm:w-36 sm:h-48 rounded-xl overflow-hidden shadow-lg border-2 border-white/80 z-10"
+              <div className="absolute top-3 right-3 w-32 h-44 sm:w-36 sm:h-48 rounded-xl overflow-hidden shadow-lg border-2 border-white/80 z-10 [&_div]:!aspect-auto [&_div]:!h-full"
                 onClick={() => setPinnedSid(localParticipant.sid)}>
                 <VideoTile trackRef={localTrack} label="You" />
               </div>
@@ -162,7 +162,7 @@ function VideoStage() {
                   </div>
                 ))}
               </div>
-              <div className="absolute top-3 right-3 w-32 h-44 sm:w-36 sm:h-48 rounded-xl overflow-hidden shadow-lg border-2 border-white/80 z-10"
+              <div className="absolute top-3 right-3 w-32 h-44 sm:w-36 sm:h-48 rounded-xl overflow-hidden shadow-lg border-2 border-white/80 z-10 [&_div]:!aspect-auto [&_div]:!h-full"
                 onClick={() => setPinnedSid(localParticipant.sid)}>
                 <VideoTile trackRef={localTrack} label="You" />
               </div>
@@ -368,10 +368,8 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
   const timerVisibility = useSessionStore(s => s.timerVisibility);
   const partnerDisconnected = useSessionStore(s => s.partnerDisconnected);
   const { setLiveKitToken } = useSessionStore.getState();
-  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [retrying, setRetrying] = useState(false);
   const retryCountRef = useRef(0);
-  // connectTimeoutRef removed — no auto-timeout needed, onError/onDisconnected handle failures
   const { sessionId } = useParams();
 
   // Backup token fetch if not provided inline
@@ -381,23 +379,9 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
         const { token, livekitUrl: url } = res.data.data;
         setLiveKitToken(token, url);
         retryCountRef.current = 0;
-      }).catch(() => setConnectionError('Failed to get video room access'));
+      }).catch(() => { /* Token fetch failed — VideoRoom will show loading state, user can leave */ });
     }
   }, [liveKitToken, sessionId, currentRoomId]);
-
-  // Connection timeout — if stuck on "Connecting" for 15s, show actionable UI
-  // No auto-timeout — onError and onDisconnected handlers catch real failures.
-  // The previous 30s timeout was causing false "Video Connection Issue" errors
-  // on slow mobile networks and during reconnections.
-
-  const handleRetry = () => {
-    setConnectionError(null);
-    setRetrying(true);
-    retryCountRef.current = 0;
-    setLiveKitToken(null, null);
-    // Token will be re-fetched by the backup useEffect above
-    setTimeout(() => setRetrying(false), 2000);
-  };
 
   const handleReturnToLobby = () => {
     if (sessionId) getSocket()?.emit('participant:leave_conversation', { sessionId });
@@ -415,34 +399,6 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
             You'll be matched in the next round
           </p>
           <p className="text-gray-500 text-xs mt-3">Round {currentRound} of {totalRounds}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (connectionError) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-4 bg-[#202124]">
-        <div className="max-w-md w-full text-center bg-[#292a2d] rounded-2xl p-8">
-          <div className="h-20 w-20 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-4">
-            <VideoOff className="h-8 w-8 text-red-400" />
-          </div>
-          <h3 className="text-lg font-semibold text-white mb-2">Video Connection Issue</h3>
-          <p className="text-gray-400 text-sm mb-4">{connectionError}</p>
-          <div className="flex flex-col gap-2">
-            <button
-              onClick={handleRetry}
-              className="w-full px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium rounded-lg transition-colors"
-            >
-              Try Again
-            </button>
-            <button
-              onClick={handleReturnToLobby}
-              className="w-full px-4 py-2.5 bg-white/10 hover:bg-white/20 text-gray-300 text-sm rounded-lg transition-colors"
-            >
-              Return to Main Room
-            </button>
-          </div>
         </div>
       </div>
     );
@@ -479,7 +435,6 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
       }}
       onDisconnected={() => {
         if (useSessionStore.getState().phase !== 'matched') return;
-        // No timeout to clear — auto-timeout removed
         setTimeout(() => {
           if (useSessionStore.getState().phase !== 'matched') return;
           if (retryCountRef.current < 2) {
@@ -488,13 +443,12 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
             setLiveKitToken(null, null);
             setTimeout(() => setRetrying(false), 2000);
           } else {
-            setConnectionError('Video connection lost. Your network may be unstable.');
+            handleReturnToLobby();
           }
         }, 2000);
       }}
-      onError={(err) => {
+      onError={() => {
         if (useSessionStore.getState().phase !== 'matched') return;
-        // No timeout to clear — auto-timeout removed
         setTimeout(() => {
           if (useSessionStore.getState().phase !== 'matched') return;
           if (retryCountRef.current < 2) {
@@ -503,9 +457,7 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
             setLiveKitToken(null, null);
             setTimeout(() => setRetrying(false), 2000);
           } else {
-            setConnectionError(err?.message?.includes('publishing rejected')
-              ? 'Camera could not connect. Check your permissions and try again.'
-              : 'Video connection failed. Please try again.');
+            handleReturnToLobby();
           }
         }, 2000);
       }}

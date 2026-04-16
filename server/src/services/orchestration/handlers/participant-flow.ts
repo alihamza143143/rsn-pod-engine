@@ -260,7 +260,7 @@ export async function handleJoinSession(
       }
 
       // If in lobby/transition phase and session has a lobby room, send lobby token for video mosaic
-      const lobbyPhases = [SessionStatus.LOBBY_OPEN, SessionStatus.ROUND_TRANSITION, SessionStatus.ROUND_RATING, SessionStatus.CLOSING_LOBBY];
+      const lobbyPhases = [SessionStatus.LOBBY_OPEN, SessionStatus.ROUND_ACTIVE, SessionStatus.ROUND_TRANSITION, SessionStatus.ROUND_RATING, SessionStatus.CLOSING_LOBBY];
       const currentStatus = activeSession?.status || session.status;
       if (session.lobbyRoomId && lobbyPhases.includes(currentStatus as SessionStatus)) {
         try {
@@ -640,12 +640,30 @@ export async function handleLeaveConversation(
       // Move user back to lobby status
       await sessionService.updateParticipantStatus(sessionId, userId, ParticipantStatus.IN_LOBBY);
 
-      // Tell the user to return to lobby
-      socket.emit('match:return_to_lobby', { reason: 'you_left' });
-
-      // Notify remaining partners
+      // Collect partner IDs and names for rating screen
       const partnerIds = [userMatch.participantAId, userMatch.participantBId, userMatch.participantCId]
         .filter((id): id is string => !!id && id !== userId);
+
+      // Fetch partner display names for rating
+      const partnerNameRes = await query<{ id: string; display_name: string }>(
+        `SELECT id, display_name FROM users WHERE id = ANY($1)`,
+        [partnerIds]
+      );
+      const partnerNameMap = new Map(partnerNameRes.rows.map(r => [r.id, r.display_name || 'Partner']));
+      const partnersWithNames = partnerIds.map(pid => ({
+        userId: pid,
+        displayName: partnerNameMap.get(pid) || 'Partner',
+      }));
+
+      // Show rating screen before returning to lobby (20s window)
+      socket.emit('rating:window_open', {
+        matchId: userMatch.id,
+        partnerId: partnerIds[0],
+        partnerDisplayName: partnerNameMap.get(partnerIds[0]) || 'Partner',
+        partners: partnersWithNames,
+        durationSeconds: 20,
+        earlyLeave: true,
+      });
 
       for (const partnerId of partnerIds) {
         io.to(userRoom(partnerId)).emit('match:partner_disconnected', { matchId: userMatch.id });

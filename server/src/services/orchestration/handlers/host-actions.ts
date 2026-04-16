@@ -1128,10 +1128,13 @@ export async function broadcastMessage(
 
 // ─── Host Create Breakout Room ────────────────────────────────────────────
 
+// Per-room timers for host-created breakout rooms with custom duration
+const roomTimers = new Map<string, NodeJS.Timeout>();
+
 export async function handleHostCreateBreakout(
   io: SocketServer,
   socket: Socket,
-  data: { sessionId: string; participantIds: string[] }
+  data: { sessionId: string; participantIds: string[]; durationSeconds?: number }
 ): Promise<void> {
   return withSessionGuard(data.sessionId, async () => {
     try {
@@ -1275,12 +1278,86 @@ export async function handleHostCreateBreakout(
         }
       } // end if participantIds.length > 0
 
-      // Step 5: Refresh dashboard
+      // Step 5: Per-room timer — end room after custom duration
+      const duration = data.durationSeconds;
+      if (duration && duration > 0 && matchId && participantIds.length >= 2) {
+        // Clear any existing timer for this match
+        if (roomTimers.has(matchId)) clearTimeout(roomTimers.get(matchId)!);
+
+        roomTimers.set(matchId, setTimeout(async () => {
+          roomTimers.delete(matchId);
+          try {
+            // Check match is still active
+            const matchRow = await query<{ status: string }>(
+              `SELECT status FROM matches WHERE id = $1`, [matchId]
+            );
+            if (!matchRow.rows[0] || matchRow.rows[0].status !== 'active') return;
+
+            // Mark match completed
+            await query(
+              `UPDATE matches SET status = 'completed', ended_at = NOW() WHERE id = $1 AND status = 'active'`,
+              [matchId]
+            );
+
+            // Send rating screen to each participant, then return to lobby
+            const namesResult2 = await query<{ id: string; display_name: string }>(
+              `SELECT id, display_name FROM users WHERE id = ANY($1)`, [participantIds]
+            );
+            const nm = new Map(namesResult2.rows.map(r => [r.id, r.display_name || 'Partner']));
+
+            for (const pid of participantIds) {
+              const partners = participantIds
+                .filter(id => id !== pid)
+                .map(id => ({ userId: id, displayName: nm.get(id) || 'Partner' }));
+
+              await sessionService.updateParticipantStatus(sessionId, pid, ParticipantStatus.IN_LOBBY).catch(() => {});
+
+              io.to(userRoom(pid)).emit('rating:window_open', {
+                matchId,
+                partnerId: partners[0]?.userId,
+                partnerDisplayName: partners[0]?.displayName,
+                partners,
+                durationSeconds: 20,
+                earlyLeave: true,
+              });
+
+              // Send lobby token so they can rejoin main room after rating
+              const session2 = await sessionService.getSessionById(sessionId);
+              if (session2.lobbyRoomId) {
+                try {
+                  const { config: appConfig2 } = await import('../../../config');
+                  const socketsInRoom = await io.in(userRoom(pid)).fetchSockets();
+                  for (const sk of socketsInRoom) {
+                    const uid = (sk.data as any)?.userId;
+                    if (uid !== pid) continue;
+                    const dName = (sk.data as any)?.displayName || 'User';
+                    const lobbyToken = await videoService.issueJoinToken(uid, session2.lobbyRoomId, dName);
+                    sk.emit('lobby:token', { token: lobbyToken.token, livekitUrl: appConfig2.livekit.host, roomId: session2.lobbyRoomId });
+                  }
+                } catch { /* skip */ }
+              }
+            }
+
+            // Refresh dashboard
+            if (_emitHostDashboard) await _emitHostDashboard(sessionId).catch(() => {});
+            logger.info({ sessionId, matchId }, 'Host breakout room timer expired — participants sent to rating');
+          } catch (err) {
+            logger.error({ err, matchId }, 'Error in host breakout room timer');
+          }
+        }, duration * 1000));
+
+        // Send timer:sync to participants in this room so they see countdown
+        for (const pid of participantIds) {
+          io.to(userRoom(pid)).emit('timer:sync', { seconds: duration });
+        }
+      }
+
+      // Step 6: Refresh dashboard
       if (_emitHostDashboard) {
         await _emitHostDashboard(sessionId).catch(() => {});
       }
 
-      logger.info({ sessionId, matchId, participantIds, roomSlug }, 'Host created breakout room');
+      logger.info({ sessionId, matchId, participantIds, roomSlug, durationSeconds: duration }, 'Host created breakout room');
     } catch (err: any) {
       logger.error({ err }, 'Error in handleHostCreateBreakout');
       socket.emit('error', { code: 'CREATE_BREAKOUT_FAILED', message: err.message || 'Failed to create breakout room' });

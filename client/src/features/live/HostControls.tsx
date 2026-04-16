@@ -27,6 +27,9 @@ export default function HostControls({ sessionId }: Props) {
   const [manualMatchMode, setManualMatchMode] = useState(false);
   const [manualA, setManualA] = useState<string | null>(null);
   const [manualB, setManualB] = useState<string | null>(null);
+  const [showCreateRoom, setShowCreateRoom] = useState(false);
+  const [createRoomDuration, setCreateRoomDuration] = useState(300); // 5 min default
+  const [createRoomSelected, setCreateRoomSelected] = useState<Set<string>>(new Set());
 
   const sessionStarted = sessionStatus !== 'scheduled' || transitionStatus === 'starting_session' || currentRound > 0;
   const isSessionEnding = transitionStatus === 'session_ending';
@@ -365,6 +368,90 @@ export default function HostControls({ sessionId }: Props) {
         </div>
       )}
 
+      {/* Create Room panel */}
+      {showCreateRoom && (
+        <div className="border-b border-gray-200 bg-emerald-50 px-4 py-3">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-emerald-700 flex items-center gap-2">
+                <UserPlus className="h-4 w-4" /> Create Breakout Room
+              </h3>
+              <button onClick={() => { setShowCreateRoom(false); setCreateRoomSelected(new Set()); }} className="text-xs text-gray-500 hover:text-gray-700">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex items-center gap-3 mb-2">
+              <label className="text-xs text-gray-600 font-medium">Duration:</label>
+              <select
+                value={createRoomDuration}
+                onChange={e => setCreateRoomDuration(Number(e.target.value))}
+                className="text-xs border border-gray-300 rounded px-2 py-1 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+              >
+                <option value={180}>3 min</option>
+                <option value={300}>5 min</option>
+                <option value={600}>10 min</option>
+                <option value={900}>15 min</option>
+                <option value={1200}>20 min</option>
+                <option value={1800}>30 min</option>
+                <option value={0}>No limit</option>
+              </select>
+              <span className="text-xs text-gray-500">
+                {createRoomSelected.size} participant{createRoomSelected.size !== 1 ? 's' : ''} selected
+              </span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 max-h-40 overflow-y-auto mb-2">
+              {participants
+                .filter(p => p.userId !== hostUserId && !cohosts.has(p.userId))
+                .map(p => {
+                  const inRoom = roundDashboard?.rooms.some(r =>
+                    r.status === 'active' && r.participants.some(rp => rp.userId === p.userId)
+                  );
+                  return (
+                    <label
+                      key={p.userId}
+                      className={`flex items-center gap-2 text-xs px-2 py-1.5 rounded-lg cursor-pointer transition-colors ${
+                        createRoomSelected.has(p.userId) ? 'bg-emerald-100 border border-emerald-300' :
+                        inRoom ? 'bg-blue-50 border border-blue-200' : 'bg-white border border-gray-200'
+                      } ${createRoomSelected.size >= 3 && !createRoomSelected.has(p.userId) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-50'}`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={createRoomSelected.has(p.userId)}
+                        disabled={createRoomSelected.size >= 3 && !createRoomSelected.has(p.userId)}
+                        onChange={() => {
+                          setCreateRoomSelected(prev => {
+                            const next = new Set(prev);
+                            if (next.has(p.userId)) next.delete(p.userId);
+                            else if (next.size < 3) next.add(p.userId);
+                            return next;
+                          });
+                        }}
+                        className="h-3.5 w-3.5 rounded border-gray-300 text-emerald-500 focus:ring-emerald-400"
+                      />
+                      <span className="truncate text-gray-700">{p.displayName}</span>
+                      {inRoom && <span className="text-[10px] text-blue-500 shrink-0">(in room)</span>}
+                    </label>
+                  );
+                })}
+            </div>
+            <div className="flex items-center gap-2">
+              <Button size="sm" onClick={() => {
+                socket?.emit('host:create_breakout' as any, {
+                  sessionId,
+                  participantIds: Array.from(createRoomSelected),
+                  durationSeconds: createRoomDuration || undefined,
+                });
+                setShowCreateRoom(false);
+                setCreateRoomSelected(new Set());
+              }}>
+                Create Room ({createRoomSelected.size})
+              </Button>
+              <span className="text-[10px] text-gray-500">Select 0-3 participants. Empty rooms are allowed.</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Announcement input */}
       {showBroadcast && (
         <div className="border-b border-gray-200 bg-amber-500/10 px-4 py-3">
@@ -498,6 +585,13 @@ export default function HostControls({ sessionId }: Props) {
             {isInRound && sessionStatus === 'round_active' && (
               <Button size="sm" variant="secondary" onClick={endCurrentRound} title="End round early — goes to rating">
                 <SkipForward className="h-4 w-4 mr-1" /> End Round
+              </Button>
+            )}
+
+            {/* Create Room — available any time after event starts */}
+            {sessionStarted && (
+              <Button size="sm" variant="secondary" onClick={() => { setShowCreateRoom(!showCreateRoom); setCreateRoomSelected(new Set()); }} title="Create a breakout room">
+                <UserPlus className="h-4 w-4 mr-1" /> Room
               </Button>
             )}
 

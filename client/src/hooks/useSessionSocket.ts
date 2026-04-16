@@ -391,6 +391,15 @@ export default function useSessionSocket(sessionId: string) {
       store.setTimer(data.durationSeconds || 30);
       clearTimer();
       intervalRef.current = setInterval(() => store.tickTimer(), 1000);
+
+      // Early leave: user left breakout mid-round — clear video, prevent re-entry
+      if (data.earlyLeave) {
+        store.setLiveKitToken(null, null);
+        store.setRoomId(null);
+        store.setPartnerDisconnected(false);
+        store.setLeftCurrentRound(true);
+      }
+
       store.setPhase('rating');
 
       // ── Fallback safety timer ──
