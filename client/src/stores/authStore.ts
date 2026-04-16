@@ -105,13 +105,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Schedule proactive refresh if we haven't already (e.g. app init)
       scheduleProactiveRefresh(token);
     } catch (err: any) {
-      // Only log out on 401 (token genuinely invalid/expired).
-      // Network errors, timeouts, 5xx — keep the user logged in so a
-      // server hiccup or Render cold-start doesn't nuke the session.
       if (err?.response?.status === 401) {
-        set({ isLoading: false, isAuthenticated: false, user: null });
-        clearRefreshTimer();
+        // Token might be expired but refreshable — try refreshing before giving up.
+        // This prevents transient 401s (server cold-start, Render restart) from
+        // clearing auth state and forcing users to re-login unnecessarily.
+        try {
+          await get().refreshAccessToken();
+          // Refresh succeeded — retry checkSession with new token
+          const { data } = await api.get('/auth/session', { timeout: 15000 });
+          set({ user: data.data.user, isAuthenticated: true, isLoading: false });
+          scheduleProactiveRefresh(get().accessToken!);
+        } catch {
+          // Refresh also failed — token is genuinely dead, clear auth
+          set({ isLoading: false, isAuthenticated: false, user: null });
+          clearRefreshTimer();
+        }
       } else {
+        // Network errors, timeouts, 5xx — keep user logged in
         set({ isLoading: false });
       }
     }
