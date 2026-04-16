@@ -215,9 +215,10 @@ export async function listSessions(params: {
 
 export async function registerParticipant(sessionId: string, userId: string, userRole?: UserRole): Promise<SessionParticipant> {
   return transaction(async (client) => {
-    // Lock the session row to serialize concurrent registrations
+    // Read session without lock — ON CONFLICT handles concurrent inserts safely.
+    // FOR UPDATE was causing cascading timeouts when multiple users register simultaneously.
     const sessionResult = await client.query<Session>(
-      `SELECT ${SESSION_COLUMNS} FROM sessions WHERE id = $1 FOR UPDATE`,
+      `SELECT ${SESSION_COLUMNS} FROM sessions WHERE id = $1`,
       [sessionId]
     );
     if (sessionResult.rows.length === 0) {

@@ -17,9 +17,10 @@ pool.on('error', (err) => {
   logger.error({ err }, 'Unexpected PostgreSQL pool error — pool will recover');
 });
 
-// Set statement_timeout per connection (compatible with Neon pooler)
-pool.on('connect', (client) => {
-  client.query('SET statement_timeout = 30000').catch(() => {});
+pool.on('connect', () => {
+  // No global statement_timeout — Neon pooler handles connection timeouts.
+  // 30s timeout was killing legitimate transactions under concurrent load
+  // (multiple users registering/accepting invites simultaneously).
   logger.debug('New PostgreSQL client connected');
 });
 
