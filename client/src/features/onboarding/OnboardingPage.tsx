@@ -91,9 +91,13 @@ export default function OnboardingPage() {
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [showErrors, setShowErrors] = useState(false);
 
-  // Step 1 — About You
+  // Step 1 — About You (identity + professional context)
   const [displayName, setDisplayName] = useState(user?.displayName || '');
+  const [company, setCompany] = useState(user?.company || '');
+  const [jobTitle, setJobTitle] = useState(user?.jobTitle || '');
+  const [industry, setIndustry] = useState(user?.industry || '');
   const [professionalRole, setProfessionalRole] = useState<string[]>(user?.professionalRole || []);
   const [currentState, setCurrentState] = useState<string[]>(user?.currentState ? [user.currentState] : []);
   const [careerStage, setCareerStage] = useState<string[]>(user?.careerStage ? [user.careerStage] : []);
@@ -103,20 +107,46 @@ export default function OnboardingPage() {
   const [meetingPreferences, setMeetingPreferences] = useState<string[]>(user?.meetingPreferences || []);
 
   // Step 3 — Depth
+  const [reasonsToConnect, setReasonsToConnect] = useState<string[]>(user?.reasonsToConnect || []);
   const [interests, setInterests] = useState<string[]>(user?.interests || []);
   const [matchingNotes, setMatchingNotes] = useState(user?.matchingNotes || '');
 
-  const canProceed = step === 0
-    ? displayName.trim().length > 0
-    : step === 1
-      ? goals.length > 0
-      : true; // Step 3 is optional
+  // ── Required-field validation per step ──
+  const step0Errors = {
+    displayName: !displayName.trim(),
+    company: !company.trim(),
+    jobTitle: !jobTitle.trim(),
+    industry: !industry.trim(),
+  };
+  const step0Valid = !step0Errors.displayName && !step0Errors.company && !step0Errors.jobTitle && !step0Errors.industry;
+  const step1Valid = goals.length > 0;
+  const step2Valid = reasonsToConnect.length > 0;
+
+  const canProceed = step === 0 ? step0Valid : step === 1 ? step1Valid : step2Valid;
+
+  const handleNext = () => {
+    if (!canProceed) {
+      setShowErrors(true);
+      return;
+    }
+    setShowErrors(false);
+    setStep(step + 1);
+  };
 
   const handleFinish = useCallback(async () => {
+    if (!step0Valid || !step1Valid || !step2Valid) {
+      setShowErrors(true);
+      addToast('Please fill all required fields before completing.', 'error');
+      return;
+    }
     setSaving(true);
     try {
       await api.put('/users/me', {
         displayName: displayName.trim(),
+        company: company.trim(),
+        jobTitle: jobTitle.trim(),
+        industry: industry.trim(),
+        reasonsToConnect,
         professionalRole,
         currentState: currentState[0] || null,
         careerStage: careerStage[0] || null,
@@ -125,8 +155,14 @@ export default function OnboardingPage() {
         interests,
         matchingNotes: matchingNotes.trim() || null,
       });
-      // Mark onboarding as completed so it never shows again
-      await api.post('/auth/onboarding/complete').catch(() => {});
+      // Mark onboarding as completed — server re-validates required fields.
+      await api.post('/auth/onboarding/complete', {
+        displayName: displayName.trim(),
+        company: company.trim(),
+        jobTitle: jobTitle.trim(),
+        industry: industry.trim(),
+        reasonsToConnect,
+      });
       await checkSession();
       addToast('Profile set up!', 'success');
       navigate(redirect, { replace: true });
@@ -135,9 +171,17 @@ export default function OnboardingPage() {
     } finally {
       setSaving(false);
     }
-  }, [displayName, professionalRole, currentState, careerStage, goals, meetingPreferences, interests, matchingNotes, checkSession, addToast, navigate, redirect]);
+  }, [
+    displayName, company, jobTitle, industry, reasonsToConnect,
+    professionalRole, currentState, careerStage, goals, meetingPreferences,
+    interests, matchingNotes,
+    step0Valid, step1Valid, step2Valid,
+    checkSession, addToast, navigate, redirect,
+  ]);
 
   const StepIcon = STEPS[step].icon;
+
+  const errorClass = 'mt-1 text-xs text-rsn-red';
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-white to-gray-50/50 p-4">
@@ -168,8 +212,32 @@ export default function OnboardingPage() {
           {step === 0 && (
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1">Display Name *</label>
+                <label className="block text-sm font-medium text-gray-600 mb-1">
+                  Display Name <span className="text-rsn-red">*</span>
+                </label>
                 <Input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="How you want to appear" />
+                {showErrors && step0Errors.displayName && <p className={errorClass}>Display name is required.</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">
+                  Company <span className="text-rsn-red">*</span>
+                </label>
+                <Input value={company} onChange={e => setCompany(e.target.value)} placeholder="Where you work (or current venture)" />
+                {showErrors && step0Errors.company && <p className={errorClass}>Company is required.</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">
+                  Job Title <span className="text-rsn-red">*</span>
+                </label>
+                <Input value={jobTitle} onChange={e => setJobTitle(e.target.value)} placeholder="e.g. Founder, Head of Product" />
+                {showErrors && step0Errors.jobTitle && <p className={errorClass}>Job title is required.</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">
+                  Industry <span className="text-rsn-red">*</span>
+                </label>
+                <Input value={industry} onChange={e => setIndustry(e.target.value)} placeholder="e.g. SaaS, Fintech, Healthcare" />
+                {showErrors && step0Errors.industry && <p className={errorClass}>Industry is required.</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1.5">Role</label>
@@ -190,8 +258,11 @@ export default function OnboardingPage() {
           {step === 1 && (
             <div className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-gray-600 mb-1.5">Goals *</label>
+                <label className="block text-sm font-medium text-gray-600 mb-1.5">
+                  Goals <span className="text-rsn-red">*</span>
+                </label>
                 <ChipSelect options={GOALS} selected={goals} onChange={setGoals} />
+                {showErrors && !step1Valid && <p className={errorClass}>Select at least one goal.</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1.5">Who do you want to meet?</label>
@@ -203,6 +274,13 @@ export default function OnboardingPage() {
           {/* Step 3: Depth */}
           {step === 2 && (
             <div className="space-y-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1.5">
+                  Reasons to Connect <span className="text-rsn-red">*</span>
+                </label>
+                <TagInput tags={reasonsToConnect} setTags={setReasonsToConnect} placeholder="e.g. hiring, co-founder search, mentorship" />
+                {showErrors && !step2Valid && <p className={errorClass}>Add at least one reason to connect.</p>}
+              </div>
               <div>
                 <label className="block text-sm font-medium text-gray-600 mb-1.5">Topics / Interests</label>
                 <TagInput tags={interests} setTags={setInterests} placeholder="e.g. AI, startups, design" />
@@ -224,21 +302,21 @@ export default function OnboardingPage() {
           {/* Navigation */}
           <div className="flex items-center justify-between mt-8 pt-4 border-t border-gray-100">
             {step > 0 ? (
-              <button onClick={() => setStep(step - 1)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+              <button onClick={() => { setShowErrors(false); setStep(step - 1); }} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors">
                 <ArrowLeft className="h-4 w-4" /> Back
               </button>
             ) : (
-              <button onClick={() => navigate(redirect, { replace: true })} className="text-sm text-gray-400 hover:text-gray-600 transition-colors">
-                Skip for now
-              </button>
+              <span className="text-xs text-gray-500">
+                We need your profile to introduce you to the right people. You can always edit it later on your Profile page.
+              </span>
             )}
 
             {step < STEPS.length - 1 ? (
-              <Button onClick={() => setStep(step + 1)} disabled={!canProceed} size="sm">
+              <Button onClick={handleNext} size="sm">
                 Next <ArrowRight className="h-4 w-4 ml-1" />
               </Button>
             ) : (
-              <Button onClick={handleFinish} isLoading={saving} disabled={!canProceed} size="sm">
+              <Button onClick={handleFinish} isLoading={saving} size="sm">
                 <Check className="h-4 w-4 mr-1" /> Complete
               </Button>
             )}

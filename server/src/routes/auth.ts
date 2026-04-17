@@ -144,6 +144,7 @@ router.get(
             phone: user.phone,
             role: user.role,
             profileComplete: user.profileComplete,
+            onboardingCompleted: (user as any).onboardingCompleted,
           },
         },
       };
@@ -254,13 +255,106 @@ router.get(
 );
 
 // ─── Onboarding Complete ───────────────────────────────────────────────────
+// Enforces mandatory profile capture as part of onboarding. The client posts the
+// same required fields it just saved via PUT /users/me — we validate them here
+// server-side so a direct API caller can't bypass the onboarding gate by skipping
+// the PUT. Required: display_name, company, job_title, industry, reasons_to_connect.
 import { query } from '../db';
 
-router.post('/onboarding/complete', authenticate, async (req: Request, res: Response, next: NextFunction) => {
+const onboardingCompleteSchema = z.object({
+  displayName: z.string().trim().min(1).max(100),
+  company: z.string().trim().min(1).max(200),
+  jobTitle: z.string().trim().min(1).max(200),
+  industry: z.string().trim().min(1).max(100),
+  reasonsToConnect: z.array(z.string().trim().min(1).max(100)).min(1).max(10),
+});
+
+router.post('/onboarding/complete', authenticate, async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const userId = (req as any).user?.userId || (req as any).user?.id;
-    await query('UPDATE users SET onboarding_completed = true WHERE id = $1', [userId]);
-    res.json({ data: { onboardingCompleted: true } });
+
+    // Validate the submitted required fields. We return field-level errors so the
+    // client can surface inline messages on whichever step the user is missing.
+    const parsed = onboardingCompleteSchema.safeParse(req.body || {});
+    if (!parsed.success) {
+      const fieldErrors: Record<string, string> = {};
+      for (const issue of parsed.error.issues) {
+        const key = issue.path.join('.') || 'body';
+        if (!fieldErrors[key]) fieldErrors[key] = issue.message;
+      }
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_ERROR',
+          message: 'Profile is incomplete. Please fill all required fields.',
+          fields: fieldErrors,
+        },
+      });
+      return;
+    }
+
+    const { displayName, company, jobTitle, industry, reasonsToConnect } = parsed.data;
+
+    // Backfill first_name / last_name from displayName when missing. Magic-link
+    // signups create users with empty first/last names; profile_complete requires
+    // them, so without a backfill those users would be stuck in an onboarding
+    // redirect loop forever.
+    const currentRow = await query<{ first_name: string | null; last_name: string | null }>(
+      `SELECT first_name, last_name FROM users WHERE id = $1`,
+      [userId]
+    );
+    const cur = currentRow.rows[0] || { first_name: null, last_name: null };
+    let firstName = (cur.first_name || '').trim();
+    let lastName = (cur.last_name || '').trim();
+    if (!firstName || !lastName) {
+      const parts = displayName.split(/\s+/).filter(Boolean);
+      if (!firstName) firstName = parts[0] || displayName;
+      if (!lastName) lastName = parts.length > 1 ? parts.slice(1).join(' ') : firstName;
+    }
+
+    // Persist the fields on the user record. We don't trust that PUT /users/me was
+    // already called — saving them here guarantees the server is the source of truth.
+    await query(
+      `UPDATE users
+         SET display_name = $2,
+             first_name = $3,
+             last_name = $4,
+             company = $5,
+             job_title = $6,
+             industry = $7,
+             reasons_to_connect = $8,
+             onboarding_completed = true
+       WHERE id = $1`,
+      [userId, displayName, firstName, lastName, company, jobTitle, industry, reasonsToConnect]
+    );
+
+    // Re-compute profile_complete using the same logic as updateUser() so the flag
+    // reflects the new values. If any of the other required fields (first/last name)
+    // are still missing, profile_complete stays false and the client will send the
+    // user back through onboarding — but at minimum the onboarding step inputs
+    // persist so the user isn't asked to re-type them on next load.
+    const check = await query<{
+      first_name: string | null; last_name: string | null; display_name: string | null;
+      company: string | null; job_title: string | null; industry: string | null;
+      reasons_to_connect: string[] | null;
+    }>(
+      `SELECT first_name, last_name, display_name, company, job_title, industry, reasons_to_connect
+       FROM users WHERE id = $1`,
+      [userId]
+    );
+    const row = check.rows[0];
+    const isComplete = !!(
+      row &&
+      row.first_name && row.last_name && row.display_name &&
+      row.company && row.job_title && row.industry &&
+      Array.isArray(row.reasons_to_connect) && row.reasons_to_connect.length > 0
+    );
+    await query('UPDATE users SET profile_complete = $1 WHERE id = $2', [isComplete, userId]);
+
+    res.json({
+      success: true,
+      data: { onboardingCompleted: true, profileComplete: isComplete },
+    });
   } catch (err) {
     next(err);
   }

@@ -211,12 +211,17 @@ export async function updateUser(id: string, input: UpdateUserInput): Promise<Us
     values
   );
 
-  // Check if profile is now complete
+  // Check if profile is now complete. A complete profile has non-empty values for:
+  // firstName, lastName, displayName, company, jobTitle, industry, and at least one
+  // reasonsToConnect entry. ProtectedRoute gates access on this flag AND
+  // onboardingCompleted, so a stale profile_complete=TRUE user won't leak through.
   const user = await getUserById(id);
+  const nonEmpty = (s: string | null | undefined) => !!(s && s.trim().length > 0);
   const isComplete = !!(
-    user.firstName && user.lastName && user.displayName &&
-    user.company && user.jobTitle && user.industry &&
-    user.reasonsToConnect && user.reasonsToConnect.length > 0
+    nonEmpty(user.firstName) && nonEmpty(user.lastName) && nonEmpty(user.displayName) &&
+    nonEmpty(user.company) && nonEmpty(user.jobTitle) && nonEmpty(user.industry) &&
+    Array.isArray(user.reasonsToConnect) &&
+    user.reasonsToConnect.filter(r => typeof r === 'string' && r.trim().length > 0).length > 0
   );
 
   if (isComplete !== user.profileComplete) {
