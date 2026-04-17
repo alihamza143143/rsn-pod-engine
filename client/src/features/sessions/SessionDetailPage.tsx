@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Calendar, Users, Play, Clock, UserPlus, UserMinus, Settings, CheckCircle, Pencil, Trash2, Mail, Copy, Check, AlertTriangle, CopyPlus, Search, Send } from 'lucide-react';
+import { ArrowLeft, Calendar, Users, Play, Clock, UserPlus, UserMinus, Settings, CheckCircle, Pencil, Trash2, Mail, Copy, Check, AlertTriangle, CopyPlus, Search, Send, MoreHorizontal } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
 import Avatar from '@/components/ui/Avatar';
@@ -14,7 +14,7 @@ import { useToastStore } from '@/stores/toastStore';
 import api from '@/lib/api';
 import { formatDateTime, LOCAL_TIME_LABEL } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
-import { sessionStatusLabel, sessionStatusColor } from './statusConfig';
+import { sessionStatusLabel, sessionStatusColor, sessionStatusPhase } from './statusConfig';
 
 function getInviteErrorMessage(err: any): string {
   const code = err?.response?.data?.error?.code;
@@ -56,6 +56,23 @@ export default function SessionDetailPage() {
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [showPendingInvites, setShowPendingInvites] = useState(false);
   const [invitingMember, setInvitingMember] = useState<string | null>(null);
+  const [overflowOpen, setOverflowOpen] = useState(false);
+
+  // Close overflow menu on outside click or Escape
+  useEffect(() => {
+    if (!overflowOpen) return;
+    const handleKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOverflowOpen(false); };
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && !target.closest('[data-overflow-menu]')) setOverflowOpen(false);
+    };
+    document.addEventListener('keydown', handleKey);
+    document.addEventListener('mousedown', handleClick);
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      document.removeEventListener('mousedown', handleClick);
+    };
+  }, [overflowOpen]);
 
   const { data: session, isLoading, error: sessionError } = useQuery({
     queryKey: ['session', sessionId],
@@ -396,11 +413,12 @@ export default function SessionDetailPage() {
         </div>
       )}
 
-      {/* Actions */}
+      {/* Actions — status-driven primary + overflow menu (April 17 item #10) */}
       <div className="flex flex-col gap-3 animate-fade-in-up stagger-1">
         {/* Primary Actions */}
-        <div className="flex flex-wrap gap-3">
-          {!isHost && (session.status === 'scheduled' || session.status === 'lobby_open' || session.status === 'round_active' || session.status === 'round_rating' || session.status === 'round_transition') && !isRegistered && (
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Non-host participant flows: Register / Join Late / Pending-invite notice */}
+          {!isHost && sessionStatusPhase(session.status) !== 'done' && sessionStatusPhase(session.status) !== 'cancelled' && !isRegistered && (
             canRegister ? (
               <Button onClick={() => registerMutation.mutate()} isLoading={registerMutation.isPending} className="btn-glow">
                 <UserPlus className="h-4 w-4 mr-2" /> {session.status === 'scheduled' ? 'Register' : 'Join Late'}
@@ -412,7 +430,12 @@ export default function SessionDetailPage() {
               </div>
             )
           )}
-          {!isHost && isRegistered && session.status !== 'completed' && session.status !== 'cancelled' && (
+          {!isHost && isRegistered && sessionStatusPhase(session.status) === 'live' && (
+            <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-sm">
+              <CheckCircle className="h-4 w-4" /> Registered
+            </div>
+          )}
+          {!isHost && isRegistered && sessionStatusPhase(session.status) === 'pre' && (
             <>
               <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 text-sm">
                 <CheckCircle className="h-4 w-4" /> Registered
@@ -425,53 +448,95 @@ export default function SessionDetailPage() {
               </Button>
             </>
           )}
-          {(isRegistered || isHost) && (session.status === 'scheduled' || session.status === 'lobby_open' || session.status === 'round_active' || session.status === 'round_rating' || session.status === 'round_transition') && (
+
+          {/* Status-driven primary button:
+              pre  -> Enter Event   (host Go Live / participant Enter Event)
+              live -> Enter Live Event
+              done -> View Recap
+           */}
+          {(isRegistered || isHost) && sessionStatusPhase(session.status) === 'pre' && (
             <Button
               variant="primary"
               onClick={() => navigate(`/session/${sessionId}/live`)}
               className="btn-glow"
             >
               <Play className="h-4 w-4 mr-2" />
-              {session.status === 'scheduled'
-                ? (isHost ? 'Go Live' : 'Enter Event')
-                : 'Join Live'}
+              {isHost ? 'Go Live' : 'Enter Event'}
             </Button>
           )}
-          {session.status === 'completed' && (
+          {(isRegistered || isHost) && sessionStatusPhase(session.status) === 'live' && (
+            <Button
+              variant="primary"
+              onClick={() => navigate(`/session/${sessionId}/live`)}
+              className="btn-glow"
+            >
+              <Play className="h-4 w-4 mr-2" /> Enter Live Event
+            </Button>
+          )}
+          {sessionStatusPhase(session.status) === 'done' && (
             <Button variant="primary" className="btn-glow" onClick={() => navigate(`/sessions/${sessionId}/recap`)}>
               View Recap
             </Button>
           )}
-        </div>
 
-        {/* Secondary Actions */}
-        {(isHost || isAdmin) && (
-          <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
-            {isHost && (
-              <Button variant="secondary" onClick={() => navigate(`/session/${sessionId}/host`)}>
-                <Settings className="h-4 w-4 mr-2" /> Host Controls
-              </Button>
-            )}
-            {session.status === 'scheduled' && (
-              <Button variant="secondary" onClick={openEdit}>
-                <Pencil className="h-4 w-4 mr-2" /> Edit
-              </Button>
-            )}
-            {session.status !== 'completed' && (
-              <Button variant="secondary" onClick={() => { setInviteLink(''); setInviteEmail(''); setInviteOpen(true); }}>
-                <Mail className="h-4 w-4 mr-2" /> Invite to Event
-              </Button>
-            )}
-            <Button variant="secondary" onClick={() => duplicateMutation.mutate()} isLoading={duplicateMutation.isPending}>
-              <CopyPlus className="h-4 w-4 mr-2" /> Copy Event
-            </Button>
-            {(session.status === 'scheduled' || session.status === 'completed') && (
-              <Button variant="danger" onClick={() => { if (confirm('Delete this event? This cannot be undone.')) deleteMutation.mutate(); }} isLoading={deleteMutation.isPending}>
-                <Trash2 className="h-4 w-4 mr-2" /> Delete
-              </Button>
-            )}
-          </div>
-        )}
+          {/* Overflow menu for host/admin. Host Controls button intentionally removed —
+              live host controls live inside the /live page once the host clicks Enter Live Event. */}
+          {(isHost || isAdmin) && sessionStatusPhase(session.status) !== 'cancelled' && (
+            <div className="relative ml-auto" data-overflow-menu>
+              <button
+                type="button"
+                aria-label="More actions"
+                onClick={() => setOverflowOpen(v => !v)}
+                className="h-9 w-9 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 flex items-center justify-center text-gray-500 hover:text-gray-800 transition-colors"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </button>
+              {overflowOpen && (
+                <div className="absolute right-0 mt-1 w-52 rounded-lg border border-gray-200 bg-white shadow-lg z-20 py-1">
+                  <button
+                    type="button"
+                    onClick={() => { setOverflowOpen(false); duplicateMutation.mutate(); }}
+                    disabled={duplicateMutation.isPending}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+                  >
+                    <CopyPlus className="h-4 w-4" /> Copy Event
+                  </button>
+                  {sessionStatusPhase(session.status) === 'pre' && (
+                    <button
+                      type="button"
+                      onClick={() => { setOverflowOpen(false); openEdit(); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      <Pencil className="h-4 w-4" /> Edit Event
+                    </button>
+                  )}
+                  {sessionStatusPhase(session.status) !== 'done' && (
+                    <button
+                      type="button"
+                      onClick={() => { setOverflowOpen(false); setInviteLink(''); setInviteEmail(''); setInviteOpen(true); }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                    >
+                      <Mail className="h-4 w-4" /> Invite to Event
+                    </button>
+                  )}
+                  {sessionStatusPhase(session.status) !== 'live' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOverflowOpen(false);
+                        if (confirm('Delete this event? This cannot be undone.')) deleteMutation.mutate();
+                      }}
+                      disabled={deleteMutation.isPending}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-60"
+                    >
+                      <Trash2 className="h-4 w-4" /> Delete
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Pending invites banner — prominent callout for host/admin */}
