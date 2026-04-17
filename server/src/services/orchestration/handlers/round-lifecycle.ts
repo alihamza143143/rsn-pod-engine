@@ -778,15 +778,15 @@ export async function sendRecapEmails(sessionId: string): Promise<void> {
      FROM (
        SELECT m.participant_a_id AS user_id,
               unnest(ARRAY[m.participant_b_id, m.participant_c_id]) AS partner
-       FROM matches m WHERE m.session_id = $1 AND m.status = 'completed'
+       FROM matches m WHERE m.session_id = $1 AND m.status IN ('completed', 'reassigned')
        UNION ALL
        SELECT m.participant_b_id AS user_id,
               unnest(ARRAY[m.participant_a_id, m.participant_c_id]) AS partner
-       FROM matches m WHERE m.session_id = $1 AND m.status = 'completed'
+       FROM matches m WHERE m.session_id = $1 AND m.status IN ('completed', 'reassigned')
        UNION ALL
        SELECT m.participant_c_id AS user_id,
               unnest(ARRAY[m.participant_a_id, m.participant_b_id]) AS partner
-       FROM matches m WHERE m.session_id = $1 AND m.status = 'completed'
+       FROM matches m WHERE m.session_id = $1 AND m.status IN ('completed', 'reassigned')
          AND m.participant_c_id IS NOT NULL
      ) sub
      WHERE sub.partner IS NOT NULL AND sub.user_id IS NOT NULL

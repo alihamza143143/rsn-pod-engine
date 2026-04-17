@@ -423,7 +423,7 @@ export async function finalizeRoundRatings(
   const matchesResult = await query<Match>(
     `SELECT id, participant_a_id AS "participantAId", participant_b_id AS "participantBId"
      FROM matches
-     WHERE session_id = $1 AND round_number = $2 AND status = 'completed'`,
+     WHERE session_id = $1 AND round_number = $2 AND status IN ('completed', 'reassigned')`,
     [sessionId, roundNumber]
   );
 
@@ -683,7 +683,7 @@ export async function finalizeSessionEncounters(sessionId: string): Promise<numb
     `SELECT participant_a_id AS "participantAId", participant_b_id AS "participantBId",
             round_number AS "roundNumber"
      FROM matches
-     WHERE session_id = $1 AND status IN ('completed', 'active')`,
+     WHERE session_id = $1 AND status IN ('completed', 'active', 'reassigned')`,
     [sessionId]
   );
 

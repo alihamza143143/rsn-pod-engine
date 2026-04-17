@@ -1263,7 +1263,10 @@ export async function handleHostCreateBreakout(
 
           if (currentMatch.rows.length > 0) {
             const match = currentMatch.rows[0];
-            await query(`UPDATE matches SET status = 'no_show', ended_at = NOW() WHERE id = $1 AND status = 'active'`, [match.id]);
+            // Host moved participants to another room — the original match was
+            // reassigned, not abandoned. Reassigned matches are still ratable
+            // and count in People Met / recap stats.
+            await query(`UPDATE matches SET status = 'reassigned', ended_at = NOW() WHERE id = $1 AND status = 'active'`, [match.id]);
 
             // Notify remaining partners (exclude participants being moved together)
             const remainingPartners = [match.participant_a_id, match.participant_b_id, match.participant_c_id]
