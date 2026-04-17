@@ -4186,3 +4186,87 @@ Applied fixes based on client (Stefan/Shradha) feedback on Change 1.5.
 - DB: 0 mis-labeled matches remain
 
 **Architecture forward-compat:** New semantics work with Phase 2 Redis, Phase 3 state machine, Phase 4 100K scale — single-source-of-truth status column, no scratch-flag overloading.
+
+## Change 4.7 — April 17 feedback + regression hotfixes (2026-04-17)
+
+**Goal:** Ship the full April 17 client feedback doc (13 items + 4 screenshot extras) + live-test regression hotfixes.
+
+**Full plan:** `docs/superpowers/plans/2026-04-17-april-17-feedback-fixes.md`
+
+### Tasks shipped (26 commits, staging = main = 01c9d42)
+
+**April 17 doc items:**
+
+1. `6bc85da` — Task 1: Onboarding mandatory + company/jobTitle/industry/reasonsToConnect fields
+2. `1e0683d` — Task 1 follow-up: grandfather existing onboarded users
+3. `e3e6033` — Task 2: Connected-users invite filter (encounter_history-based)
+4. `d01b84c` — Task 3: Session route-level access control
+5. `9d65b2c` — Task 3b: Pod access control + member count fix (private pods 404 for non-members)
+6. `a7ac22f` — Task 4: Deactivation cache invalidation on every status mutation
+7. `b93a639` — Task 5: Invite max_uses cap lifted (now 1M)
+8. `1d9b202` — Task 6: Invite-aware LoginPage (hides Request to Join)
+9. `bcef13d` — Task 7: Auto-registration bug FIXED (invite page was auto-accepting on view)
+10. `1772f9c` — Task 8: Pending pod invites moved below Members
+11. `5c99132` — Task 10: statusConfig util ("lobby_open" → "Lobby open")
+12. `fb3759d` — Task 11: MatchingOverlay "breakout rooms ready" text simplified
+13. `4ccd9e8` — Task 12: Video tile displayName fallback + truncate CSS
+14. `7fce0f3` — Task 12b: "Wrapping up" header + "All rounds complete" overlay removed
+15. `a74d6b1` — DensityToggle restore (previously over-removed)
+16. `7816d5d` — Sessions list page status labels (also using statusConfig)
+17. `87a3c1c` — Task 9: Host Controls consolidation (status-driven actions, no Host Controls on completed)
+18. `35740e5` — Task 13: Per-room breakout timer extend (`host:extend_breakout_room`)
+19. `5c3f9d3` — Task 14: **Bulk manual breakout rooms** (create N, shared timer, visibility toggle, extend/end all)
+20. `01c9d42` — Task 15 (prep): Vercel rewrites for `/api/*` and `/socket.io/*` proxy
+
+**Hotfix batch (live-test regressions from session 6147cd26):**
+
+21. `275b489` — Migration 038: `unique_match_per_round` now partial (excludes cancelled/no_show)
+22. `55009f1` — Host-remove uses duration/rating heuristic (>30s OR rated → completed)
+23. (no commit) — Backfill match 89cdbd90 → completed
+24. `5b038ad` — Match People button disabled during active round (superseded by 5cdc502)
+25. `a813fe4` — Auto-mute on return to main + host Mute/Unmute All label state
+
+**Second hotfix batch (post-live-test Dr Arch audit):**
+
+26. `7df5a69` — Bug A: Host dashboard filters to status='active' only (no ghost rooms)
+27. `5cdc502` — Bug B: Match People guard refined — disabled ONLY if round_active AND algorithm match active (manual rooms orthogonal)
+28. `f357873` — Bug C: Mobile self-view grey rectangle defensive CSS fix
+29. `27205da` — Bug D: rating:window_open dedup on round end (no double rating form)
+
+### Migrations applied
+
+- 037 — Backfill no_show matches with ratings → completed (Change 4.6 historical data repair)
+- 038 — `unique_match_per_round` → partial unique index
+- 039 — `matches.timer_visibility` column (default 'visible', CHECK constraint)
+
+### Architecture improvements
+
+- `findIsolatedParticipants` helper for reassign flows
+- `canViewSession` + `canViewPod` helpers for route-level access gating
+- `statusConfig` shared util for session status labels + colors + phases
+- `match-status` type module with RATABLE_STATUSES, REAL_CONVERSATION_STATUSES, BLOCKS_FUTURE_REMATCH constants
+- `breakout-bulk` handler module — bulk create/extend/end for manual rooms
+- `RoomTimerState` struct replacing bare Map<string, NodeJS.Timeout>
+
+### Test suite
+
+- 332 → **347 passing** (25 suites)
+- 15 new tests for bulk breakout handlers
+- 11 new tests for match-status semantics (Change 4.6 regression protection)
+- Plus onboarding-gate, connected-users, session-access, pod-access, livekit-close, isolated-participants tests
+
+### Infrastructure remaining (Task 15 — needs Stefan)
+
+1. Stefan confirms `app.rsn.network` is primary Vercel domain for `rsn-client`
+2. Stefan adds `https://app.rsn.network/api/auth/google/callback` to the OAuth 2.0 Client Authorized redirect URIs in Google Cloud Console
+3. Then I update Render env var `API_BASE_URL` → `https://app.rsn.network` and deploy
+4. Then Google OAuth consent screen shows `app.rsn.network` instead of `rsn-api-h04m.onrender.com`
+
+### Post-deploy verification (2026-04-17 21:58 UTC)
+
+- Render: live @ 01c9d42, DB 3ms, 0 error logs since deploy
+- Sentry server: 0 unresolved (last 2h)
+- Sentry client: 0 unresolved (last 2h)
+- GitHub CI: last 3 runs green
+- Vercel: 200 OK
+- DB: 37 users, 0 active sessions, 0 active matches, migrations 037/038/039 applied
