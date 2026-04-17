@@ -395,6 +395,7 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
   const livekitUrl = useSessionStore(s => s.livekitUrl);
   const currentRoomId = useSessionStore(s => s.currentRoomId);
   const timerVisibility = useSessionStore(s => s.timerVisibility);
+  const breakoutTimerHidden = useSessionStore(s => s.breakoutTimerHidden);
   const partnerDisconnected = useSessionStore(s => s.partnerDisconnected);
   const { setLiveKitToken } = useSessionStore.getState();
   const [retrying, setRetrying] = useState(false);
@@ -539,6 +540,8 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
           {(() => {
             // No timer if value is NaN/0 (e.g. host-created room without duration)
             if (!timerSeconds || isNaN(timerSeconds)) return null;
+            // Task 14: per-room bulk breakout visibility override. Host always sees.
+            if (breakoutTimerHidden && !isHost) return null;
             // Host always sees the timer regardless of visibility setting
             const showTimer = isHost ||
               timerVisibility === 'always_visible' ||

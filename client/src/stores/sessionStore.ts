@@ -59,6 +59,9 @@ interface SessionLiveState {
   lobbyUrl: string | null;
   lobbyRoomId: string | null;
   timerVisibility: 'hidden' | 'always_visible' | 'last_10s' | 'last_30s' | 'last_60s' | 'last_120s';
+  // Per-match override from bulk manual breakouts (Task 14). When true, countdown
+  // is completely hidden for THIS breakout room regardless of session-level setting.
+  breakoutTimerHidden: boolean;
   matchPreview: {
     roundNumber: number;
     matches: { participantA: { userId: string; displayName: string }; participantB: { userId: string; displayName: string }; participantC?: { userId: string; displayName: string }; isTrio?: boolean; metBefore?: boolean; timesMet?: number }[];
@@ -112,6 +115,7 @@ interface SessionLiveState {
   setRoomId: (roomId: string | null) => void;
   setLobbyToken: (token: string | null, url?: string | null, roomId?: string | null) => void;
   setTimerVisibility: (v: 'hidden' | 'always_visible' | 'last_10s' | 'last_30s' | 'last_60s' | 'last_120s') => void;
+  setBreakoutTimerHidden: (v: boolean) => void;
   setMatchPreview: (preview: SessionLiveState['matchPreview']) => void;
   setHostMuteCommand: (muted: boolean | null) => void;
   setPartnerDisconnected: (v: boolean) => void;
@@ -160,6 +164,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   lobbyUrl: null,
   lobbyRoomId: null,
   timerVisibility: 'always_visible',
+  breakoutTimerHidden: false,
   matchPreview: null,
   hostMuteCommand: null,
   partnerDisconnected: false,
@@ -201,6 +206,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   setRoomId: (currentRoomId) => set({ currentRoomId }),
   setLobbyToken: (lobbyToken, lobbyUrl = null, lobbyRoomId = null) => set({ lobbyToken, lobbyUrl, lobbyRoomId }),
   setTimerVisibility: (timerVisibility) => set({ timerVisibility }),
+  setBreakoutTimerHidden: (breakoutTimerHidden) => set({ breakoutTimerHidden }),
   setMatchPreview: (matchPreview) => set({ matchPreview }),
   setHostMuteCommand: (muted) => set({ hostMuteCommand: muted }),
   setPartnerDisconnected: (partnerDisconnected) => set({ partnerDisconnected }),
@@ -249,7 +255,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
     timerSeconds: 0, currentRound: 0, broadcasts: [], error: null,
     isReconnecting: false, isByeRound: false, liveKitToken: null, livekitUrl: null, currentRoomId: null,
     lobbyToken: null, lobbyUrl: null, lobbyRoomId: null,
-    timerVisibility: 'always_visible', matchPreview: null,
+    timerVisibility: 'always_visible', breakoutTimerHidden: false, matchPreview: null,
     hostMuteCommand: null, partnerDisconnected: false, roundDashboard: null,
     chatMessages: [], unreadChatCount: 0, chatOpen: false, matchingOverlay: null, preparingMatches: false, lobbyDensity: 'normal' as const,
     cohosts: new Set<string>(), leftCurrentRound: false, lastRatedRound: 0, isPaused: false,

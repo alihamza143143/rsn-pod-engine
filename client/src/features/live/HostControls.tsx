@@ -30,6 +30,13 @@ export default function HostControls({ sessionId }: Props) {
   const [showCreateRoom, setShowCreateRoom] = useState(false);
   const [createRoomDuration, setCreateRoomDuration] = useState(300); // 5 min default
   const [createRoomSelected, setCreateRoomSelected] = useState<Set<string>>(new Set());
+  // Task 14 — Bulk manual breakout rooms
+  const [showBulkRoom, setShowBulkRoom] = useState(false);
+  const [bulkDuration, setBulkDuration] = useState(300);
+  const [bulkVisibility, setBulkVisibility] = useState<'visible' | 'hidden'>('visible');
+  const [bulkRooms, setBulkRooms] = useState<Array<Set<string>>>([new Set()]); // array of room-participant sets
+  const [bulkDurationEdit, setBulkDurationEdit] = useState(false);
+  const [bulkDurationValue, setBulkDurationValue] = useState(300);
 
   const sessionStarted = sessionStatus !== 'scheduled' || transitionStatus === 'starting_session' || currentRound > 0;
   const isSessionEnding = transitionStatus === 'session_ending';
@@ -140,6 +147,46 @@ export default function HostControls({ sessionId }: Props) {
     socket?.emit('host:broadcast_message', { sessionId, message: broadcastMsg.trim() });
     setBroadcastMsg('');
     setShowBroadcast(false);
+  };
+
+  // Task 14 — Bulk manual breakout controls
+  const hasActiveManualRooms = !!roundDashboard?.rooms.some(
+    (r: any) => r.status === 'active' && r.isManual,
+  );
+  const activeManualCount = roundDashboard?.rooms.filter(
+    (r: any) => r.status === 'active' && r.isManual,
+  ).length || 0;
+
+  const bulkCreateSubmit = () => {
+    const roomsPayload = bulkRooms
+      .filter(s => s.size >= 1)
+      .map(s => ({ participantIds: Array.from(s) }));
+    if (roomsPayload.length === 0) {
+      alert('Add at least one participant to a room.');
+      return;
+    }
+    socket?.emit('host:create_breakout_bulk' as any, {
+      sessionId,
+      rooms: roomsPayload,
+      sharedDurationSeconds: bulkDuration || 0,
+      timerVisibility: bulkVisibility,
+    });
+    setShowBulkRoom(false);
+    setBulkRooms([new Set()]);
+  };
+
+  const bulkExtendAll = () => {
+    socket?.emit('host:extend_breakout_all' as any, { sessionId, additionalSeconds: 120 });
+  };
+
+  const bulkEndAll = () => {
+    if (!confirm(`End all ${activeManualCount} manual breakout rooms? Participants will move to rating.`)) return;
+    socket?.emit('host:end_breakout_all' as any, { sessionId });
+  };
+
+  const bulkSetDurationAll = () => {
+    socket?.emit('host:set_breakout_duration_all' as any, { sessionId, durationSeconds: bulkDurationValue });
+    setBulkDurationEdit(false);
   };
 
   if (isSessionEnding) {
@@ -452,6 +499,155 @@ export default function HostControls({ sessionId }: Props) {
         </div>
       )}
 
+      {/* Task 14 — Bulk Manual Breakout Room modal */}
+      {showBulkRoom && (
+        <div className="border-b border-gray-200 bg-purple-50 px-4 py-3">
+          <div className="max-w-4xl mx-auto">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-semibold text-purple-700 flex items-center gap-2">
+                <UserPlus className="h-4 w-4" /> Create Bulk Breakout Rooms
+              </h3>
+              <button onClick={() => { setShowBulkRoom(false); setBulkRooms([new Set()]); }} className="text-xs text-gray-500 hover:text-gray-700">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Shared duration + visibility */}
+            <div className="flex items-center gap-3 mb-2 flex-wrap">
+              <label className="text-xs text-gray-600 font-medium">Shared duration:</label>
+              <select
+                value={bulkDuration}
+                onChange={e => setBulkDuration(Number(e.target.value))}
+                className="text-xs border border-gray-300 rounded px-2 py-1 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-400"
+              >
+                <option value={180}>3 min</option>
+                <option value={300}>5 min</option>
+                <option value={600}>10 min</option>
+                <option value={900}>15 min</option>
+                <option value={1200}>20 min</option>
+                <option value={1800}>30 min</option>
+                <option value={0}>No limit</option>
+              </select>
+              <label className="text-xs text-gray-600 font-medium ml-2">Timer:</label>
+              <select
+                value={bulkVisibility}
+                onChange={e => setBulkVisibility(e.target.value as 'visible' | 'hidden')}
+                className="text-xs border border-gray-300 rounded px-2 py-1 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-400"
+              >
+                <option value="visible">Visible to participants</option>
+                <option value="hidden">Hidden from participants</option>
+              </select>
+            </div>
+
+            {/* Rooms — assign participants to each */}
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {bulkRooms.map((roomSet, idx) => {
+                const usedIds = new Set<string>();
+                bulkRooms.forEach((s, i) => { if (i !== idx) s.forEach(id => usedIds.add(id)); });
+                return (
+                  <div key={idx} className="bg-white border border-purple-200 rounded-lg p-2">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-medium text-purple-700">Room {idx + 1} — {roomSet.size} participant{roomSet.size !== 1 ? 's' : ''}</span>
+                      {bulkRooms.length > 1 && (
+                        <button
+                          onClick={() => setBulkRooms(prev => prev.filter((_, i) => i !== idx))}
+                          className="text-[10px] text-red-500 hover:text-red-700"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                      {participants
+                        .filter(p => p.userId !== hostUserId && !cohosts.has(p.userId))
+                        .map(p => {
+                          const selected = roomSet.has(p.userId);
+                          const usedElsewhere = !selected && usedIds.has(p.userId);
+                          return (
+                            <label
+                              key={p.userId}
+                              className={`flex items-center gap-1 text-[11px] px-1.5 py-1 rounded cursor-pointer transition-colors ${
+                                selected ? 'bg-purple-100 border border-purple-300' :
+                                usedElsewhere ? 'bg-gray-100 border border-gray-200 opacity-50 cursor-not-allowed' :
+                                'bg-gray-50 border border-gray-200 hover:bg-purple-50'
+                              } ${roomSet.size >= 3 && !selected ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selected}
+                                disabled={usedElsewhere || (roomSet.size >= 3 && !selected)}
+                                onChange={() => {
+                                  setBulkRooms(prev => prev.map((s, i) => {
+                                    if (i !== idx) return s;
+                                    const next = new Set(s);
+                                    if (next.has(p.userId)) next.delete(p.userId);
+                                    else if (next.size < 3) next.add(p.userId);
+                                    return next;
+                                  }));
+                                }}
+                                className="h-3 w-3 rounded border-gray-300 text-purple-500 focus:ring-purple-400"
+                              />
+                              <span className="truncate text-gray-700">{p.displayName}</span>
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="flex items-center justify-between gap-2 mt-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setBulkRooms(prev => [...prev, new Set()])}
+                disabled={bulkRooms.length >= 25}
+              >
+                <UserPlus className="h-3.5 w-3.5 mr-1" /> Add Room
+              </Button>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => { setShowBulkRoom(false); setBulkRooms([new Set()]); }}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={bulkRooms.every(s => s.size === 0)}
+                  onClick={bulkCreateSubmit}
+                >
+                  Create All ({bulkRooms.filter(s => s.size >= 1).length})
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Task 14 — Bulk "Set Duration" mini-panel */}
+      {bulkDurationEdit && (
+        <div className="border-b border-gray-200 bg-purple-50 px-4 py-2">
+          <div className="max-w-4xl mx-auto flex items-center gap-2">
+            <label className="text-xs text-gray-600 font-medium">Set duration for all manual rooms:</label>
+            <select
+              value={bulkDurationValue}
+              onChange={e => setBulkDurationValue(Number(e.target.value))}
+              className="text-xs border border-gray-300 rounded px-2 py-1 bg-white text-gray-900 focus:outline-none focus:ring-1 focus:ring-purple-400"
+            >
+              <option value={180}>3 min</option>
+              <option value={300}>5 min</option>
+              <option value={600}>10 min</option>
+              <option value={900}>15 min</option>
+              <option value={1200}>20 min</option>
+              <option value={1800}>30 min</option>
+            </select>
+            <Button size="sm" onClick={bulkSetDurationAll}>Apply to all</Button>
+            <Button size="sm" variant="ghost" onClick={() => setBulkDurationEdit(false)}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Announcement input */}
       {showBroadcast && (
         <div className="border-b border-gray-200 bg-amber-500/10 px-4 py-3">
@@ -607,6 +803,33 @@ export default function HostControls({ sessionId }: Props) {
               <Button size="sm" variant="secondary" onClick={() => { setShowCreateRoom(!showCreateRoom); setCreateRoomSelected(new Set()); }} title="Create a breakout room">
                 <UserPlus className="h-4 w-4 mr-1" /> Room
               </Button>
+            )}
+
+            {/* Task 14 — Bulk breakout rooms (create N rooms with shared timer) */}
+            {sessionStarted && (
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => { setShowBulkRoom(!showBulkRoom); setBulkRooms([new Set()]); }}
+                title="Create multiple breakout rooms at once with a shared timer"
+              >
+                <Users className="h-4 w-4 mr-1" /> Bulk
+              </Button>
+            )}
+
+            {/* Task 14 — Bulk controls: only show when manual rooms are active */}
+            {sessionStarted && hasActiveManualRooms && (
+              <>
+                <Button size="sm" variant="secondary" onClick={bulkExtendAll} title={`Add 2 minutes to all ${activeManualCount} manual rooms`}>
+                  <Clock className="h-4 w-4 mr-1" /> +2 all
+                </Button>
+                <Button size="sm" variant="secondary" onClick={() => setBulkDurationEdit(!bulkDurationEdit)} title="Set shared duration for all manual rooms">
+                  <Clock className="h-4 w-4 mr-1" /> Set
+                </Button>
+                <Button size="sm" variant="danger" onClick={bulkEndAll} title={`End all ${activeManualCount} manual rooms`}>
+                  <Square className="h-4 w-4 mr-1" /> End all
+                </Button>
+              </>
             )}
 
             {/* Announcement */}

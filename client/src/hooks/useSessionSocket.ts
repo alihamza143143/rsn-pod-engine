@@ -302,6 +302,8 @@ export default function useSessionSocket(sessionId: string) {
       store.setByeRound(false);
       clearByeTimeout();
       store.setPartnerDisconnected(false);
+      // Per-match timer visibility override (Task 14 — bulk manual breakouts)
+      store.setBreakoutTimerHidden(data.timerVisibility === 'hidden');
       const partners = data.partners || [{ userId: data.partnerId, displayName: data.partnerDisplayName || data.partnerId }];
       store.setMatch({ userId: data.partnerId, displayName: data.partnerDisplayName || data.partnerId }, data.matchId, partners);
       store.setPhase('matched');
@@ -329,6 +331,8 @@ export default function useSessionSocket(sessionId: string) {
       // NOTE: leftCurrentRound does NOT block reassignment — host/system override
       store.setLeftCurrentRound(false); // Clear the flag — user is being put back in a room
       store.setPartnerDisconnected(false);
+      // Per-match timer visibility override (Task 14 — bulk manual breakouts)
+      store.setBreakoutTimerHidden(data.timerVisibility === 'hidden');
       store.setMatch({ userId: data.newPartnerId, displayName: data.partnerDisplayName || data.newPartnerId }, data.matchId || null);
       store.setPhase('matched');
       // Use inline token if server provided it, otherwise fall back to API fetch
@@ -364,6 +368,7 @@ export default function useSessionSocket(sessionId: string) {
       store.setPartnerDisconnected(false);
       store.setTransitionStatus(null);
       store.setTimer(0); // Clear displayed timer
+      store.setBreakoutTimerHidden(false); // Reset per-match visibility override
       store.setLeftCurrentRound(true); // Prevent re-entry via stale match:assigned
       store.setPhase('lobby');
     });

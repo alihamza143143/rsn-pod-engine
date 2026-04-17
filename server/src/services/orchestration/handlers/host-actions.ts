@@ -1306,8 +1306,10 @@ export async function broadcastMessage(
  * Tracks endsAt + startedAt + participantIds so the timer can be extended by
  * `handleHostExtendBreakoutRoom` without losing the original expiry callback.
  * The callback is stored as `fireCallback` so extension can reschedule it.
+ *
+ * Exported for use by breakout-bulk.ts (Task 14 — bulk manual breakout ops).
  */
-interface RoomTimerState {
+export interface RoomTimerState {
   timeoutHandle: NodeJS.Timeout;
   endsAt: Date;
   startedAt: Date;
@@ -1315,8 +1317,8 @@ interface RoomTimerState {
   fireCallback: () => Promise<void>;
 }
 
-const roomTimers = new Map<string, RoomTimerState>();
-const roomSyncIntervals = new Map<string, NodeJS.Timeout>();
+export const roomTimers = new Map<string, RoomTimerState>();
+export const roomSyncIntervals = new Map<string, NodeJS.Timeout>();
 
 /** Clear per-room timer and sync interval for a given matchId */
 export function clearRoomTimers(matchId: string): void {

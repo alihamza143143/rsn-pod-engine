@@ -51,6 +51,13 @@ import {
 // Handlers — Chat
 import { handleChatSend, handleChatReact, handleReactionSend } from './handlers/chat-handlers';
 
+// Handlers — Bulk Breakout (Task 14)
+import {
+  handleHostCreateBreakoutBulk, handleHostExtendBreakoutAll,
+  handleHostEndBreakoutAll, handleHostSetBreakoutDurationAll,
+  injectBreakoutBulkDeps,
+} from './handlers/breakout-bulk';
+
 // Timer Manager
 import { clearSessionTimers, TimerCallbacks } from './handlers/timer-manager';
 
@@ -111,6 +118,10 @@ export function initOrchestration(socketServer: SocketServer): void {
   injectParticipantDeps({
     emitHostDashboard: (sessionId) => emitHostDashboard(io, sessionId),
     endRatingWindow: (sessionId, roundNumber) => endRatingWindow(io, sessionId, roundNumber),
+  });
+
+  injectBreakoutBulkDeps({
+    emitHostDashboard: (sessionId) => emitHostDashboard(io, sessionId),
   });
 
   // ── Recover active sessions from DB ──
@@ -176,6 +187,12 @@ export function initOrchestration(socketServer: SocketServer): void {
     wrapHandler('host:remove_cohost', socket, handleRemoveCohost);
     wrapHandler('host:extend_round', socket, handleHostExtendRound);
     wrapHandler('host:extend_breakout_room', socket, handleHostExtendBreakoutRoom);
+
+    // ── Bulk Manual Breakout (Task 14) ──
+    wrapHandler('host:create_breakout_bulk', socket, handleHostCreateBreakoutBulk);
+    wrapHandler('host:extend_breakout_all', socket, handleHostExtendBreakoutAll);
+    wrapHandler('host:end_breakout_all', socket, handleHostEndBreakoutAll);
+    wrapHandler('host:set_breakout_duration_all', socket, handleHostSetBreakoutDurationAll);
 
     // ── Host Events (unguarded — no session state mutation) ──
     socket.on('host:broadcast_message', async (data) => {
