@@ -675,11 +675,27 @@ export async function handleHostRemoveFromRoom(
   }
 
   try {
-    // Host explicitly removed a participant — cancelled captures the intent.
-    // no_show stays reserved for "never connected" per state machine.
+    // Determine terminal status: real conversation (>30s or rated) → completed,
+    // else cancelled. no_show is reserved for "never connected".
+    const matchInfoRes = await query<{ seconds: string; rating_count: string }>(
+      `SELECT
+         EXTRACT(EPOCH FROM (NOW() - started_at))::text AS seconds,
+         (SELECT COUNT(*)::text FROM ratings WHERE match_id = $1) AS rating_count
+       FROM matches WHERE id = $1`,
+      [data.matchId],
+    );
+    const durationS = parseFloat(matchInfoRes.rows[0]?.seconds || '0');
+    const ratingCount = parseInt(matchInfoRes.rows[0]?.rating_count || '0', 10);
+    const terminalStatus = (durationS > 30 || ratingCount > 0) ? 'completed' : 'cancelled';
+
     await query(
-      `UPDATE matches SET status = 'cancelled', ended_at = NOW() WHERE id = $1 AND status = 'active'`,
-      [data.matchId]
+      `UPDATE matches SET status = $2, ended_at = NOW() WHERE id = $1 AND status = 'active'`,
+      [data.matchId, terminalStatus]
+    );
+
+    logger.info(
+      { sessionId: (data as any).sessionId, matchId: data.matchId, durationS, ratingCount, terminalStatus },
+      'Host removed participant — match ended'
     );
 
     // Clear any per-room timer/sync for this match (prevents ghost timers)
