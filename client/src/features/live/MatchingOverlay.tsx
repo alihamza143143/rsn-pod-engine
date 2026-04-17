@@ -55,7 +55,7 @@ export default function MatchingOverlay({ roomCount }: Props) {
         <div className="space-y-2">
           <h2 className="text-2xl font-bold text-white">You've been matched!</h2>
           <p className="text-gray-400 text-sm">
-            {roomCount > 0 ? `${roomCount} breakout room${roomCount !== 1 ? 's' : ''} ready` : 'Get ready for your conversation'}
+            {roomCount > 0 ? 'breakout rooms ready' : 'Get ready for your conversation'}
           </p>
         </div>
 
