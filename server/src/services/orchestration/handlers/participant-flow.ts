@@ -970,93 +970,107 @@ export async function handleDisconnect(
                   return;
                 }
 
-                // Mark original match as no_show
+                // Determine terminal status based on actual conversation state:
+                //   >30s OR ratings submitted → completed (real conversation)
+                //   otherwise → cancelled (no_show reserved for never-connected)
+                const matchInfoRes = await query<{ seconds: string; rating_count: string }>(
+                  `SELECT
+                     EXTRACT(EPOCH FROM (NOW() - started_at))::text AS seconds,
+                     (SELECT COUNT(*)::text FROM ratings WHERE match_id = $1) AS rating_count
+                   FROM matches WHERE id = $1`,
+                  [disconnectMatchId],
+                );
+                const durationS = parseFloat(matchInfoRes.rows[0]?.seconds || '0');
+                const ratingCount = parseInt(matchInfoRes.rows[0]?.rating_count || '0', 10);
+                const terminalStatus = (durationS > 30 || ratingCount > 0) ? 'completed' : 'cancelled';
+
                 await query(
-                  `UPDATE matches SET status = 'no_show', ended_at = NOW() WHERE id = $1 AND status = 'active'`,
-                  [disconnectMatchId]
+                  `UPDATE matches SET status = $2, ended_at = NOW() WHERE id = $1 AND status = 'active'`,
+                  [disconnectMatchId, terminalStatus],
                 );
 
-                // Step 3: Try auto-reassignment — find another isolated participant
-                const noShowMatches = await query<{ id: string; participant_a_id: string; participant_b_id: string }>(
-                  `SELECT id, participant_a_id, participant_b_id FROM matches
-                   WHERE session_id = $1 AND round_number = $2 AND status = 'no_show' AND id != $3`,
-                  [sessionId, disconnectRound, disconnectMatchId]
+                logger.info(
+                  { sessionId, matchId: disconnectMatchId, userId, durationS, ratingCount, terminalStatus },
+                  'Match ended by disconnect',
+                );
+
+                // Step 3: Try auto-reassignment — find another isolated participant via presence
+                const isolatedUserIds = await findIsolatedParticipants(
+                  sessionId,
+                  disconnectRound,
+                  currentSession.presenceMap,
+                  userId,
                 );
 
                 let reassigned = false;
-                for (const nsMatch of noShowMatches.rows) {
-                  // Find which participant in this no_show match is still present
-                  const candidateA = nsMatch.participant_a_id;
-                  const candidateB = nsMatch.participant_b_id;
-                  const candidatePresent = currentSession.presenceMap.has(candidateA) ? candidateA
-                    : currentSession.presenceMap.has(candidateB) ? candidateB : null;
+                for (const candidateUserId of isolatedUserIds) {
+                  if (candidateUserId === userId) continue; // double-safety, already excluded
+                  if (candidateUserId === partnerId) continue; // don't pair partner with themselves
 
-                  if (candidatePresent && candidatePresent !== partnerId) {
-                    // Found another isolated participant — pair them!
-                    const reassignSlug = `auto-reassign-${Date.now()}`;
-                    const roomId = `session-${sessionId}-round-${disconnectRound}-${reassignSlug}`;
-                    try {
-                      await videoService.createMatchRoom(sessionId, disconnectRound, reassignSlug);
-                    } catch { /* room may already exist */ }
+                  // Found another isolated participant — pair them!
+                  const reassignSlug = `auto-reassign-${Date.now()}`;
+                  const roomId = `session-${sessionId}-round-${disconnectRound}-${reassignSlug}`;
+                  try {
+                    await videoService.createMatchRoom(sessionId, disconnectRound, reassignSlug);
+                  } catch { /* room may already exist */ }
 
-                    const matchId = require('uuid').v4();
-                    // Normalize participant order (lexicographic) for constraint consistency
-                    const normA = partnerId < candidatePresent ? partnerId : candidatePresent;
-                    const normB = partnerId < candidatePresent ? candidatePresent : partnerId;
-                    try {
-                      await query(
-                        `INSERT INTO matches (id, session_id, round_number, participant_a_id, participant_b_id, room_id, status, started_at)
-                         VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW())`,
-                        [matchId, sessionId, disconnectRound, normA, normB, roomId]
-                      );
-                    } catch (insertErr: any) {
-                      // DB constraint caught a conflict — participant already matched
-                      if (insertErr.message?.includes('PARTICIPANT_ALREADY_MATCHED') || insertErr.code === '23505') {
-                        logger.warn({ partnerId, candidatePresent, disconnectRound },
-                          'Auto-reassign skipped: participant already in active match');
-                        continue; // Try next candidate
-                      }
-                      throw insertErr;
-                    }
-
-                    // Fetch display names
-                    const nameRes = await query<{ id: string; display_name: string }>(
-                      `SELECT id, display_name FROM users WHERE id = ANY($1)`,
-                      [[partnerId, candidatePresent]]
+                  const matchId = require('uuid').v4();
+                  // Normalize participant order (lexicographic) for constraint consistency
+                  const normA = partnerId < candidateUserId ? partnerId : candidateUserId;
+                  const normB = partnerId < candidateUserId ? candidateUserId : partnerId;
+                  try {
+                    await query(
+                      `INSERT INTO matches (id, session_id, round_number, participant_a_id, participant_b_id, room_id, status, started_at)
+                       VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW())`,
+                      [matchId, sessionId, disconnectRound, normA, normB, roomId]
                     );
-                    const names = new Map(nameRes.rows.map(r => [r.id, r.display_name || 'User']));
-
-                    // Generate inline tokens for instant breakout transition
-                    const { config: reassignConfig } = await import('../../../config');
-                    let partnerTk: string | null = null;
-                    let candidateTk: string | null = null;
-                    try {
-                      const [pVt, cVt] = await Promise.all([
-                        videoService.issueJoinToken(partnerId, roomId, names.get(partnerId) || 'User'),
-                        videoService.issueJoinToken(candidatePresent, roomId, names.get(candidatePresent) || 'User'),
-                      ]);
-                      partnerTk = pVt.token;
-                      candidateTk = cVt.token;
-                    } catch { /* non-fatal — client retries via API */ }
-
-                    io.to(userRoom(partnerId)).emit('match:reassigned', {
-                      matchId, newPartnerId: candidatePresent,
-                      partnerDisplayName: names.get(candidatePresent),
-                      roomId, roundNumber: disconnectRound,
-                      token: partnerTk, livekitUrl: reassignConfig.livekit.host,
-                    });
-                    io.to(userRoom(candidatePresent)).emit('match:reassigned', {
-                      matchId, newPartnerId: partnerId,
-                      partnerDisplayName: names.get(partnerId),
-                      roomId, roundNumber: disconnectRound,
-                      token: candidateTk, livekitUrl: reassignConfig.livekit.host,
-                    });
-
-                    logger.info({ sessionId, partnerId, candidatePresent, matchId },
-                      'Auto-reassigned isolated participants after disconnect');
-                    reassigned = true;
-                    break;
+                  } catch (insertErr: any) {
+                    // DB constraint caught a conflict — participant already matched
+                    if (insertErr.message?.includes('PARTICIPANT_ALREADY_MATCHED') || insertErr.code === '23505') {
+                      logger.warn({ partnerId, candidateUserId, disconnectRound },
+                        'Auto-reassign skipped: participant already in active match');
+                      continue; // Try next candidate
+                    }
+                    throw insertErr;
                   }
+
+                  // Fetch display names
+                  const nameRes = await query<{ id: string; display_name: string }>(
+                    `SELECT id, display_name FROM users WHERE id = ANY($1)`,
+                    [[partnerId, candidateUserId]]
+                  );
+                  const names = new Map(nameRes.rows.map(r => [r.id, r.display_name || 'User']));
+
+                  // Generate inline tokens for instant breakout transition
+                  const { config: reassignConfig } = await import('../../../config');
+                  let partnerTk: string | null = null;
+                  let candidateTk: string | null = null;
+                  try {
+                    const [pVt, cVt] = await Promise.all([
+                      videoService.issueJoinToken(partnerId, roomId, names.get(partnerId) || 'User'),
+                      videoService.issueJoinToken(candidateUserId, roomId, names.get(candidateUserId) || 'User'),
+                    ]);
+                    partnerTk = pVt.token;
+                    candidateTk = cVt.token;
+                  } catch { /* non-fatal — client retries via API */ }
+
+                  io.to(userRoom(partnerId)).emit('match:reassigned', {
+                    matchId, newPartnerId: candidateUserId,
+                    partnerDisplayName: names.get(candidateUserId),
+                    roomId, roundNumber: disconnectRound,
+                    token: partnerTk, livekitUrl: reassignConfig.livekit.host,
+                  });
+                  io.to(userRoom(candidateUserId)).emit('match:reassigned', {
+                    matchId, newPartnerId: partnerId,
+                    partnerDisplayName: names.get(partnerId),
+                    roomId, roundNumber: disconnectRound,
+                    token: candidateTk, livekitUrl: reassignConfig.livekit.host,
+                  });
+
+                  logger.info({ sessionId, partnerId, candidateUserId, matchId },
+                    'Auto-reassigned isolated participants after disconnect');
+                  reassigned = true;
+                  break;
                 }
 
                 if (!reassigned) {
