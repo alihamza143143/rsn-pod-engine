@@ -86,8 +86,20 @@ export async function handleChatSend(
     if (msgs.length > MAX_CHAT_MESSAGES) msgs.splice(0, msgs.length - MAX_CHAT_MESSAGES);
 
     if (scope === 'lobby') {
-      // Broadcast to everyone in the session
-      io.to(sessionRoom(sessionId)).emit('chat:message', chatMsg);
+      // Broadcast to lobby users only — exclude users in active breakout rooms
+      const activeMatchedRes = await query<{ pid: string }>(
+        `SELECT unnest(ARRAY[participant_a_id, participant_b_id, participant_c_id]) AS pid
+         FROM matches WHERE session_id = $1 AND status = 'active'`,
+        [sessionId]
+      );
+      const inBreakout = new Set(activeMatchedRes.rows.map(r => r.pid).filter(Boolean));
+      const socketsInSession = await io.in(sessionRoom(sessionId)).fetchSockets();
+      for (const sk of socketsInSession) {
+        const uid = (sk.data as any)?.userId;
+        if (!inBreakout.has(uid)) {
+          sk.emit('chat:message', chatMsg);
+        }
+      }
     } else {
       // Room scope: find the user's current active match and emit only to those users
       // Search across ALL rounds (manual rooms can exist on any round)
@@ -236,8 +248,20 @@ export async function handleReactionSend(
         io.to(userRoom(pid)).emit('reaction:received', reactionPayload);
       }
     } else {
-      // Lobby/transition: broadcast to everyone
-      io.to(sessionRoom(sessionId)).emit('reaction:received', reactionPayload);
+      // Lobby/transition: broadcast only to non-breakout users
+      const activeMatchedRes2 = await query<{ pid: string }>(
+        `SELECT unnest(ARRAY[participant_a_id, participant_b_id, participant_c_id]) AS pid
+         FROM matches WHERE session_id = $1 AND status = 'active'`,
+        [sessionId]
+      );
+      const inBreakout2 = new Set(activeMatchedRes2.rows.map(r => r.pid).filter(Boolean));
+      const socketsInSession2 = await io.in(sessionRoom(sessionId)).fetchSockets();
+      for (const sk of socketsInSession2) {
+        const uid = (sk.data as any)?.userId;
+        if (!inBreakout2.has(uid)) {
+          sk.emit('reaction:received', reactionPayload);
+        }
+      }
     }
   } catch (err) {
     logger.error({ err }, 'Error handling reaction');

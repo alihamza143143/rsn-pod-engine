@@ -435,7 +435,7 @@ export default function HostControls({ sessionId }: Props) {
                 })}
             </div>
             <div className="flex items-center gap-2">
-              <Button size="sm" onClick={() => {
+              <Button size="sm" disabled={createRoomSelected.size === 0} onClick={() => {
                 socket?.emit('host:create_breakout' as any, {
                   sessionId,
                   participantIds: Array.from(createRoomSelected),
@@ -446,7 +446,7 @@ export default function HostControls({ sessionId }: Props) {
               }}>
                 Create Room ({createRoomSelected.size})
               </Button>
-              <span className="text-[10px] text-gray-500">Select 0-3 participants. Empty rooms are allowed.</span>
+              <span className="text-[10px] text-gray-500">Select 1-3 participants to create a room.</span>
             </div>
           </div>
         </div>
