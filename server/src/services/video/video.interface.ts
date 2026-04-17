@@ -4,9 +4,11 @@
 
 import { RoomType, VideoRoom, VideoToken, VideoParticipant } from '@rsn/shared';
 
+export { RoomType };
+
 export interface IVideoProvider {
-  /** Create a room of the specified type. */
-  createRoom(roomId: string, type: RoomType, sessionId: string): Promise<VideoRoom>;
+  /** Create a room. `emptyTimeoutSeconds` — auto-delete after being empty this long (default 300). */
+  createRoom(roomId: string, type: RoomType, sessionId: string, emptyTimeoutSeconds?: number): Promise<VideoRoom>;
 
   /** Close and destroy a room. */
   closeRoom(roomId: string): Promise<void>;

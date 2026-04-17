@@ -8,7 +8,7 @@ import logger from '../../config/logger';
 const rooms = new Map<string, { room: VideoRoom; participants: VideoParticipant[] }>();
 
 export class MockVideoProvider implements IVideoProvider {
-  async createRoom(roomId: string, type: RoomType, sessionId: string): Promise<VideoRoom> {
+  async createRoom(roomId: string, type: RoomType, sessionId: string, _emptyTimeoutSeconds?: number): Promise<VideoRoom> {
     const room: VideoRoom = { roomId, type, sessionId, participantCount: 0, createdAt: new Date() };
     rooms.set(roomId, { room, participants: [] });
     logger.debug({ roomId, type }, 'MockVideo: room created');

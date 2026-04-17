@@ -29,17 +29,20 @@ export class LiveKitProvider implements IVideoProvider {
 
   // ─── Create Room ────────────────────────────────────────────────────────
 
-  async createRoom(roomId: string, type: RoomType, sessionId: string): Promise<VideoRoom> {
+  async createRoom(
+    roomId: string,
+    type: RoomType,
+    sessionId: string,
+    emptyTimeoutSeconds: number = 300
+  ): Promise<VideoRoom> {
     try {
       const maxParticipants = type === RoomType.LOBBY ? 500
         : type === RoomType.ONE_TO_ONE ? 2
         : 10;
 
-      const emptyTimeout = type === RoomType.ONE_TO_ONE ? 300 : 3600; // seconds
-
       await this.roomService.createRoom({
         name: roomId,
-        emptyTimeout,
+        emptyTimeout: emptyTimeoutSeconds,
         maxParticipants,
         metadata: JSON.stringify({ type, sessionId }),
       });
@@ -66,9 +69,11 @@ export class LiveKitProvider implements IVideoProvider {
       await this.roomService.deleteRoom(roomId);
       logger.info({ roomId }, 'LiveKit room closed');
     } catch (err: any) {
-      // Room may already be gone — don't throw
-      if (err?.message?.includes('not found')) {
-        logger.warn({ roomId }, 'LiveKit room already deleted');
+      const msg = String(err?.message || '').toLowerCase();
+      const code = err?.code;
+      // Twirp NotFound (code 5) OR legacy string patterns — room already auto-deleted by LiveKit
+      if (code === 5 || msg.includes('not found') || msg.includes('does not exist')) {
+        logger.debug({ roomId }, 'LiveKit room already deleted (auto-cleanup or explicit delete)');
         return;
       }
       logger.error({ err, roomId }, 'Failed to close LiveKit room');

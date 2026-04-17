@@ -44,20 +44,24 @@ export function matchRoomId(sessionId: string, roundNumber: number, matchIdShort
 
 // ─── Session Room Lifecycle ─────────────────────────────────────────────────
 
-export async function createLobbyRoom(sessionId: string): Promise<VideoRoom> {
+export async function createLobbyRoom(
+  sessionId: string,
+  emptyTimeoutSeconds: number = 3600
+): Promise<VideoRoom> {
   const p = getVideoProvider();
   const roomId = lobbyRoomId(sessionId);
-  return p.createRoom(roomId, RoomType.LOBBY, sessionId);
+  return p.createRoom(roomId, RoomType.LOBBY, sessionId, emptyTimeoutSeconds);
 }
 
 export async function createMatchRoom(
   sessionId: string,
   roundNumber: number,
-  matchIdShort: string
+  matchIdShort: string,
+  emptyTimeoutSeconds: number = 300
 ): Promise<VideoRoom> {
   const p = getVideoProvider();
   const roomId = matchRoomId(sessionId, roundNumber, matchIdShort);
-  return p.createRoom(roomId, RoomType.ONE_TO_ONE, sessionId);
+  return p.createRoom(roomId, RoomType.ONE_TO_ONE, sessionId, emptyTimeoutSeconds);
 }
 
 export async function closeLobbyRoom(sessionId: string): Promise<void> {
