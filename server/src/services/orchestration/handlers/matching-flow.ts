@@ -561,7 +561,7 @@ export async function emitHostDashboard(io: SocketServer, sessionId: string): Pr
     }
 
     const rooms = matches
-      .filter(m => m.status === 'active' || m.status === 'completed' || m.status === 'no_show')
+      .filter(m => m.status === 'active')
       .map(m => {
         const participants: { userId: string; displayName: string; isConnected: boolean }[] = [];
         if (m.participantAId) {
