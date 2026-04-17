@@ -731,7 +731,9 @@ export async function handleLeaveConversation(
         setTimeout(async () => {
           try {
             const currentSession = activeSessions.get(sessionId);
-            if (!currentSession || currentSession.status !== SessionStatus.ROUND_ACTIVE) return;
+            if (!currentSession) return;
+            // Allow ROUND_ACTIVE (normal rounds) and LOBBY_OPEN (host-created rooms)
+            if (currentSession.status !== SessionStatus.ROUND_ACTIVE && currentSession.status !== SessionStatus.LOBBY_OPEN) return;
             if (currentSession.currentRound !== activeSession.currentRound) return;
 
             // Check if already reassigned by host or other flow
@@ -819,9 +821,23 @@ export async function handleLeaveConversation(
             }
 
             if (!reassigned) {
-              // No partner available — return to lobby
+              // No partner available — show rating for departed partner, then return to lobby
               await sessionService.updateParticipantStatus(sessionId, soloPartnerId, ParticipantStatus.IN_LOBBY);
-              io.to(userRoom(soloPartnerId)).emit('match:return_to_lobby', { reason: 'partner_left' });
+
+              // Get the departed user's display name for the rating form
+              const departedNameRes = await query<{ display_name: string }>(
+                `SELECT display_name FROM users WHERE id = $1`, [userId]
+              );
+              const departedName = departedNameRes.rows[0]?.display_name || 'Partner';
+
+              io.to(userRoom(soloPartnerId)).emit('rating:window_open', {
+                matchId: userMatch.id,
+                partnerId: userId,
+                partnerDisplayName: departedName,
+                partners: [{ userId, displayName: departedName }],
+                durationSeconds: 20,
+                earlyLeave: true,
+              });
 
               // Re-issue lobby token
               if (session.lobbyRoomId) {
@@ -842,7 +858,7 @@ export async function handleLeaveConversation(
                 }
               }
 
-              logger.info({ sessionId, soloPartnerId, matchId: userMatch.id }, 'No reassign available — returned solo partner to lobby');
+              logger.info({ sessionId, soloPartnerId, matchId: userMatch.id }, 'No reassign available — showing rating then lobby');
             }
           } catch (err) {
             logger.error({ err }, 'Error in auto-reassign after early leave');

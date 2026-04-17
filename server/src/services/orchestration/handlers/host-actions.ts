@@ -707,16 +707,58 @@ export async function handleHostRemoveFromRoom(
       } catch { /* skip */ }
     }
 
-    // Notify partner — show "partner left" with auto-return after 5s
+    // Notify partner — show "partner left" with 5s countdown, then rating + lobby
     if (matchResult.rows.length > 0) {
       const match = matchResult.rows[0];
       const partnerIds = [match.participant_a_id, match.participant_b_id, match.participant_c_id]
         .filter((id): id is string => !!id && id !== data.userId);
 
       for (const partnerId of partnerIds) {
-        // Show "Your partner left the room" banner with 5s countdown
         io.to(userRoom(partnerId)).emit('match:partner_disconnected', { matchId: data.matchId });
       }
+
+      // Server-side 5s timeout: return partner to rating → lobby
+      // (Client's auto-leave won't work because match is already 'no_show')
+      setTimeout(async () => {
+        try {
+          const removedNameRes = await query<{ display_name: string }>(
+            `SELECT display_name FROM users WHERE id = $1`, [data.userId]
+          );
+          const removedName = removedNameRes.rows[0]?.display_name || 'Partner';
+
+          for (const partnerId of partnerIds) {
+            await sessionService.updateParticipantStatus(data.sessionId, partnerId, ParticipantStatus.IN_LOBBY).catch(() => {});
+
+            io.to(userRoom(partnerId)).emit('rating:window_open', {
+              matchId: data.matchId,
+              partnerId: data.userId,
+              partnerDisplayName: removedName,
+              partners: [{ userId: data.userId, displayName: removedName }],
+              durationSeconds: 20,
+              earlyLeave: true,
+            });
+
+            // Re-issue lobby token
+            if (session.lobbyRoomId) {
+              try {
+                const { config: appConfig2 } = await import('../../../config');
+                const socketsInRoom = await io.in(userRoom(partnerId)).fetchSockets();
+                for (const sk of socketsInRoom) {
+                  const uid = (sk.data as any)?.userId;
+                  if (uid !== partnerId) continue;
+                  const dName = (sk.data as any)?.displayName || 'User';
+                  const lobbyToken = await videoService.issueJoinToken(uid, session.lobbyRoomId, dName);
+                  sk.emit('lobby:token', { token: lobbyToken.token, livekitUrl: appConfig2.livekit.host, roomId: session.lobbyRoomId });
+                }
+              } catch { /* skip */ }
+            }
+          }
+
+          if (_emitHostDashboard) await _emitHostDashboard(data.sessionId).catch(() => {});
+        } catch (err) {
+          logger.error({ err }, 'Error in host remove-from-room partner timeout');
+        }
+      }, 5000);
     }
 
     // Refresh host dashboard
