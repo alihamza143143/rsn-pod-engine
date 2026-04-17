@@ -445,7 +445,8 @@ describe('Session Routes', () => {
     it('should return session by id', async () => {
       (sessionService.getSessionById as jest.Mock).mockResolvedValue(mockSession);
 
-      const token = makeToken();
+      // Admin role bypasses canViewSession DB lookups (short-circuits on role check).
+      const token = makeToken({ role: 'admin' });
       const res = await request(app)
         .get('/sessions/session-123')
         .set('Authorization', `Bearer ${token}`);

@@ -56,9 +56,14 @@ export default function SessionDetailPage() {
   const [showPendingInvites, setShowPendingInvites] = useState(false);
   const [invitingMember, setInvitingMember] = useState<string | null>(null);
 
-  const { data: session, isLoading } = useQuery({
+  const { data: session, isLoading, error: sessionError } = useQuery({
     queryKey: ['session', sessionId],
     queryFn: () => api.get(`/sessions/${sessionId}`).then(r => r.data.data),
+    retry: (failureCount, err: any) => {
+      // Don't retry 403s — access is intentionally denied
+      if (err?.response?.status === 403) return false;
+      return failureCount < 3;
+    },
   });
 
   const { data: pod } = useQuery({
@@ -284,6 +289,35 @@ export default function SessionDetailPage() {
   });
 
   if (isLoading) return <PageLoader />;
+
+  // 403 — user isn't registered, not a pod member, and the pod isn't public.
+  // Show a clean access-denied card instead of the broken "0 participants" fallback.
+  if ((sessionError as any)?.response?.status === 403) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-6">
+        <div className="flex items-center gap-3">
+          <button onClick={() => navigate('/dashboard')} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors text-sm">
+            <ArrowLeft className="h-4 w-4" /> Back to Dashboard
+          </button>
+        </div>
+        <Card className="animate-fade-in-up">
+          <div className="flex flex-col items-center text-center py-10 px-4">
+            <div className="h-14 w-14 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+              <AlertTriangle className="h-7 w-7 text-amber-600" />
+            </div>
+            <h1 className="text-xl font-bold text-[#1a1a2e] mb-2">Access restricted</h1>
+            <p className="text-gray-500 text-sm max-w-md">
+              You don't have access to this event. Ask the host for an invite or join the pod to see details.
+            </p>
+            <Button variant="primary" onClick={() => navigate('/dashboard')} className="mt-6">
+              Back to Dashboard
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   if (!session) return <p className="text-gray-500 text-center py-20">Event not found</p>;
 
   const statusVariant = session.status === 'scheduled' ? 'info'

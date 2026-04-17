@@ -7,6 +7,7 @@ import { requireRole } from '../middleware/rbac';
 import { auditMiddleware } from '../middleware/audit';
 import * as sessionService from '../services/session/session.service';
 import * as podService from '../services/pod/pod.service';
+import { canViewSession } from '../services/session/session-access';
 import { ApiResponse, SessionStatus, UserRole, hasRoleAtLeast } from '@rsn/shared';
 import { ForbiddenError } from '../middleware/errors';
 import { query } from '../db';
@@ -85,6 +86,11 @@ router.get(
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const canView = await canViewSession(req.user!.userId, req.params.id, req.user!.role);
+      if (!canView) {
+        throw new ForbiddenError('You must be registered or a pod member to view this event.');
+      }
+
       const session = await sessionService.getSessionById(req.params.id);
       const participantCount = await sessionService.getParticipantCount(req.params.id);
 
