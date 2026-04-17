@@ -14,6 +14,7 @@ import { useToastStore } from '@/stores/toastStore';
 import api from '@/lib/api';
 import { formatDateTime, LOCAL_TIME_LABEL } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
+import { sessionStatusLabel, sessionStatusColor } from './statusConfig';
 
 function getInviteErrorMessage(err: any): string {
   const code = err?.response?.data?.error?.code;
@@ -320,9 +321,7 @@ export default function SessionDetailPage() {
 
   if (!session) return <p className="text-gray-500 text-center py-20">Event not found</p>;
 
-  const statusVariant = session.status === 'scheduled' ? 'info'
-    : session.status === 'lobby_open' || session.status === 'round_active' ? 'success'
-    : session.status === 'completed' ? 'default' : 'warning';
+  const statusVariant = sessionStatusColor(session.status);
 
   return (
     <div className="max-w-3xl mx-auto space-y-6">
@@ -348,7 +347,7 @@ export default function SessionDetailPage() {
               {session.scheduledAt ? `${formatDateTime(session.scheduledAt)} ${LOCAL_TIME_LABEL}` : 'No date set'}
             </p>
           </div>
-          <Badge variant={statusVariant}>{session.status?.replace(/_/g, ' ')}</Badge>
+          <Badge variant={statusVariant}>{sessionStatusLabel(session.status)}</Badge>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 pt-4 border-t border-gray-200">

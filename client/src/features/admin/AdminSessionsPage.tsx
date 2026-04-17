@@ -10,17 +10,7 @@ import { useToastStore } from '@/stores/toastStore';
 import { useAuthStore } from '@/stores/authStore';
 import { isAdmin, formatDateTime } from '@/lib/utils';
 import api from '@/lib/api';
-
-const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'info' | 'default'> = {
-  scheduled: 'info',
-  lobby_open: 'warning',
-  round_active: 'success',
-  round_rating: 'warning',
-  round_transition: 'warning',
-  closing_lobby: 'warning',
-  completed: 'default',
-  cancelled: 'default',
-};
+import { sessionStatusLabel, sessionStatusColor } from '@/features/sessions/statusConfig';
 
 export default function AdminSessionsPage() {
   const { user } = useAuthStore();
@@ -82,7 +72,7 @@ export default function AdminSessionsPage() {
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
                   <h3 className="font-semibold text-gray-800 hover:text-rsn-red cursor-pointer" onClick={() => navigate(`/sessions/${session.id}`)}>{session.title}</h3>
-                  <Badge variant={STATUS_VARIANT[session.status] || 'default'}>{session.status}</Badge>
+                  <Badge variant={sessionStatusColor(session.status)}>{sessionStatusLabel(session.status)}</Badge>
                 </div>
                 <p className="text-xs text-gray-400 mt-1">
                   Scheduled: {formatDateTime(session.scheduledAt)} · Participants: {session.participantCount || '—'}
