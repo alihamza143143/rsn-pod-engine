@@ -36,11 +36,11 @@ export async function submitRating(
   input: CreateRatingInput
 ): Promise<Rating> {
   // Validate the match exists and the user is a participant
-  const matchResult = await query<Match & { participantCId: string | null }>(
+  const matchResult = await query<Match & { participantCId: string | null; ended_at: Date | null }>(
     `SELECT id, session_id AS "sessionId", round_number AS "roundNumber",
             participant_a_id AS "participantAId", participant_b_id AS "participantBId",
             participant_c_id AS "participantCId",
-            status, created_at AS "createdAt"
+            status, created_at AS "createdAt", ended_at
      FROM matches WHERE id = $1`,
     [input.matchId]
   );
@@ -60,8 +60,20 @@ export async function submitRating(
 
   // Check match status allows rating — accept broadly so ratings survive
   // session state transitions (closing_lobby, round_transition race conditions)
-  if (!['completed', 'active', 'no_show', 'scheduled', 'reassigned'].includes(match.status)) {
-    throw new ValidationError('Match is not in a ratable state');
+  // and host-remove flows where match is cancelled but partner still has rating window.
+  const RATABLE = ['completed', 'active', 'no_show', 'scheduled', 'reassigned'];
+  if (!RATABLE.includes(match.status)) {
+    // Cancelled matches are ratable for 30s after ended_at (covers host-remove
+    // flow — partner sees rating screen and submits after status flip).
+    const CANCELLED_GRACE_MS = 30_000;
+    if (match.status === 'cancelled' && match.ended_at) {
+      const elapsed = Date.now() - new Date(match.ended_at).getTime();
+      if (elapsed > CANCELLED_GRACE_MS) {
+        throw new ValidationError('Match is not in a ratable state');
+      }
+    } else {
+      throw new ValidationError('Match is not in a ratable state');
+    }
   }
 
   // Validate quality score

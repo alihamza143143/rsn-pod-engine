@@ -675,9 +675,10 @@ export async function handleHostRemoveFromRoom(
   }
 
   try {
-    // Mark the match as no_show
+    // Host explicitly removed a participant — cancelled captures the intent.
+    // no_show stays reserved for "never connected" per state machine.
     await query(
-      `UPDATE matches SET status = 'no_show', ended_at = NOW() WHERE id = $1 AND status = 'active'`,
+      `UPDATE matches SET status = 'cancelled', ended_at = NOW() WHERE id = $1 AND status = 'active'`,
       [data.matchId]
     );
 

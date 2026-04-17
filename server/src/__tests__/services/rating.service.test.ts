@@ -96,8 +96,10 @@ describe('Rating Service', () => {
     });
 
     it('should throw when match is not in a ratable state', async () => {
+      // Cancelled match with ended_at >30s ago — outside grace window
+      const oldEndedAt = new Date(Date.now() - 60_000);
       mockQuery.mockResolvedValueOnce({
-        rows: [{ ...mockMatch, status: 'cancelled' }],
+        rows: [{ ...mockMatch, status: 'cancelled', ended_at: oldEndedAt }],
         rowCount: 1,
       });
 
@@ -108,6 +110,54 @@ describe('Rating Service', () => {
           meetAgain: true,
         })
       ).rejects.toThrow('ratable');
+    });
+
+    it('allows rating a cancelled match within 30s of ended_at (host-remove grace)', async () => {
+      const endedAt = new Date(Date.now() - 10_000);
+      // Get match — cancelled but still in grace window
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ ...mockMatch, status: 'cancelled', ended_at: endedAt }],
+        rowCount: 1,
+      });
+      // Check existing rating — none found
+      mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+      // Mock transaction — INSERT rating + upsertEncounterHistory
+      mockTransaction.mockImplementation(async (cb: Function) => {
+        const client = {
+          query: jest.fn()
+            .mockResolvedValueOnce({ rows: [mockRating], rowCount: 1 })  // INSERT rating
+            .mockResolvedValueOnce({ rows: [], rowCount: 0 })           // SELECT encounter_history
+            .mockResolvedValueOnce({ rows: [], rowCount: 1 }),          // INSERT encounter_history
+        };
+        return cb(client);
+      });
+
+      const rating = await ratingService.submitRating('user-a', {
+        matchId: 'match-1',
+        qualityScore: 4,
+        meetAgain: true,
+        feedback: 'Rated after host removed partner',
+      });
+
+      expect(rating).toBeDefined();
+      expect(rating.matchId).toBe('match-1');
+    });
+
+    it('rejects rating a cancelled match >30s after ended_at', async () => {
+      const endedAt = new Date(Date.now() - 60_000);
+      mockQuery.mockResolvedValueOnce({
+        rows: [{ ...mockMatch, status: 'cancelled', ended_at: endedAt }],
+        rowCount: 1,
+      });
+
+      await expect(
+        ratingService.submitRating('user-a', {
+          matchId: 'match-1',
+          qualityScore: 4,
+          meetAgain: true,
+        })
+      ).rejects.toThrow('not in a ratable state');
     });
 
     it('should throw when quality score is out of range', async () => {
