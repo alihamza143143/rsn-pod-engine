@@ -12,6 +12,7 @@ import {
   AuthTokenPair, JwtPayload, ErrorCodes,
 } from '@rsn/shared';
 import { NotFoundError, ConflictError, UnauthorizedError, AppError } from '../../middleware/errors';
+import { invalidateUserStatusCache } from '../../middleware/auth';
 import { sendMagicLinkEmail } from '../email/email.service';
 
 // ─── Registration Gate ──────────────────────────────────────────────────────
@@ -731,6 +732,7 @@ export async function updateUserRole(userId: string, role: UserRole): Promise<Us
 export async function updateUserStatus(userId: string, status: 'active' | 'suspended' | 'banned' | 'deactivated'): Promise<User> {
   const user = await getUserById(userId);
   await query('UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2', [status, userId]);
+  invalidateUserStatusCache(userId);
   logger.info({ userId, oldStatus: user.status, newStatus: status }, 'User status updated');
   return getUserById(userId);
 }
@@ -749,5 +751,6 @@ export async function deleteUser(userId: string): Promise<void> {
 
   // Deactivate the account (soft delete)
   await query(`UPDATE users SET status = 'deactivated', updated_at = NOW() WHERE id = $1`, [userId]);
+  invalidateUserStatusCache(userId);
   logger.info({ userId }, 'User deleted (deactivated)');
 }

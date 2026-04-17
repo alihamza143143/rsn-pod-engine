@@ -2,7 +2,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import { validate } from '../middleware/validate';
-import { authenticate } from '../middleware/auth';
+import { authenticate, invalidateUserStatusCache } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
 import { query } from '../db';
 import { ApiResponse, UserRole } from '@rsn/shared';
@@ -200,10 +200,16 @@ router.post(
         default: return res.status(400).json({ success: false, error: { message: 'Invalid action' } });
       }
 
-      const result = await query(
+      const result = await query<{ id: string }>(
         `UPDATE users SET status = $1, updated_at = NOW() WHERE id = ANY($2::uuid[]) RETURNING id`,
         [statusUpdate, userIds]
       );
+
+      // Invalidate auth cache for every affected user so status change takes
+      // effect immediately (no 60s stale window on reactivation/deactivation).
+      for (const row of result.rows) {
+        invalidateUserStatusCache(row.id);
+      }
 
       const response: ApiResponse = { success: true, data: { affected: result.rowCount } };
       return res.json(response);
@@ -317,6 +323,7 @@ router.post(
         if (violation.rows[0]) {
           const userStatus = action === 'suspend' ? 'suspended' : 'banned';
           await query(`UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2`, [userStatus, violation.rows[0].reported_user_id]);
+          invalidateUserStatusCache(violation.rows[0].reported_user_id);
         }
       }
 

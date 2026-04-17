@@ -136,3 +136,18 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction): 
 export function invalidateUserStatusCache(userId: string): void {
   statusCache.delete(userId);
 }
+
+// ── Test-only helpers ──
+// Internal exports used by auth-cache.test.ts — do not call from app code.
+export const __test__ = {
+  hasCached(userId: string): boolean {
+    return statusCache.has(userId);
+  },
+  getCached(userId: string): { status: string; cachedAt: number } | undefined {
+    return statusCache.get(userId);
+  },
+  clearAll(): void {
+    statusCache.clear();
+  },
+  isUserActive,
+};
