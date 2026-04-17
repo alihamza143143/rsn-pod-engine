@@ -231,10 +231,10 @@ export default function SessionDetailPage() {
     onError: () => addToast('Failed to duplicate event', 'error'),
   });
 
-  // Search platform users (admin or host) — debounced to avoid API spam
+  // Search connected users (people the host has met in a previous event) — debounced to avoid API spam
   const { data: searchResults } = useQuery({
-    queryKey: ['user-search', debouncedUserSearch],
-    queryFn: () => api.get(`/users/search?q=${encodeURIComponent(debouncedUserSearch)}`).then(r => r.data.data ?? []),
+    queryKey: ['connected-user-search', debouncedUserSearch],
+    queryFn: () => api.get(`/users/connected?q=${encodeURIComponent(debouncedUserSearch)}`).then(r => r.data.data ?? []),
     enabled: debouncedUserSearch.length >= 1 && isHost,
   });
 
@@ -727,6 +727,9 @@ export default function SessionDetailPage() {
                   className="w-full pl-9 pr-4 py-2 rounded-lg border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-[#1a1a2e]"
                 />
               </div>
+              {debouncedUserSearch.length >= 1 && searchResults && searchResults.length === 0 && (
+                <p className="text-xs text-gray-400 text-center py-2">No connected users match. You can only invite people you've met in a previous event.</p>
+              )}
               {searchResults && searchResults.length > 0 && (
                 <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
                   {/* Select All */}

@@ -56,8 +56,8 @@ export default function InvitesPage() {
   });
 
   const { data: searchResults } = useQuery({
-    queryKey: ['user-search', debouncedSearch],
-    queryFn: () => api.get(`/users/search?q=${encodeURIComponent(debouncedSearch)}`).then(r => r.data.data ?? []),
+    queryKey: ['connected-user-search', debouncedSearch],
+    queryFn: () => api.get(`/users/connected?q=${encodeURIComponent(debouncedSearch)}`).then(r => r.data.data ?? []),
     enabled: debouncedSearch.length >= 1,
   });
 
@@ -402,7 +402,7 @@ export default function InvitesPage() {
                   />
                 </div>
                 {userSearch.length >= 1 && searchResults && searchResults.length === 0 && (
-                  <p className="text-xs text-gray-400 text-center py-2">No users found matching "{userSearch}"</p>
+                  <p className="text-xs text-gray-400 text-center py-2">No connected users match. You can only invite people you've met in a previous event.</p>
                 )}
                 {searchResults && searchResults.length > 0 && (
                   <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">

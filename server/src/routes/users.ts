@@ -5,6 +5,7 @@ import { validate } from '../middleware/validate';
 import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
 import * as identityService from '../services/identity/identity.service';
+import { searchConnectedUsers } from '../services/invite/connected-users';
 import { ApiResponse, UserRole, hasRoleAtLeast } from '@rsn/shared';
 
 const router = Router();
@@ -89,11 +90,49 @@ router.put(
   }
 );
 
-// ─── GET /users/search (authenticated, public fields only) ──────────────────
+// ─── GET /users/connected ───────────────────────────────────────────────────
+// Returns users the requester has previously interacted with (shared at least one
+// row in encounter_history). This is the search endpoint used by pod/session invite
+// modals — inviters can only invite people they've actually met at past events.
+
+router.get(
+  '/connected',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const q = (req.query.q as string || '').trim();
+      const limit = Math.min(parseInt(String(req.query.limit || '20'), 10) || 20, 50);
+      if (q.length < 1) {
+        res.json({ success: true, data: [] });
+        return;
+      }
+      const rows = await searchConnectedUsers(req.user!.userId, q, limit);
+      // Map snake_case DB fields to camelCase for client consistency with /users/search
+      const data = rows.map(u => ({
+        id: u.id,
+        displayName: u.display_name,
+        email: u.email,
+        company: u.company,
+        jobTitle: u.job_title,
+        industry: u.industry,
+        avatarUrl: u.avatar_url,
+      }));
+      res.json({ success: true, data } as ApiResponse);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ─── GET /users/search (admin only — moderation use) ────────────────────────
+// Non-admin invite flows must use /users/connected instead. Global user search
+// is reserved for admin moderation/lookup so regular users cannot enumerate
+// or invite strangers from the platform roster.
 
 router.get(
   '/search',
   authenticate,
+  requireRole(UserRole.ADMIN),
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     try {
       const q = (req.query.q as string || '').trim();

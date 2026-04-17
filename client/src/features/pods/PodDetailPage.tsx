@@ -148,8 +148,8 @@ export default function PodDetailPage() {
   });
 
   const { data: podSearchResults } = useQuery({
-    queryKey: ['user-search', debouncedPodSearch],
-    queryFn: () => api.get(`/users/search?q=${encodeURIComponent(debouncedPodSearch)}`).then(r => r.data.data ?? []),
+    queryKey: ['connected-user-search', debouncedPodSearch],
+    queryFn: () => api.get(`/users/connected?q=${encodeURIComponent(debouncedPodSearch)}`).then(r => r.data.data ?? []),
     enabled: debouncedPodSearch.length >= 1,
   });
 
@@ -647,7 +647,7 @@ export default function PodDetailPage() {
               />
             </div>
             {podUserSearch.length >= 1 && podSearchResults && podSearchResults.length === 0 && (
-              <p className="text-xs text-gray-400 text-center py-2">No users found matching "{podUserSearch}"</p>
+              <p className="text-xs text-gray-400 text-center py-2">No connected users match. You can only invite people you've met in a previous event.</p>
             )}
             {podSearchResults && podSearchResults.length > 0 && (
               <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
