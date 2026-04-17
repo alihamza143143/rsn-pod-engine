@@ -408,10 +408,11 @@ export async function handleJoinSession(
         }
       }
 
-      // Send chat history to joining user
-      const history = chatMessages.get(data.sessionId) || [];
-      if (history.length > 0) {
-        socket.emit('chat:history', { messages: history });
+      // Send chat history — only lobby messages (room messages are private to their breakout)
+      const allHistory = chatMessages.get(data.sessionId) || [];
+      const lobbyHistory = allHistory.filter(m => m.scope === 'lobby' || !m.scope);
+      if (lobbyHistory.length > 0) {
+        socket.emit('chat:history', { messages: lobbyHistory });
       }
 
       logger.info({ sessionId: data.sessionId, userId }, 'User joined session');
@@ -703,18 +704,23 @@ export async function handleLeaveConversation(
         displayName: partnerNameMap.get(pid) || 'Partner',
       }));
 
-      // Show rating screen before returning to lobby (20s window)
-      socket.emit('rating:window_open', {
-        matchId: userMatch.id,
-        partnerId: partnerIds[0],
-        partnerDisplayName: partnerNameMap.get(partnerIds[0]) || 'Partner',
-        partners: partnersWithNames,
-        durationSeconds: 20,
-        earlyLeave: true,
-      });
+      if (partnerIds.length > 0) {
+        // Show rating screen before returning to lobby (20s window)
+        socket.emit('rating:window_open', {
+          matchId: userMatch.id,
+          partnerId: partnerIds[0],
+          partnerDisplayName: partnerNameMap.get(partnerIds[0]) || 'Partner',
+          partners: partnersWithNames,
+          durationSeconds: 20,
+          earlyLeave: true,
+        });
 
-      for (const partnerId of partnerIds) {
-        io.to(userRoom(partnerId)).emit('match:partner_disconnected', { matchId: userMatch.id });
+        for (const partnerId of partnerIds) {
+          io.to(userRoom(partnerId)).emit('match:partner_disconnected', { matchId: userMatch.id });
+        }
+      } else {
+        // Solo in room — no one to rate, just return to lobby
+        socket.emit('match:return_to_lobby', { reason: 'you_left' });
       }
 
       // Re-issue lobby token so user can rejoin lobby video

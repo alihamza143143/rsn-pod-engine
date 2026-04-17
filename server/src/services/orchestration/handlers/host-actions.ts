@@ -693,25 +693,31 @@ export async function handleHostRemoveFromRoom(
     // Return the removed user with rating screen (NOT evict from event)
     await sessionService.updateParticipantStatus(data.sessionId, data.userId, ParticipantStatus.IN_LOBBY).catch(() => {});
 
-    // Get partner info for the removed user's rating screen
+    // Show rating only if there were actual partners (not solo in room)
     if (matchResult.rows.length > 0) {
       const match = matchResult.rows[0];
       const partnerIds = [match.participant_a_id, match.participant_b_id, match.participant_c_id]
         .filter((id): id is string => !!id && id !== data.userId);
-      const partnerNameRes = await query<{ id: string; display_name: string }>(
-        `SELECT id, display_name FROM users WHERE id = ANY($1)`, [partnerIds]
-      );
-      const pnm = new Map(partnerNameRes.rows.map(r => [r.id, r.display_name || 'Partner']));
-      const partnersWithNames = partnerIds.map(pid => ({ userId: pid, displayName: pnm.get(pid) || 'Partner' }));
 
-      io.to(userRoom(data.userId)).emit('rating:window_open', {
-        matchId: data.matchId,
-        partnerId: partnerIds[0],
-        partnerDisplayName: pnm.get(partnerIds[0]) || 'Partner',
-        partners: partnersWithNames,
-        durationSeconds: 20,
-        earlyLeave: true,
-      });
+      if (partnerIds.length > 0) {
+        const partnerNameRes = await query<{ id: string; display_name: string }>(
+          `SELECT id, display_name FROM users WHERE id = ANY($1)`, [partnerIds]
+        );
+        const pnm = new Map(partnerNameRes.rows.map(r => [r.id, r.display_name || 'Partner']));
+        const partnersWithNames = partnerIds.map(pid => ({ userId: pid, displayName: pnm.get(pid) || 'Partner' }));
+
+        io.to(userRoom(data.userId)).emit('rating:window_open', {
+          matchId: data.matchId,
+          partnerId: partnerIds[0],
+          partnerDisplayName: pnm.get(partnerIds[0]) || 'Partner',
+          partners: partnersWithNames,
+          durationSeconds: 20,
+          earlyLeave: true,
+        });
+      } else {
+        // Solo — no one to rate, just return to lobby
+        io.to(userRoom(data.userId)).emit('match:return_to_lobby', { reason: 'host_removed' });
+      }
     }
 
     // Re-issue lobby token for the removed user

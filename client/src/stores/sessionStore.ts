@@ -19,6 +19,7 @@ export interface ChatMessage {
   scope: 'lobby' | 'room';
   isHost: boolean;
   reactions?: Record<string, string[]>;
+  roomId?: string;
 }
 
 type SessionPhase = 'lobby' | 'matched' | 'rating' | 'complete';

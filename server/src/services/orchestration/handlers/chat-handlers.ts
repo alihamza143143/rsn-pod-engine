@@ -13,7 +13,7 @@ import {
   ChatMessage, chatMessages, MAX_CHAT_MESSAGES,
 } from '../state/session-state';
 import * as sessionService from '../../session/session.service';
-import * as matchingService from '../../matching/matching.service';
+// matchingService removed — using direct queries for room-scoped chat
 
 // ─── Constants ─────────────────────────────────────────────────────────────
 
@@ -89,25 +89,28 @@ export async function handleChatSend(
       // Broadcast to everyone in the session
       io.to(sessionRoom(sessionId)).emit('chat:message', chatMsg);
     } else {
-      // Room scope: find the user's current breakout room match and emit only to those users
-      const activeSessionForRoom = activeSessions.get(sessionId);
-      if (!activeSessionForRoom || activeSessionForRoom.status !== SessionStatus.ROUND_ACTIVE) {
-        // Not in a round, fall back to lobby broadcast
-        chatMsg.scope = 'lobby';
-        io.to(sessionRoom(sessionId)).emit('chat:message', chatMsg);
-        return;
-      }
-
-      const matches = await matchingService.getMatchesByRound(sessionId, activeSessionForRoom.currentRound);
-      const userMatch = matches.find(
-        m => (m.participantAId === userId || m.participantBId === userId || m.participantCId === userId) && m.status === 'active'
+      // Room scope: find the user's current active match and emit only to those users
+      // Search across ALL rounds (manual rooms can exist on any round)
+      const matchRes = await query<{ id: string; participant_a_id: string; participant_b_id: string | null; participant_c_id: string | null; room_id: string }>(
+        `SELECT id, participant_a_id, participant_b_id, participant_c_id, room_id
+         FROM matches WHERE session_id = $1 AND status = 'active'
+           AND (participant_a_id = $2 OR participant_b_id = $2 OR participant_c_id = $2)
+         LIMIT 1`,
+        [sessionId, userId]
       );
+      const userMatch = matchRes.rows[0] ? {
+        id: matchRes.rows[0].id,
+        participantAId: matchRes.rows[0].participant_a_id,
+        participantBId: matchRes.rows[0].participant_b_id,
+        participantCId: matchRes.rows[0].participant_c_id,
+        roomId: matchRes.rows[0].room_id,
+      } : null;
 
       if (userMatch) {
         chatMsg.roomId = userMatch.roomId || undefined;
-        // Emit to all participants in this match
-        const participantIds = [userMatch.participantAId, userMatch.participantBId];
-        if (userMatch.participantCId) participantIds.push(userMatch.participantCId);
+        // Emit to all participants in this match (handle nullable participant_b for solo rooms)
+        const participantIds = [userMatch.participantAId, userMatch.participantBId, userMatch.participantCId]
+          .filter((id): id is string => !!id);
         for (const pid of participantIds) {
           io.to(userRoom(pid)).emit('chat:message', chatMsg);
         }
@@ -153,11 +156,23 @@ export async function handleChatReact(
       msg.reactions[emoji].push(userId);
     }
 
-    // Broadcast updated reactions to all in session (lobby-scope messages visible to all)
-    io.to(sessionRoom(sessionId)).emit('chat:reaction_update', {
-      messageId,
-      reactions: msg.reactions,
-    });
+    // Scope reaction broadcast: lobby messages go to all, room messages only to room
+    if (msg.scope === 'room' && msg.roomId) {
+      // Find participants of the match that owns this room message
+      const roomMatchRes = await query<{ participant_a_id: string; participant_b_id: string | null; participant_c_id: string | null }>(
+        `SELECT participant_a_id, participant_b_id, participant_c_id FROM matches WHERE room_id = $1 LIMIT 1`,
+        [msg.roomId]
+      );
+      if (roomMatchRes.rows[0]) {
+        const pids = [roomMatchRes.rows[0].participant_a_id, roomMatchRes.rows[0].participant_b_id, roomMatchRes.rows[0].participant_c_id]
+          .filter((id): id is string => !!id);
+        for (const pid of pids) {
+          io.to(userRoom(pid)).emit('chat:reaction_update', { messageId, reactions: msg.reactions });
+        }
+      }
+    } else {
+      io.to(sessionRoom(sessionId)).emit('chat:reaction_update', { messageId, reactions: msg.reactions });
+    }
   } catch (err) {
     logger.error({ err }, 'Error handling chat reaction');
   }
@@ -205,21 +220,20 @@ export async function handleReactionSend(
 
     // Scope reactions: during active rounds, only show to breakout room participants.
     // In lobby/transition phases, broadcast to everyone.
-    const activeSession = activeSessions.get(sessionId);
-    if (activeSession && activeSession.status === SessionStatus.ROUND_ACTIVE && data.matchId) {
-      // Room-scoped: find match participants and emit only to them
-      const matches = await matchingService.getMatchesByRound(sessionId, activeSession.currentRound);
-      const userMatch = matches.find(
-        m => (m.participantAId === userId || m.participantBId === userId || m.participantCId === userId) && m.status === 'active'
-      );
-      if (userMatch) {
-        const participantIds = [userMatch.participantAId, userMatch.participantBId];
-        if (userMatch.participantCId) participantIds.push(userMatch.participantCId);
-        for (const pid of participantIds) {
-          io.to(userRoom(pid)).emit('reaction:received', reactionPayload);
-        }
-      } else {
-        socket.emit('reaction:received', reactionPayload);
+    // Check if user is in an active match — scope reactions to room only
+    const reactionMatchRes = await query<{ participant_a_id: string; participant_b_id: string | null; participant_c_id: string | null }>(
+      `SELECT participant_a_id, participant_b_id, participant_c_id
+       FROM matches WHERE session_id = $1 AND status = 'active'
+         AND (participant_a_id = $2 OR participant_b_id = $2 OR participant_c_id = $2)
+       LIMIT 1`,
+      [sessionId, userId]
+    );
+    if (reactionMatchRes.rows[0]) {
+      const m = reactionMatchRes.rows[0];
+      const participantIds = [m.participant_a_id, m.participant_b_id, m.participant_c_id]
+        .filter((id): id is string => !!id);
+      for (const pid of participantIds) {
+        io.to(userRoom(pid)).emit('reaction:received', reactionPayload);
       }
     } else {
       // Lobby/transition: broadcast to everyone

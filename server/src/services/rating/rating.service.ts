@@ -322,7 +322,7 @@ export async function getPeopleMet(
      )
      WHERE m.session_id = $2
        AND (m.participant_a_id = $1 OR m.participant_b_id = $1 OR m.participant_c_id = $1)
-       AND m.status IN ('completed', 'active')
+       AND m.status NOT IN ('cancelled', 'scheduled')
        AND partners.partner_id IS NOT NULL
      ORDER BY m.round_number ASC`,
     [userId, sessionId]

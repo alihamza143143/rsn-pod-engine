@@ -69,9 +69,16 @@ export default function ChatPanel({ sessionId, onClose }: ChatPanelProps) {
     }
   };
 
-  // Filter messages by scope: in room phase show room msgs, in lobby show lobby msgs
-  // But always show all messages so users don't lose context
-  const visibleMessages = chatMessages;
+  // Filter messages by scope: in breakout room show only room msgs, in lobby show only lobby msgs
+  const currentMatchId = useSessionStore(s => s.currentMatchId);
+  const visibleMessages = chatMessages.filter(msg => {
+    if (phase === 'matched') {
+      // In a breakout room — only show messages from this specific room
+      return msg.scope === 'room' && (!msg.roomId || msg.roomId === currentMatchId || (msg as any).matchId === currentMatchId);
+    }
+    // In lobby/main room — only show lobby messages
+    return msg.scope === 'lobby' || !msg.scope;
+  });
 
   return (
     <div className="flex flex-col h-full bg-white border-l border-gray-200">
