@@ -509,9 +509,13 @@ export default function useSessionSocket(sessionId: string) {
 
     // ── Sync & errors ──
     socket.on('timer:sync', (data: any) => {
+      // Only accept timer syncs when in a match or rating — ignore stale syncs in lobby
+      const currentPhase = useSessionStore.getState().phase;
+      if (currentPhase === 'lobby' || currentPhase === 'complete') return;
       store.setTimer(data.secondsRemaining);
-      // Start a local 1s tick if not already running (smooth countdown for manual rooms)
-      if (data.secondsRemaining > 0 && !intervalRef.current) {
+      // Always clear existing interval then start fresh — prevents ghost timer overlap
+      if (data.secondsRemaining > 0) {
+        clearTimer();
         intervalRef.current = setInterval(() => store.tickTimer(), 1000);
       }
     });
