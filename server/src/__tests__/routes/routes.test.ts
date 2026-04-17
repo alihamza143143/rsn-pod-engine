@@ -398,7 +398,8 @@ describe('Pod Routes', () => {
     it('should return pod by id', async () => {
       (podService.getPodById as jest.Mock).mockResolvedValue(mockPod);
 
-      const token = makeToken();
+      // Admin role bypasses canViewPod DB lookups (short-circuits on role check).
+      const token = makeToken({ role: 'admin' });
       const res = await request(app)
         .get('/pods/pod-123')
         .set('Authorization', `Bearer ${token}`);

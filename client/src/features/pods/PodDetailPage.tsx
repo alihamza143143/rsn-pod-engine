@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   ArrowLeft, Users, Calendar, LogOut, Shield, UserMinus, Eye, Radio,
   Pencil, Trash2, UserPlus, Lock, Mail, Copy, Check, UserCheck, X,
-  Clock, CopyPlus, Search, XCircle, Send, Inbox,
+  Clock, CopyPlus, Search, XCircle, Send, Inbox, AlertTriangle,
 } from 'lucide-react';
 import Card from '@/components/ui/Card';
 import Badge from '@/components/ui/Badge';
@@ -124,9 +124,14 @@ export default function PodDetailPage() {
   const [showJoinRules, setShowJoinRules] = useState(false);
   const [rulesAgreed, setRulesAgreed] = useState(false);
 
-  const { data: pod, isLoading } = useQuery({
+  const { data: pod, isLoading, error: podError } = useQuery({
     queryKey: ['pod', podId],
     queryFn: () => api.get(`/pods/${podId}`).then(r => r.data.data),
+    retry: (failureCount, err: any) => {
+      // Don't retry 404s — pod is private or doesn't exist
+      if (err?.response?.status === 404) return false;
+      return failureCount < 3;
+    },
   });
 
   const { data: members } = useQuery({
@@ -319,6 +324,33 @@ export default function PodDetailPage() {
   // ─── Render guards ─────────────────────────────────────────────────────────
 
   if (isLoading) return <PageLoader />;
+
+  // 404 — pod is private (hidden from non-members) or genuinely doesn't exist.
+  // Don't leak which: show a unified access-denied card.
+  if ((podError as any)?.response?.status === 404) {
+    return (
+      <div className="max-w-3xl mx-auto space-y-6">
+        <button onClick={() => navigate('/pods')} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 transition-colors text-sm">
+          <ArrowLeft className="h-4 w-4" /> Back to Pods
+        </button>
+        <Card className="animate-fade-in-up">
+          <div className="flex flex-col items-center text-center py-10 px-4">
+            <div className="h-14 w-14 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+              <AlertTriangle className="h-7 w-7 text-amber-600" />
+            </div>
+            <h1 className="text-xl font-bold text-[#1a1a2e] mb-2">Pod not found</h1>
+            <p className="text-gray-500 text-sm max-w-md">
+              This pod doesn't exist or you don't have access to view it.
+            </p>
+            <Button variant="primary" onClick={() => navigate('/pods')} className="mt-6">
+              Back to Pods
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   if (!pod) return <p className="text-gray-500 text-center py-20">Pod not found</p>;
 
   const membersList    = members || pod.members || [];
@@ -982,7 +1014,7 @@ export default function PodDetailPage() {
       {/* ── Members ────────────────────────────────────────────────────────── */}
       <div className="animate-fade-in-up stagger-2">
         <h2 className="text-lg font-semibold text-[#1a1a2e] mb-3 flex items-center gap-2">
-          <Users className="h-5 w-5 text-rsn-red" /> Members ({podMemberCounts?.total ?? activeMembers.length})
+          <Users className="h-5 w-5 text-rsn-red" /> Members ({podMemberCounts?.total ?? pod.memberCount ?? activeMembers.length})
         </h2>
 
         {/* Status summary tabs (director/host only) */}

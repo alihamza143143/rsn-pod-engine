@@ -6,8 +6,9 @@ import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
 import { auditMiddleware } from '../middleware/audit';
 import * as podService from '../services/pod/pod.service';
+import { canViewPod } from '../services/pods/pod-access';
 import { ApiResponse, UserRole, PodType, PodVisibility, PodMemberRole, OrchestrationMode, CommunicationMode, hasRoleAtLeast } from '@rsn/shared';
-import { ForbiddenError } from '../middleware/errors';
+import { ForbiddenError, NotFoundError } from '../middleware/errors';
 
 const router = Router();
 
@@ -142,12 +143,14 @@ router.get(
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      const canView = await canViewPod(req.user!.userId, req.params.id, req.user!.role);
+      if (!canView) {
+        // Private pods → 404 (don't leak existence, mirrors GitHub private-repo UX)
+        throw new NotFoundError('Pod', req.params.id);
+      }
+
       const pod = await podService.getPodById(req.params.id);
       const memberRole = await podService.getMemberRole(req.params.id, req.user!.userId);
-
-      if (pod.visibility === 'private' && !memberRole && !hasRoleAtLeast(req.user!.role, UserRole.ADMIN)) {
-        throw new ForbiddenError('This pod is private. You must be a member to view it.');
-      }
 
       const response: ApiResponse = { success: true, data: { ...pod, memberRole } };
       res.json(response);
