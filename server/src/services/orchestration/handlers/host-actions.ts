@@ -1249,15 +1249,15 @@ export async function handleHostCreateBreakout(
         return;
       }
 
-      // Step 1: Remove each participant from their current match (if any)
+      // Step 1: Remove each participant from ANY active match (across all rounds)
       // Each removal is independent — failure in one doesn't affect others
       for (const pid of participantIds) {
         try {
-          const currentMatch = await query<{ id: string; participant_a_id: string; participant_b_id: string; participant_c_id: string | null }>(
+          const currentMatch = await query<{ id: string; participant_a_id: string; participant_b_id: string | null; participant_c_id: string | null }>(
             `SELECT id, participant_a_id, participant_b_id, participant_c_id FROM matches
-             WHERE session_id = $1 AND round_number = $2 AND status = 'active'
-               AND (participant_a_id = $3 OR participant_b_id = $3 OR participant_c_id = $3)`,
-            [sessionId, activeSession.currentRound, pid]
+             WHERE session_id = $1 AND status = 'active'
+               AND (participant_a_id = $2 OR participant_b_id = $2 OR participant_c_id = $2)`,
+            [sessionId, pid]
           );
 
           if (currentMatch.rows.length > 0) {

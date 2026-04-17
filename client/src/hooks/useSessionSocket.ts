@@ -142,7 +142,18 @@ export default function useSessionSocket(sessionId: string) {
     // ── Session lifecycle ──
     socket.on('session:status_changed', (data: any) => {
       store.setSessionStatus(data.status);
-      if (data.isPaused !== undefined) store.setIsPaused(data.isPaused);
+      if (data.isPaused !== undefined) {
+        store.setIsPaused(data.isPaused);
+        if (data.isPaused) {
+          // Pause: stop client-side tick so timer freezes
+          clearTimer();
+        } else {
+          // Resume: restart client-side tick
+          if (!intervalRef.current && useSessionStore.getState().timerSeconds > 0) {
+            intervalRef.current = setInterval(() => store.tickTimer(), 1000);
+          }
+        }
+      }
       if (data.status === 'completed') { clearTimer(); clearByeTimeout(); store.setLiveKitToken(null, null); store.setMatch(null); store.setRoomId(null); store.setMatchingOverlay(null); store.setRoundDashboard(null); store.setByeRound(false); store.setPartnerDisconnected(false); store.setLeftCurrentRound(false); store.setTransitionStatus('session_ending'); setTimeout(() => { store.setTransitionStatus(null); store.setPhase('complete'); }, 1500); }
       if (data.status === 'lobby_open') { store.setTransitionStatus(null); store.setHostInLobby(true); }
       if (data.status === 'round_active') { store.setLeftCurrentRound(false); } // New round — clear flag so match:assigned is accepted
