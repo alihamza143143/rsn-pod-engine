@@ -528,11 +528,18 @@ export default function HostControls({ sessionId }: Props) {
 
             {/* Two-step breakout: Match People → preview → Start Round */}
             {sessionStarted && phase === 'lobby' && !allRoundsDone && !matchPreview && (() => {
-              const hasActiveRooms = roundDashboard?.rooms.some((r: any) => r.status === 'active');
-              const isDuringActiveRound = ['round_active', 'round_rating', 'round_transition'].includes(sessionStatus);
-              if (hasActiveRooms || isDuringActiveRound) return (
-                <span className="text-xs text-gray-400 px-2 py-1.5 border border-gray-200 rounded-lg cursor-not-allowed" title="End the current round before matching again.">
-                  <Shuffle className="h-3.5 w-3.5 inline mr-1 opacity-50" /> Match People
+              // Match People is disabled ONLY when an algorithm-generated round is actively running.
+              // Manual rooms (created via "Room" button with 'host-' in roomId) are independent.
+              const hasActiveAlgorithmMatches = roundDashboard?.rooms.some(
+                (r: any) => r.status === 'active' && !r.isManual
+              );
+              const isAlgorithmRoundActive = sessionStatus === 'round_active' && hasActiveAlgorithmMatches;
+              if (isAlgorithmRoundActive) return (
+                <span
+                  className="text-xs text-gray-400 px-2 py-1.5 border border-gray-200 rounded-lg cursor-not-allowed inline-flex items-center gap-1"
+                  title="Algorithm round in progress — end the round before matching again."
+                >
+                  <Shuffle className="h-3.5 w-3.5 opacity-50" /> Match People
                 </span>
               );
               return eligibleCount >= 2 ? (
