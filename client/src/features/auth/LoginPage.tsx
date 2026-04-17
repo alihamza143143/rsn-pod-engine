@@ -26,6 +26,7 @@ export default function LoginPage() {
   const [authError, setAuthError] = useState<string | null>(null);
   const handlingCrossTabAuth = useRef(false);
   const inviteCodeFromUrl = params.get('inviteCode');
+  const hasInvite = !!inviteCodeFromUrl;
   const { register, handleSubmit, formState: { errors, isSubmitting }, getValues } = useForm<{ email: string }>();
 
   // Invite code comes silently from URL params (via /invite/:code flow) — no manual input needed
@@ -110,6 +111,9 @@ export default function LoginPage() {
         <div className="text-center mb-10">
           <img src="/rsn-logo.png" alt="RSN" className="h-14 w-auto mx-auto mb-6" />
           <h1 className="text-3xl md:text-4xl font-extrabold text-[#1a1a2e] tracking-tight">CONNECT WITH REASON</h1>
+          {hasInvite && (
+            <p className="mt-4 text-sm text-gray-500">You&apos;ve been invited — sign in to accept your invite</p>
+          )}
         </div>
 
         {displayError && (
@@ -170,17 +174,19 @@ export default function LoginPage() {
               </form>
             </div>
 
-            {/* Path 2: New User — Request to Join */}
-            <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-6 text-center">
-              <h2 className="text-base font-semibold text-[#1a1a2e] mb-2">New here? Request access</h2>
-              <p className="text-sm text-gray-500 mb-4">RSN is invite-only. Apply and we&apos;ll review your request.</p>
-              <button
-                onClick={() => navigate('/request-to-join')}
-                className="bg-rsn-red text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-rsn-red-hover transition-all hover:scale-[1.02] shadow-md inline-flex items-center gap-2"
-              >
-                Request to Join <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
+            {/* Path 2: New User — Request to Join (hidden when arriving via invite) */}
+            {!hasInvite && (
+              <div className="rounded-2xl border border-gray-200 bg-gray-50/60 p-6 text-center">
+                <h2 className="text-base font-semibold text-[#1a1a2e] mb-2">New here? Request access</h2>
+                <p className="text-sm text-gray-500 mb-4">RSN is invite-only. Apply and we&apos;ll review your request.</p>
+                <button
+                  onClick={() => navigate('/request-to-join')}
+                  className="bg-rsn-red text-white px-6 py-2.5 rounded-full text-sm font-semibold hover:bg-rsn-red-hover transition-all hover:scale-[1.02] shadow-md inline-flex items-center gap-2"
+                >
+                  Request to Join <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            )}
 
             {redirectPath && (
               <p className="text-xs text-gray-400 text-center">You&apos;ll be redirected after signing in</p>
