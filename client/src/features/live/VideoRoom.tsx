@@ -30,6 +30,25 @@ import '@livekit/components-styles';
 import { Track } from 'livekit-client';
 import api from '@/lib/api';
 
+// Prefer displayName → name → email local-part → "Partner".
+// Avoids raw email addresses (and their trailing @domain) rendering full-width
+// across the video tile when displayName is missing.
+function userDisplayLabel(
+  input?: { displayName?: string | null; email?: string | null; name?: string | null } | string | null,
+): string {
+  if (!input) return 'Partner';
+  if (typeof input === 'string') {
+    const trimmed = input.trim();
+    if (!trimmed) return 'Partner';
+    return trimmed.includes('@') ? trimmed.split('@')[0] : trimmed;
+  }
+  const asAny = input as { displayName?: string | null; name?: string | null; email?: string | null };
+  if (asAny.displayName && String(asAny.displayName).trim()) return String(asAny.displayName).trim();
+  if (asAny.name && String(asAny.name).trim()) return String(asAny.name).trim();
+  if (asAny.email) return String(asAny.email).split('@')[0];
+  return 'Partner';
+}
+
 function ConnectionIndicator() {
   return (
     <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
@@ -55,7 +74,7 @@ function VideoTile({ trackRef, label, isWaiting, isPinned }: { trackRef?: any; l
           </p>
         </div>
       )}
-      <div className="absolute bottom-2 left-2 bg-black/60 rounded px-2 py-1 text-xs text-white">
+      <div className="absolute bottom-2 left-2 bg-black/60 rounded px-2 py-1 text-xs text-white max-w-[60%] truncate">
         {label}
       </div>
     </div>
@@ -83,7 +102,7 @@ function VideoStage() {
     { trackRef: localTrack, label: 'You', sid: localParticipant.sid },
     ...remoteTracks.map((rt, i) => ({
       trackRef: rt,
-      label: rt.participant.name || currentPartners[i]?.displayName || 'Partner',
+      label: userDisplayLabel(rt.participant.name || currentPartners[i]),
       sid: rt.participant.sid,
     })),
   ];
@@ -131,7 +150,7 @@ function VideoStage() {
           <div className={`hidden md:grid h-full gap-4 ${isTrio ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-2'}`}>
             {remoteTracks.map((rt, i) => (
               <div key={rt.participant.sid} className="cursor-pointer" onClick={() => setPinnedSid(rt.participant.sid)}>
-                <VideoTile trackRef={rt} label={rt.participant.name || currentPartners[i]?.displayName || 'Partner'} />
+                <VideoTile trackRef={rt} label={userDisplayLabel(rt.participant.name || currentPartners[i])} />
               </div>
             ))}
             <div className="cursor-pointer" onClick={() => setPinnedSid(localParticipant.sid)}>
@@ -143,7 +162,7 @@ function VideoStage() {
           {!isTrio && (
             <div className="md:hidden h-full relative">
               <div className="h-full cursor-pointer" onClick={() => setPinnedSid(remoteTracks[0].participant.sid)}>
-                <VideoTile trackRef={remoteTracks[0]} label={remoteTracks[0].participant.name || currentPartners[0]?.displayName || 'Partner'} />
+                <VideoTile trackRef={remoteTracks[0]} label={userDisplayLabel(remoteTracks[0].participant.name || currentPartners[0])} />
               </div>
               <div className="absolute top-3 right-3 w-32 h-44 sm:w-36 sm:h-48 rounded-xl overflow-hidden shadow-lg border-2 border-white/80 z-10 [&_div]:!aspect-auto [&_div]:!h-full"
                 onClick={() => setPinnedSid(localParticipant.sid)}>
@@ -158,7 +177,7 @@ function VideoStage() {
               <div className="h-full grid grid-cols-1 gap-2">
                 {remoteTracks.map((rt, i) => (
                   <div key={rt.participant.sid} className="cursor-pointer" onClick={() => setPinnedSid(rt.participant.sid)}>
-                    <VideoTile trackRef={rt} label={rt.participant.name || currentPartners[i]?.displayName || 'Partner'} />
+                    <VideoTile trackRef={rt} label={userDisplayLabel(rt.participant.name || currentPartners[i])} />
                   </div>
                 ))}
               </div>
@@ -173,7 +192,7 @@ function VideoStage() {
         <div className={`h-full grid ${gridClass} gap-4`}>
           <VideoTile trackRef={localTrack} label="You" />
           {currentPartners.map((p, i) => (
-            <VideoTile key={p.userId || i} label={p.displayName || 'Partner'} isWaiting />
+            <VideoTile key={p.userId || i} label={userDisplayLabel(p)} isWaiting />
           ))}
         </div>
       )}
