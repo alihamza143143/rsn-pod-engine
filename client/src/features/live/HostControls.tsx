@@ -246,13 +246,19 @@ export default function HostControls({ sessionId }: Props) {
                 <MessageSquare className="h-4 w-4" />
               </Button>
               <Button size="sm" onClick={() => {
+                // Bug 9 (April 19) — Another Round must follow the same flow as
+                // Round 1/2: Match People → preview → confirm → Start Round.
+                // Was emitting host:start_round directly which skipped the
+                // preview step and just dumped people into a new room.
+                // Server allows generate_matches in CLOSING_LOBBY state too
+                // (matching-flow.ts handleHostGenerateMatches).
                 if (eligibleCount < 2) {
                   alert(`Need at least 2 participants to start a round (currently ${eligibleCount})`);
                   return;
                 }
-                socket?.emit('host:start_round', { sessionId });
+                socket?.emit('host:generate_matches', { sessionId });
               }}>
-                <Play className="h-4 w-4 mr-1" /> Another Round
+                <Shuffle className="h-4 w-4 mr-1" /> Another Round
               </Button>
               <Button size="sm" variant="danger" onClick={() => socket?.emit('host:end_session', { sessionId })}>
                 <Square className="h-4 w-4 mr-1" /> End Event
@@ -477,6 +483,15 @@ export default function HostControls({ sessionId }: Props) {
               </select>
             </div>
 
+            {/* Bug 7 — explain "(in room)" greyed-out participants. Server now
+                rejects bulk-create that targets anyone already in an active
+                match (algorithm or manual), so the modal must mirror that
+                rule visually before the host clicks Create. */}
+            <div className="flex items-start gap-1.5 text-[11px] text-gray-600 bg-blue-50 border border-blue-200 rounded px-2 py-1.5 mb-2">
+              <AlertTriangle className="h-3 w-3 text-blue-500 shrink-0 mt-0.5" />
+              <span>People marked <span className="font-medium text-blue-700">(in room)</span> can't be added — they must finish or leave their current room first.</span>
+            </div>
+
             {/* Room rows — assign participants to each. Start with 1 row, "+ Add room" appends. */}
             <div className="space-y-2 max-h-80 overflow-y-auto">
               {roomRows.map((roomSet, idx) => {
@@ -504,20 +519,25 @@ export default function HostControls({ sessionId }: Props) {
                           const inActiveRoom = !selected && !usedElsewhere && roundDashboard?.rooms.some(
                             r => r.status === 'active' && r.participants.some(rp => rp.userId === p.userId)
                           );
+                          // Bug 7: inActiveRoom now BLOCKS selection (server rejects too).
+                          // Was: visual cue only, checkbox still selectable → host could
+                          // accidentally yank participants out of a live conversation.
+                          const checkboxDisabled = usedElsewhere || inActiveRoom || (roomSet.size >= 3 && !selected);
                           return (
                             <label
                               key={p.userId}
-                              className={`flex items-center gap-1 text-[11px] px-1.5 py-1 rounded cursor-pointer transition-colors ${
-                                selected ? 'bg-emerald-100 border border-emerald-300' :
+                              className={`flex items-center gap-1 text-[11px] px-1.5 py-1 rounded transition-colors ${
+                                selected ? 'bg-emerald-100 border border-emerald-300 cursor-pointer' :
                                 usedElsewhere ? 'bg-gray-100 border border-gray-200 opacity-50 cursor-not-allowed' :
-                                inActiveRoom ? 'bg-blue-50 border border-blue-200' :
-                                'bg-gray-50 border border-gray-200 hover:bg-emerald-50'
+                                inActiveRoom ? 'bg-blue-50 border border-blue-200 opacity-60 cursor-not-allowed' :
+                                'bg-gray-50 border border-gray-200 hover:bg-emerald-50 cursor-pointer'
                               } ${roomSet.size >= 3 && !selected ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              title={inActiveRoom ? 'In active room — finish or leave that room first' : undefined}
                             >
                               <input
                                 type="checkbox"
                                 checked={selected}
-                                disabled={usedElsewhere || (roomSet.size >= 3 && !selected)}
+                                disabled={checkboxDisabled}
                                 onChange={() => {
                                   setRoomRows(prev => prev.map((s, i) => {
                                     if (i !== idx) return s;
@@ -527,7 +547,7 @@ export default function HostControls({ sessionId }: Props) {
                                     return next;
                                   }));
                                 }}
-                                className="h-3 w-3 rounded border-gray-300 text-emerald-500 focus:ring-emerald-400"
+                                className="h-3 w-3 rounded border-gray-300 text-emerald-500 focus:ring-emerald-400 disabled:cursor-not-allowed"
                               />
                               <span className="truncate text-gray-700">{p.displayName}</span>
                               {inActiveRoom && <span className="text-[10px] text-blue-500 shrink-0">(in room)</span>}

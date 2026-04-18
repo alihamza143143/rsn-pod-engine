@@ -59,13 +59,37 @@ export async function handleHostGenerateMatches(
 
     if (
       activeSession.status !== SessionStatus.LOBBY_OPEN &&
-      activeSession.status !== SessionStatus.ROUND_TRANSITION
+      activeSession.status !== SessionStatus.ROUND_TRANSITION &&
+      activeSession.status !== SessionStatus.CLOSING_LOBBY
     ) {
       socket.emit('error', {
         code: 'INVALID_STATE',
-        message: 'Can only generate matches from the lobby or transition phase',
+        message: 'Can only generate matches from the lobby, transition, or closing phase',
       });
       return;
+    }
+
+    // Bug 9 (April 19) — "Another Round" on the "All rounds complete" screen
+    // now emits host:generate_matches (was host:start_round). If we're in
+    // CLOSING_LOBBY, transition back to ROUND_TRANSITION and bump the round
+    // cap so the new round is a legitimate round N+1 rather than tripping
+    // the ">= numberOfRounds" end-of-event guard in endRatingWindow. Also
+    // cancel the 10-min closing safety timer — host is continuing the event.
+    if (activeSession.status === SessionStatus.CLOSING_LOBBY) {
+      const { clearSessionTimers } = await import('./timer-manager');
+      const sessionService = await import('../../session/session.service');
+      clearSessionTimers(data.sessionId);
+      activeSession.config = {
+        ...activeSession.config,
+        numberOfRounds: (activeSession.config.numberOfRounds || 5) + 1,
+      };
+      activeSession.status = SessionStatus.ROUND_TRANSITION;
+      await sessionService.updateSessionStatus(data.sessionId, SessionStatus.ROUND_TRANSITION);
+      io.to(sessionRoom(data.sessionId)).emit('session:status_changed', {
+        sessionId: data.sessionId,
+        status: SessionStatus.ROUND_TRANSITION,
+        currentRound: activeSession.currentRound,
+      });
     }
 
     // Need at least 2 non-host/co-host participants for matching

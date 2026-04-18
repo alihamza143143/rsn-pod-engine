@@ -4561,3 +4561,44 @@ User left for 23-hour drive at 16:30 UTC; entire flow completed autonomously.
 - `server/src/__tests__/services/orchestration/video-tile-object-cover.test.ts` (rewritten for Bug 6)
 - `e2e/tests/host-controls-visibility.spec.ts` (new E2E suite)
 - `progress.md` (this entry + earlier 16:30 entry)
+
+---
+
+## 2026-04-19 (00:30 UTC) — Bug 6/7/8/9 (April 19 Dr Arch)
+
+User reported 4 issues during live testing on the branded api.rsn.network endpoint. Did a full Dr Arch dive before any code, presented a plan, then executed.
+
+### Bugs
+
+**Bug 6 — Video tile STILL zoomed despite my 2026-04-18 fix**
+- Root cause: `@livekit/components-styles` ships `.lk-participant-media-video { object-fit: cover }` with higher specificity than my Tailwind `object-contain` className on the wrapper. LiveKit's CSS won.
+- Fix: global override in `client/src/index.css` — `.lk-participant-media-video { object-fit: contain !important; background-color: #000 !important }`. Beats vendor specificity, scoped to the class so doesn't bleed beyond LK tiles.
+
+**Bug 7 — Manual breakout "Create" yanks people out of active rooms**
+- Root cause: `breakout-bulk.ts` silently REASSIGNED participants from existing active matches into the new manual room. Client modal showed "(in room)" tag in blue but checkbox was selectable.
+- Fix (server): `handleHostCreateBreakoutBulk` now runs a pre-insert SELECT for any participant in another active match. Returns `PARTICIPANT_IN_ACTIVE_ROOM` with names BEFORE the reassign loop. Refreshes dashboard so client modal closes.
+- Fix (client): `HostControls.tsx` modal — `checkboxDisabled = usedElsewhere || inActiveRoom || (size>=3 && !selected)`. Added explainer banner: "People marked (in room) can't be added — finish or leave their current room first."
+
+**Bug 8 — Host timer (8:17) and breakout participant (9:05) drifted**
+- Root cause: client decrements locally with `setInterval(1s)` and only re-syncs every 5s from server. Network jitter + extend events make this visible.
+- Fix: `timer-manager.ts` sync interval 5000ms → 2000ms. Caps drift to <2s. Trade-off: 2.5x more socket events (~25/sec at 50 participants — trivial).
+- Forward-compat: when phase 2 (Redis) lands, this becomes pub/sub-driven so a single backend tick fans out to all session participants.
+
+**Bug 9 — "Another Round" skipped Match People flow**
+- Root cause: HostControls emitted `host:start_round` directly from the "All rounds complete" screen, bypassing preview → confirm → start.
+- Fix (client): button now emits `host:generate_matches` and uses Shuffle icon for visual consistency with the regular Match People button.
+- Fix (server): `handleHostGenerateMatches` accepts `CLOSING_LOBBY` state. Transitions session back to `ROUND_TRANSITION`, bumps `numberOfRounds += 1` so the new round is a legit round N+1 (not tripping end-of-event guard), cancels the 10-min closing-lobby safety timer.
+
+### Tests
+
+- New file `server/src/__tests__/services/orchestration/dr-arch-april-19-bugs.test.ts` — 6 assertions covering all 4 bugs.
+- 437/437 server tests pass (was 431 — +6 new).
+
+### Files touched
+
+- `client/src/index.css` (Bug 6 CSS override)
+- `client/src/features/live/HostControls.tsx` (Bug 7 modal + Bug 9 Another Round)
+- `server/src/services/orchestration/handlers/breakout-bulk.ts` (Bug 7 server reject)
+- `server/src/services/orchestration/handlers/timer-manager.ts` (Bug 8 sync interval)
+- `server/src/services/orchestration/handlers/matching-flow.ts` (Bug 9 CLOSING_LOBBY allowed)
+- `server/src/__tests__/services/orchestration/dr-arch-april-19-bugs.test.ts` (new)

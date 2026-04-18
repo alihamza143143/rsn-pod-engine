@@ -76,7 +76,14 @@ export function startSegmentTimer(
     callback();
   }, durationMs);
 
-  // Periodic timer sync broadcasts (every 5 seconds)
+  // Periodic timer sync broadcasts.
+  // Bug 8 (April 19) — was 5000ms; reduced to 2000ms because at 5s host and
+  // breakout participants visibly drifted (8:17 vs 9:05 reported during
+  // pause + extend). Client decrements locally each second; server sync
+  // every 2s caps drift to <2s instead of <5s. Trade-off: 2.5x more socket
+  // events (~25 events/sec at 50 participants per session — trivial).
+  // Forward-compat: when phase 2 (Redis) lands, this becomes a pub/sub
+  // subscription so all hosts in a session get a single backend tick.
   const syncInterval = setInterval(() => {
     const session = activeSessions.get(sessionId);
 
@@ -104,7 +111,7 @@ export function startSegmentTimer(
       secondsRemaining: Math.ceil(remainingMs / 1000),
       totalSeconds: durationSeconds,
     });
-  }, 5000);
+  }, 2000);
 
   // Store sync interval on session for deterministic cleanup
   activeSession.timerSyncInterval = syncInterval;

@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Bug 6 — LiveKit's @livekit/components-styles ships a default
+   .lk-participant-media-video { object-fit: cover } rule that overrides
+   our Tailwind `object-contain` className on the inner <video> element
+   (the className lands on the wrapper, not on the underlying media
+   element). Result: portrait phone video gets aggressively cropped on
+   landscape desktop tiles — only the centre slice of the face is
+   visible (Bug 6 reported 2026-04-19).
+   We override here so portrait video shows in full with letterbox
+   bg-black, matching Google Meet / FaceTime behaviour on desktop. */
+.lk-participant-media-video {
+  object-fit: contain !important;
+  background-color: #000 !important;
+}
+
 @layer base {
   * {
     @apply border-surface-700;

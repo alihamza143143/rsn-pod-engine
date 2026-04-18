@@ -144,6 +144,42 @@ export async function handleHostCreateBreakoutBulk(
     );
     const nameMap = new Map(nameRes.rows.map((r) => [r.id, r.display_name || 'User']));
 
+    // Bug 7 (April 19 Dr Arch) — REJECT bulk-create if any selected participant
+    // is currently in another active match (algorithm OR manual). Previously
+    // we silently REASSIGNED them out of their existing match into the new
+    // manual room; the host had no idea they were yanking people out of
+    // a live conversation. New rule: host must wait for participants to
+    // leave their current room (or end it explicitly) before pulling them
+    // into a new manual breakout.
+    //
+    // Forward-compat: same `m.status = 'active'` predicate that the trigger
+    // and partial unique index use (migrations 041 + 042) — single source of
+    // truth across DB constraints, server validation, and dashboard.
+    const inUseRes = await query<{ user_id: string }>(
+      `SELECT DISTINCT u.id AS user_id
+         FROM users u
+         JOIN matches m ON m.session_id = $1 AND m.status = 'active'
+              AND (m.participant_a_id = u.id OR m.participant_b_id = u.id OR m.participant_c_id = u.id)
+        WHERE u.id = ANY($2)`,
+      [sessionId, allIds],
+    );
+    if (inUseRes.rows.length > 0) {
+      const blockedNames = inUseRes.rows
+        .map((r) => nameMap.get(r.user_id) || 'A participant')
+        .sort();
+      socket.emit('error', {
+        code: 'PARTICIPANT_IN_ACTIVE_ROOM',
+        message:
+          blockedNames.length === 1
+            ? `${blockedNames[0]} is already in an active room. End that room first or wait for them to leave.`
+            : `${blockedNames.join(', ')} are already in active rooms. End those rooms first or wait for them to leave.`,
+        userIds: inUseRes.rows.map((r) => r.user_id),
+      });
+      // Refresh dashboard so the host's modal closes / updates state.
+      if (_emitHostDashboard) await _emitHostDashboard(sessionId).catch(() => {});
+      return;
+    }
+
     const createdMatchIds: string[] = [];
 
     for (const roomSpec of rooms) {
