@@ -4476,3 +4476,88 @@ Lobby.tsx already does the right thing (`object-contain` on pinned, `object-cove
 ### Next
 
 Commit + push to both branches → check_hole → write Playwright suite covering both bugs + edge cases (state mismatch, manual-rooms-only state, round_transition next-round path) → run suite → cleanup → final summary.
+
+---
+
+## 2026-04-18 (17:00 UTC) — Final state for autonomous session (Bug 5/6 + E2E)
+
+User left for 23-hour drive at 16:30 UTC; entire flow completed autonomously.
+
+### Commits shipped this session (5 total)
+
+| Commit | Subject |
+|--------|---------|
+| `0e2fabf` | fix(host-controls): derive visibility from live algorithm-match state (Bug 5 + Bug 6) |
+| `119f3b5` | test: align Bug 5/6 assertions with new architectural rules |
+| `2d53631` | test(ci): convert dr-arch test to ESM imports to avoid TS2451 collision |
+| `0f1098c` | test(e2e): Playwright suite for Bug 5 (host control visibility) + Bug 6 |
+
+(Plus this progress.md update.)
+
+### Bugs fixed
+
+**Bug 5 — Host control visibility derived from live state**
+- `client/src/features/live/HostControls.tsx`: new `hasActiveAlgorithmRound` derived from `roundDashboard.rooms.some(r => r.status === 'active' && !r.isManual)`.
+- Pause / +2 min / End Round → show on `hasActiveAlgorithmRound` (was: `sessionStatus === 'round_active'`).
+- Match People disable rule → `hasActiveAlgorithmRound || eligibleMainRoomCount < 2` (was: over-aggressive `isRoundLifecycleActive` that blocked the legitimate `round_transition → next round` path).
+- Tooltip copy: "A round is in progress — wait for it to end".
+
+**Bug 6 — Video tile zoom**
+- `client/src/features/live/VideoRoom.tsx`: `<VideoTrack className=… object-contain>` (was: `object-cover` which cropped portrait phone video too aggressively on landscape desktop tiles, hiding most of the face).
+- Lobby thumbnail / pinned logic and device-check preview unchanged.
+
+### Tests written + passing
+
+**Server (jest)** — 431/431 passing (server suite total)
+- `dr-arch-april-18-bugs.test.ts` (Bug 5 section, ~5 new assertions): pin `hasActiveAlgorithmRound` derivation, matchPeopleDisabled new rule, Pause/+2/End-Round visibility.
+- `video-tile-object-cover.test.ts` rewritten as `Bug 6 — VideoTile uses object-contain`.
+
+**E2E (Playwright)** — 5/5 passing (3 new + 2 existing)
+- `host-controls-visibility.spec.ts`:
+  1. Manual room running does NOT count as algorithm round — drives a real `host:create_breakout_bulk`, captures `host:round_dashboard`, asserts `hasActiveAlgorithmRound = false`, DB cross-check for is_manual=TRUE active vs is_manual=FALSE active counts.
+  2. eligibleMainRoomCount >= 2 when no rooms active — replicates the server's exact eligibility query.
+  3. VideoRoom.tsx VideoTrack uses object-contain — static source check inside the runner.
+- `manual-rooms.spec.ts` (existing) — 2/2 passing.
+- All test data cleaned up after run (verified: 0 leftover users / sessions / matches / pods).
+
+### CI journey (full transparency)
+
+- 1st push (`0e2fabf`) — failed (2 stale tests pinned old behaviour)
+- 2nd push (`119f3b5`) — failed (TS2451 module-scope collision exposed)
+- 3rd push (`2d53631`) — green
+- 4th push (`0f1098c`) — green (E2E suite added)
+- main fast-forwarded to `0f1098c` after each green CI
+
+### Final check_hole (12:01 UTC)
+
+```
+✓ Render API:    live @ 0f1098c7, db 3ms latency
+✓ Vercel client: production Ready
+✓ Sentry server: 0 unresolved (last 1h)
+✓ Sentry client: 0 unresolved (last 1h)
+✓ Render logs:   0 ERROR-level (level >= 50) since deploy
+✓ CI:            green on staging + main
+✓ Git sync:      main = staging = 0f1098c
+✓ Test data:     0 leftover (e2etest-* users / E2E sessions / matches / pods)
+```
+
+### What user should test on wake-up
+
+1. **End round 1, observe round_transition** — Match People button should be ENABLED (was disabled before fix). Pause/+2/End Round should DISAPPEAR (no live algorithm round).
+2. **Mid-round** — Pause/+2/End Round should be VISIBLE while at least one algorithm match is active.
+3. **Manual breakout running, no algorithm** — Match People should remain ENABLED (manual rooms don't count).
+4. **Algorithm round + manual concurrent** — Pause/+2/End Round visible; Match People disabled.
+5. **Video tile** — portrait phone video on desktop should now show the FULL frame with letterbox bg-black (no extreme zoom). Google Meet feel.
+
+### Outstanding (Stefan-side, not blocked by code)
+
+- DNS CNAME `api → rsn-api-h04m.onrender.com` at GoDaddy for OAuth branding (unchanged from prior session).
+
+### Files touched this session
+
+- `client/src/features/live/HostControls.tsx` (Bug 5)
+- `client/src/features/live/VideoRoom.tsx` (Bug 6)
+- `server/src/__tests__/services/orchestration/dr-arch-april-18-bugs.test.ts` (Bug 5 + Bug 6 assertions, ESM imports)
+- `server/src/__tests__/services/orchestration/video-tile-object-cover.test.ts` (rewritten for Bug 6)
+- `e2e/tests/host-controls-visibility.spec.ts` (new E2E suite)
+- `progress.md` (this entry + earlier 16:30 entry)
