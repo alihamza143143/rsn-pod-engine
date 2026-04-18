@@ -32,6 +32,7 @@ let _completeSession: ((io: SocketServer, sessionId: string) => Promise<void>) |
 let _endRound: ((io: SocketServer, sessionId: string, roundNumber: number) => Promise<void>) | null = null;
 let _emitHostDashboard: ((sessionId: string) => Promise<void>) | null = null;
 let _timerCallbacks: TimerCallbacks | null = null;
+let _maybeAutoEndEmptyRound: ((sessionId: string) => Promise<void>) | null = null;
 
 /**
  * Inject cross-module dependencies that live in other handler files.
@@ -43,12 +44,24 @@ export function injectHostActionDeps(deps: {
   endRound: (io: SocketServer, sessionId: string, roundNumber: number) => Promise<void>;
   emitHostDashboard: (sessionId: string) => Promise<void>;
   timerCallbacks: TimerCallbacks;
+  maybeAutoEndEmptyRound?: (sessionId: string) => Promise<void>;
 }) {
   _transitionToRound = deps.transitionToRound;
   _completeSession = deps.completeSession;
   _endRound = deps.endRound;
   _emitHostDashboard = deps.emitHostDashboard;
   _timerCallbacks = deps.timerCallbacks;
+  _maybeAutoEndEmptyRound = deps.maybeAutoEndEmptyRound || null;
+}
+
+// Bug 4 (April 18 Dr Arch): fire-and-forget auto-end check used after every
+// match-status transition that may have left ROUND_ACTIVE with 0 active matches.
+function maybeAutoEndEmptyRound(sessionId: string): void {
+  if (_maybeAutoEndEmptyRound) {
+    _maybeAutoEndEmptyRound(sessionId).catch(err =>
+      logger.warn({ err, sessionId }, 'Failed maybeAutoEndEmptyRound from host-actions'),
+    );
+  }
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -854,6 +867,10 @@ export async function handleHostRemoveFromRoom(
       await _emitHostDashboard(data.sessionId);
     }
 
+    // Bug 4 (April 18 Dr Arch): if the removal ended the last active match in
+    // an algorithm round, we'd be stuck in ROUND_ACTIVE with 0 active matches.
+    maybeAutoEndEmptyRound(data.sessionId);
+
     logger.info({ sessionId: data.sessionId, matchId: data.matchId, removedUserId: data.userId },
       'Host removed participant from breakout room');
   } catch (err) {
@@ -989,6 +1006,10 @@ export async function handleHostMoveToRoom(
     if (_emitHostDashboard) {
       await _emitHostDashboard(sessionId);
     }
+
+    // Bug 4 (April 18 Dr Arch): in the unlikely event the move/end pattern
+    // leaves zero active matches in the round, auto-end so we don't lock up.
+    maybeAutoEndEmptyRound(sessionId);
 
     logger.info({ sessionId, userId, targetMatchId, newMatchId },
       'Host moved participant to another room');
@@ -1576,6 +1597,9 @@ export async function handleHostCreateBreakout(
       } catch (err) {
         logger.error({ err }, 'Failed to create LiveKit room for host breakout');
         socket.emit('error', { code: 'ROOM_CREATION_FAILED', message: 'Failed to create breakout room. Try again.' });
+        // Bug 1 (April 18 Dr Arch): Step-1 reassignment may have already run.
+        // Refresh dashboard so the host sees the actual DB state, not stale.
+        if (_emitHostDashboard) await _emitHostDashboard(sessionId).catch(() => {});
         return;
       }
       const newRoomId = videoService.matchRoomId(sessionId, activeSession.currentRound, roomSlug);
@@ -1606,6 +1630,11 @@ export async function handleHostCreateBreakout(
           } else {
             socket.emit('error', { code: 'MATCH_CREATION_FAILED', message: 'Failed to create room assignment. Try again.' });
           }
+          // Bug 1 (April 18 Dr Arch): the Step-1 reassign already moved the
+          // participants' prior matches to status='reassigned'. The new manual
+          // INSERT failed, but we still need to refresh the dashboard so the
+          // host sees the actual DB state — not the cached pre-action snapshot.
+          if (_emitHostDashboard) await _emitHostDashboard(sessionId).catch(() => {});
           return;
         }
       }

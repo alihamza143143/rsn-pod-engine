@@ -60,8 +60,15 @@ function ConnectionIndicator() {
 
 function VideoTile({ trackRef, label, isWaiting, isPinned }: { trackRef?: any; label: string; isWaiting?: boolean; isPinned?: boolean }) {
   const hasVideo = trackRef?.publication?.track;
+  // Bug 2 (April 18 Dr Arch): VideoTile must FILL its parent in both pinned
+  // and unpinned modes so 1:1 + trio breakouts max out the available area.
+  // The old `aspect-video` (16:9 box) made the tile shrink to height = width
+  // × 9/16 inside wide grid cells, leaving large empty space below — partner
+  // appeared as a small ~30% strip. Now: parent grid cells are h-full and
+  // the tile is h-full w-full, so the video fills the cell. Object-cover on
+  // the inner VideoTrack handles aspect cropping (FaceTime/Meet style).
   return (
-    <div className={`relative rounded-xl overflow-hidden ${hasVideo ? 'bg-black' : 'bg-[#3c4043]'} ${isPinned ? 'h-full w-full' : 'aspect-video'} flex items-center justify-center`}>
+    <div className={`relative rounded-xl overflow-hidden ${hasVideo ? 'bg-black' : 'bg-[#3c4043]'} ${isPinned ? 'h-full w-full' : 'h-full w-full'} flex items-center justify-center`}>
       {hasVideo ? (
         // Object-cover universally — never object-contain. Portrait videos in
         // landscape containers (and vice-versa) get cropped to fill, matching
@@ -151,14 +158,17 @@ function VideoStage() {
     <div className="flex-1 relative max-h-[calc(100dvh-160px)]">
       {remoteTracks.length > 0 ? (
         <>
-          {/* Desktop: equal grid tiles including self-view */}
+          {/* Desktop: equal grid tiles including self-view.
+              Bug 2 (April 18 Dr Arch): each cell is h-full + min-h-0 so the
+              VideoTile fills the cell vertically. Without h-full on the cell,
+              the tile defaulted to its natural height and shrank to a strip. */}
           <div className={`hidden md:grid h-full gap-4 ${isTrio ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-2'}`}>
             {remoteTracks.map((rt, i) => (
-              <div key={rt.participant.sid} className="cursor-pointer" onClick={() => setPinnedSid(rt.participant.sid)}>
+              <div key={rt.participant.sid} className="h-full cursor-pointer" onClick={() => setPinnedSid(rt.participant.sid)}>
                 <VideoTile trackRef={rt} label={userDisplayLabel(rt.participant.name || currentPartners[i])} />
               </div>
             ))}
-            <div className="cursor-pointer" onClick={() => setPinnedSid(localParticipant.sid)}>
+            <div className="h-full cursor-pointer" onClick={() => setPinnedSid(localParticipant.sid)}>
               <VideoTile trackRef={localTrack} label="You" />
             </div>
           </div>
@@ -181,12 +191,14 @@ function VideoStage() {
             </div>
           )}
 
-          {/* Mobile trio: remote participants split screen, self-view PIP top-right */}
+          {/* Mobile trio: remote participants split screen, self-view PIP top-right.
+              Bug 2 (April 18 Dr Arch): each row cell is h-full + min-h-0 so the
+              tiles fill vertically (otherwise aspect-video collapses them). */}
           {isTrio && (
             <div className="md:hidden h-full relative">
               <div className="h-full grid grid-cols-1 gap-2">
                 {remoteTracks.map((rt, i) => (
-                  <div key={rt.participant.sid} className="cursor-pointer" onClick={() => setPinnedSid(rt.participant.sid)}>
+                  <div key={rt.participant.sid} className="h-full min-h-0 cursor-pointer" onClick={() => setPinnedSid(rt.participant.sid)}>
                     <VideoTile trackRef={rt} label={userDisplayLabel(rt.participant.name || currentPartners[i])} />
                   </div>
                 ))}

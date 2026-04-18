@@ -27,6 +27,7 @@ import { findIsolatedParticipants } from '../../matching/isolated-participants';
 // For now, declare as module-level variables that can be injected
 let _emitHostDashboard: ((sessionId: string) => Promise<void>) | null = null;
 let _endRatingWindow: ((sessionId: string, roundNumber: number) => Promise<void>) | null = null;
+let _maybeAutoEndEmptyRound: ((sessionId: string) => Promise<void>) | null = null;
 
 /**
  * Inject cross-module dependencies that live in other handler files.
@@ -35,9 +36,11 @@ let _endRatingWindow: ((sessionId: string, roundNumber: number) => Promise<void>
 export function injectDependencies(deps: {
   emitHostDashboard: (sessionId: string) => Promise<void>;
   endRatingWindow: (sessionId: string, roundNumber: number) => Promise<void>;
+  maybeAutoEndEmptyRound?: (sessionId: string) => Promise<void>;
 }): void {
   _emitHostDashboard = deps.emitHostDashboard;
   _endRatingWindow = deps.endRatingWindow;
+  _maybeAutoEndEmptyRound = deps.maybeAutoEndEmptyRound || null;
 }
 
 function emitHostDashboard(sessionId: string): void {
@@ -57,6 +60,17 @@ function endRatingWindow(sessionId: string, roundNumber: number): void {
     );
   } else {
     logger.warn({ sessionId }, 'endRatingWindow not injected yet — skipping');
+  }
+}
+
+// Bug 4 (April 18 Dr Arch): if a match-status transition leaves the session
+// in ROUND_ACTIVE with zero active matches, auto-transition to ROUND_RATING
+// so the lobby/Match-People button doesn't lock up. Fire-and-forget.
+function maybeAutoEndEmptyRound(sessionId: string): void {
+  if (_maybeAutoEndEmptyRound) {
+    _maybeAutoEndEmptyRound(sessionId).catch(err =>
+      logger.warn({ err, sessionId }, 'Failed maybeAutoEndEmptyRound from participant-flow')
+    );
   }
 }
 
@@ -727,6 +741,11 @@ export async function handleLeaveConversation(
       // ghost-room card from the host's view.
       emitHostDashboard(sessionId);
 
+      // Bug 4 (April 18 Dr Arch): if voluntary leave was the last active match
+      // in the round, auto-end the round so session.status doesn't linger in
+      // ROUND_ACTIVE with zero active matches.
+      maybeAutoEndEmptyRound(sessionId);
+
       // Move user back to lobby status
       await sessionService.updateParticipantStatus(sessionId, userId, ParticipantStatus.IN_LOBBY);
 
@@ -1038,6 +1057,10 @@ export async function handleDisconnect(
                 // transition. Manual rooms during LOBBY_OPEN need this since
                 // the round-lifecycle polling only runs in ROUND_ACTIVE.
                 emitHostDashboard(sessionId);
+
+                // Bug 4 (April 18 Dr Arch): a disconnect-triggered terminal
+                // status may have left zero active matches in the round.
+                maybeAutoEndEmptyRound(sessionId);
 
                 // Step 3: Try auto-reassignment — find another isolated participant via presence
                 const isolatedUserIds = await findIsolatedParticipants(

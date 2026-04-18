@@ -647,20 +647,26 @@ export default function HostControls({ sessionId }: Props) {
             {/* Two-step breakout: Match People → preview → Start Round.
                 Button is enabled iff:
                   - eligibleMainRoomCount >= 2 (server-computed: in lobby, NOT in any active match)
-                  - AND no active algorithm round (manual rooms don't block — they're independent) */}
+                  - AND session is NOT in an active round lifecycle (round_active /
+                    round_rating / round_transition). Bug 3 (April 18 Dr Arch):
+                    we now disable on the lifecycle state regardless of whether
+                    any algorithm match cards are visible — state-mismatch can
+                    leave 0 active matches with session.status='round_active',
+                    in which case generating would fail server-side anyway. */}
             {sessionStarted && phase === 'lobby' && !allRoundsDone && !matchPreview && (() => {
               // Server-computed count of participants in the main room (not in any
               // active match — manual or algorithm). Falls back to client-side
               // count if dashboard not loaded yet.
               const eligibleMainRoomCount = (roundDashboard as any)?.eligibleMainRoomCount ?? eligibleCount;
-              const hasActiveAlgorithmRound = roundDashboard?.rooms.some(
-                (r: any) => r.status === 'active' && !r.isManual
-              );
-              const matchPeopleDisabled = eligibleMainRoomCount < 2 || hasActiveAlgorithmRound;
-              const matchPeopleHint = eligibleMainRoomCount < 2
+              const isRoundLifecycleActive =
+                sessionStatus === 'round_active'
+                || sessionStatus === 'round_rating'
+                || sessionStatus === 'round_transition';
+              const matchPeopleDisabled = isRoundLifecycleActive || eligibleMainRoomCount < 2;
+              const matchPeopleHint = isRoundLifecycleActive
+                ? 'You can match in the next round'
+                : eligibleMainRoomCount < 2
                 ? `Need at least 2 participants in main room (currently ${eligibleMainRoomCount})`
-                : hasActiveAlgorithmRound
-                ? 'End the current round before matching again'
                 : '';
               if (matchPeopleDisabled) {
                 return (

@@ -45,7 +45,7 @@ import {
 // Handlers — Round Lifecycle
 import {
   transitionToRound, endRound, endRatingWindow, completeSession,
-  recoverActiveSessions, injectRoundLifecycleDeps,
+  recoverActiveSessions, injectRoundLifecycleDeps, maybeAutoEndEmptyRound,
 } from './handlers/round-lifecycle';
 
 // Handlers — Chat
@@ -104,6 +104,9 @@ export function initOrchestration(socketServer: SocketServer): void {
     endRound: (ioServer, sessionId, roundNumber) => endRound(ioServer, sessionId, roundNumber),
     emitHostDashboard: (sessionId) => emitHostDashboard(io, sessionId),
     timerCallbacks,
+    // Bug 4 (April 18 Dr Arch): wire auto-end so host actions that end matches
+    // can recover the session if every active match in the round is gone.
+    maybeAutoEndEmptyRound: (sessionId) => maybeAutoEndEmptyRound(io, sessionId),
   });
 
   injectMatchingFlowDeps({
@@ -118,6 +121,9 @@ export function initOrchestration(socketServer: SocketServer): void {
   injectParticipantDeps({
     emitHostDashboard: (sessionId) => emitHostDashboard(io, sessionId),
     endRatingWindow: (sessionId, roundNumber) => endRatingWindow(io, sessionId, roundNumber),
+    // Bug 4 (April 18 Dr Arch): voluntary leave / disconnect may end the last
+    // active match — auto-recover the round.
+    maybeAutoEndEmptyRound: (sessionId) => maybeAutoEndEmptyRound(io, sessionId),
   });
 
   injectBreakoutBulkDeps({

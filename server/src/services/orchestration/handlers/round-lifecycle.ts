@@ -907,6 +907,56 @@ export async function sendRecapEmails(sessionId: string): Promise<void> {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
+// MAYBE AUTO-END EMPTY ROUND (Bug 4 — April 18 Dr Arch)
+// ═════════════════════════════════════════════════════════════════════════════
+//
+// Architectural rule: session.status === ROUND_ACTIVE must always have at
+// least one match with status='active' for the current round. If every
+// match in the round transitions away from 'active' (via voluntary leave,
+// host removal, no-show, etc.) and no replacement is created, the session
+// is stuck in ROUND_ACTIVE while the dashboard / Match-People button
+// disagree about whether a round is in progress.
+//
+// Call site: every match-status transition during ROUND_ACTIVE — voluntary
+// leave (participant-flow), host removal (host-actions), host move-to-room
+// (host-actions), no-show detection (round-lifecycle).
+//
+// Behavior: if status is ROUND_ACTIVE and the active count for currentRound
+// is zero, immediately fire endRound — which transitions to ROUND_RATING,
+// then the existing rating timer flows back through to LOBBY_OPEN.
+//
+// Forward-compat: idempotent — endRound's UPDATE is a no-op if there are no
+// active matches, and SessionStatus.ROUND_RATING transition is safe to
+// repeat (DB UPDATE just rewrites the same value).
+
+export async function maybeAutoEndEmptyRound(
+  io: SocketServer,
+  sessionId: string,
+): Promise<void> {
+  const activeSession = activeSessions.get(sessionId);
+  if (!activeSession) return;
+  if (activeSession.status !== SessionStatus.ROUND_ACTIVE) return;
+
+  try {
+    const res = await query<{ c: string }>(
+      `SELECT COUNT(*)::text AS c FROM matches
+       WHERE session_id = $1 AND round_number = $2 AND status = 'active'`,
+      [sessionId, activeSession.currentRound],
+    );
+    const activeCount = parseInt(res.rows[0]?.c || '0', 10);
+    if (activeCount > 0) return;
+
+    logger.warn(
+      { sessionId, roundNumber: activeSession.currentRound },
+      'ROUND_ACTIVE with 0 active matches detected — auto-ending round',
+    );
+    await endRound(io, sessionId, activeSession.currentRound);
+  } catch (err) {
+    logger.error({ err, sessionId }, 'Error in maybeAutoEndEmptyRound');
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
 // NO-SHOW DETECTION
 // ═════════════════════════════════════════════════════════════════════════════
 
@@ -974,6 +1024,9 @@ export async function detectNoShows(
     // when many matches no-show at once).
     if (anyTransition) {
       emitHostDashboard(io, sessionId);
+      // Bug 4: if every match in the round just no-show'd we are now stuck in
+      // ROUND_ACTIVE with 0 active matches. Auto-transition to round_rating.
+      await maybeAutoEndEmptyRound(io, sessionId);
     }
   } catch (err) {
     logger.error({ err, sessionId, roundNumber }, 'Error detecting no-shows');
