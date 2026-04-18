@@ -25,11 +25,13 @@
 //           hook in every match-status transition site that detects this and
 //           moves session forward (endRound).
 
-const fs = require('fs');
-const path = require('path');
+// ESM-style imports so this file is treated as a module and `fs`/`path`
+// don't collide with other test files at module scope (TS2451 in CI).
+import * as nodeFs from 'fs';
+import * as nodePath from 'path';
 
 function readSource(relPath: string): string {
-  return fs.readFileSync(path.join(__dirname, relPath), 'utf8');
+  return nodeFs.readFileSync(nodePath.join(__dirname, relPath), 'utf8');
 }
 
 describe('Dr Arch April 18 — Bug 1: dashboard wipe on bulk-create error', () => {
@@ -92,8 +94,8 @@ describe('Dr Arch April 18 — Bug 1: dashboard wipe on bulk-create error', () =
 describe('Dr Arch April 18 — Bug 2: 1:1 + trio breakout tiles fill available space', () => {
   let videoRoomSrc = '';
   beforeAll(() => {
-    videoRoomSrc = fs.readFileSync(
-      path.join(__dirname, '../../../../../client/src/features/live/VideoRoom.tsx'),
+    videoRoomSrc = nodeFs.readFileSync(
+      nodePath.join(__dirname, '../../../../../client/src/features/live/VideoRoom.tsx'),
       'utf8',
     );
   });
@@ -151,8 +153,8 @@ describe('Dr Arch April 18 — Bug 2: 1:1 + trio breakout tiles fill available s
 describe('Dr Arch April 18 — Bug 5: Round controls + Match People derive from live algorithm-match state', () => {
   let hostControlsSrc = '';
   beforeAll(() => {
-    hostControlsSrc = fs.readFileSync(
-      path.join(__dirname, '../../../../../client/src/features/live/HostControls.tsx'),
+    hostControlsSrc = nodeFs.readFileSync(
+      nodePath.join(__dirname, '../../../../../client/src/features/live/HostControls.tsx'),
       'utf8',
     );
   });
