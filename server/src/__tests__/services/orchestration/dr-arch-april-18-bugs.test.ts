@@ -132,19 +132,23 @@ describe('Dr Arch April 18 — Bug 2: 1:1 + trio breakout tiles fill available s
     expect(videoRoomSrc).toMatch(/md:hidden h-full relative[\s\S]{0,400}h-full cursor-pointer/);
   });
 
-  it('VideoTrack className still uses object-cover (preserves Bug #2 hotfix)', () => {
-    // Critical regression guard — the universal object-cover fix from 549170b
-    // must remain in place so portrait videos crop instead of letterbox.
+  it('VideoTrack className uses object-contain (Bug 6 — supersedes Bug #2 hotfix)', () => {
+    // Bug 6 (April 18 round 2): the original object-cover universal fix
+    // cropped portrait phone video so aggressively on landscape desktop
+    // tiles that only the centre of the face was visible. The architectural
+    // decision now is object-CONTAIN with bg-black on the parent — full
+    // source frame visible, letterbox padded by the tile's bg colour, which
+    // matches Google Meet / FaceTime portrait-on-desktop behaviour.
     const videoTrackBlocks = videoRoomSrc.match(/<VideoTrack[\s\S]*?\/>/g) || [];
     expect(videoTrackBlocks.length).toBeGreaterThan(0);
     for (const block of videoTrackBlocks) {
-      expect(block).toMatch(/object-cover/);
-      expect(block).not.toMatch(/object-contain/);
+      expect(block).toMatch(/object-contain/);
+      expect(block).not.toMatch(/object-cover/);
     }
   });
 });
 
-describe('Dr Arch April 18 — Bug 3: Match People button disabled during round lifecycle', () => {
+describe('Dr Arch April 18 — Bug 5: Round controls + Match People derive from live algorithm-match state', () => {
   let hostControlsSrc = '';
   beforeAll(() => {
     hostControlsSrc = fs.readFileSync(
@@ -153,26 +157,53 @@ describe('Dr Arch April 18 — Bug 3: Match People button disabled during round 
     );
   });
 
-  it('matchPeopleDisabled rule includes round_active, round_rating, round_transition', () => {
-    // Find the matchPeopleDisabled computation block
-    const idx = hostControlsSrc.indexOf('matchPeopleDisabled');
-    expect(idx).toBeGreaterThan(-1);
-    // Look at the surrounding ~600 chars for the new lifecycle check
-    const block = hostControlsSrc.slice(idx - 1000, idx + 600);
-    // The disabled rule must reference all three round-lifecycle states
-    expect(block).toMatch(/round_active/);
-    expect(block).toMatch(/round_rating/);
-    expect(block).toMatch(/round_transition/);
+  // Bug 5 supersedes Bug 3. The earlier "disable on round_active OR round_rating
+  // OR round_transition" rule was wrong: handleHostGenerateMatches explicitly
+  // accepts ROUND_TRANSITION (matching-flow.ts:60-69), so the client was
+  // blocking a legitimate path. The new rule is purely live-state-derived.
+
+  it('hasActiveAlgorithmRound derived from roundDashboard.rooms (status=active && !isManual)', () => {
+    // The single source of truth for both Match People disable AND
+    // Pause/+2/End Round visibility.
+    expect(hostControlsSrc).toMatch(/hasActiveAlgorithmRound/);
+    // Find the const declaration (skip comment-only mentions).
+    const declIdx = hostControlsSrc.indexOf('const hasActiveAlgorithmRound');
+    expect(declIdx).toBeGreaterThan(-1);
+    const block = hostControlsSrc.slice(declIdx, declIdx + 400);
+    expect(block).toMatch(/r\.status\s*===\s*'active'/);
+    expect(block).toMatch(/!r\.isManual/);
   });
 
-  it('hint message says "next round" when in round lifecycle (not "end the current round")', () => {
-    // The new hint should be friendly and forward-looking. Existing copy that
-    // said "End the current round before matching again" should be updated.
+  it('matchPeopleDisabled uses hasActiveAlgorithmRound (NOT session.status round_transition)', () => {
     const idx = hostControlsSrc.indexOf('matchPeopleDisabled');
     expect(idx).toBeGreaterThan(-1);
-    const block = hostControlsSrc.slice(idx, idx + 1500);
-    // New hint includes "next round" phrasing
-    expect(block).toMatch(/next round/i);
+    const block = hostControlsSrc.slice(idx, idx + 400);
+    expect(block).toMatch(/hasActiveAlgorithmRound/);
+    expect(block).toMatch(/eligibleMainRoomCount\s*<\s*2/);
+    // The old over-aggressive rule that disabled on round_transition is gone.
+    expect(block).not.toMatch(/sessionStatus\s*===\s*'round_transition'/);
+  });
+
+  it('Pause / +2 min / End Round visibility derived from hasActiveAlgorithmRound', () => {
+    // All three controls must show whenever an algorithm round is live —
+    // they used to be gated on sessionStatus === 'round_active' which
+    // hid them during transitional / mismatched states.
+    const pauseBlock = hostControlsSrc.match(/Pause\/Resume during round[\s\S]{0,800}/)?.[0] || '';
+    expect(pauseBlock).toMatch(/hasActiveAlgorithmRound/);
+    const extendBlock = hostControlsSrc.match(/Extend round by 2 minutes[\s\S]{0,800}/)?.[0] || '';
+    expect(extendBlock).toMatch(/hasActiveAlgorithmRound/);
+    const endRoundBlock = hostControlsSrc.match(/End current round early[\s\S]{0,800}/)?.[0] || '';
+    expect(endRoundBlock).toMatch(/hasActiveAlgorithmRound/);
+  });
+
+  it('hint message reads "wait for it to end" (live state, not future-tense)', () => {
+    // The new copy is honest about current state — there's an active round
+    // right now, wait for it to end. Old copy "next round" was forward-looking
+    // and confusing in the round_transition state.
+    const idx = hostControlsSrc.indexOf('matchPeopleHint');
+    expect(idx).toBeGreaterThan(-1);
+    const block = hostControlsSrc.slice(idx, idx + 600);
+    expect(block).toMatch(/wait for it to end/i);
   });
 });
 
