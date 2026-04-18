@@ -286,16 +286,37 @@ export async function handleHostPause(
       return;
     }
 
-    // Calculate remaining time
+    // Bug #1 fix — Pause timer drift between host and participants.
+    // Compute secondsRemaining ONCE on the server from the authoritative endsAt
+    // and broadcast a unified `timer:sync` snapshot to everyone in the session
+    // room. Clients display this exact value (no per-client tick drift). Without
+    // this, each client kept ticking 1s/sec until their own pause event arrived
+    // (network jitter = 12s drift between host and participant).
+    let pausedSecondsRemaining = 0;
     if (activeSession.timer && activeSession.timerEndsAt) {
-      const remaining = Math.max(0, activeSession.timerEndsAt.getTime() - Date.now());
+      const remainingMs = Math.max(0, activeSession.timerEndsAt.getTime() - Date.now());
+      pausedSecondsRemaining = Math.ceil(remainingMs / 1000);
       clearTimeout(activeSession.timer);
       activeSession.timer = null;
-      activeSession.pausedTimeRemaining = remaining;
+      activeSession.pausedTimeRemaining = remainingMs;
+    }
+    // Stop the periodic 5s timer:sync interval — we'll restart it on resume.
+    if (activeSession.timerSyncInterval) {
+      clearInterval(activeSession.timerSyncInterval);
+      activeSession.timerSyncInterval = null;
     }
 
     activeSession.isPaused = true;
     persistSessionState(data.sessionId, activeSession).catch(() => {});
+
+    // Unified snapshot — same secondsRemaining for host AND participants.
+    // Client useSessionSocket reads `paused` to stop its 1s tick interval and
+    // freeze the displayed value at secondsRemaining.
+    io.to(sessionRoom(data.sessionId)).emit('timer:sync', {
+      segmentType: activeSession.status,
+      secondsRemaining: pausedSecondsRemaining,
+      paused: true,
+    });
 
     io.to(sessionRoom(data.sessionId)).emit('session:status_changed', {
       sessionId: data.sessionId,
@@ -304,7 +325,10 @@ export async function handleHostPause(
       isPaused: true,
     });
 
-    logger.info({ sessionId: data.sessionId }, 'Session paused');
+    logger.info(
+      { sessionId: data.sessionId, pausedSecondsRemaining },
+      'Session paused — broadcast unified timer:sync snapshot',
+    );
   } catch (err: any) {
     socket.emit('error', { code: 'PAUSE_FAILED', message: err.message });
   }
@@ -330,21 +354,35 @@ export async function handleHostResume(
 
     activeSession.isPaused = false;
 
-    // Resume timer with remaining time
+    // Bug #1 fix — Resume restarts ticks with adjusted endsAt + unified snapshot.
+    // Server adjusts endsAt = now + frozen remainingMs and broadcasts a single
+    // `timer:sync` (paused: false) so all clients restart their 1s tick from
+    // the same secondsRemaining value.
+    let resumeSecondsRemaining = 0;
     if (activeSession.pausedTimeRemaining !== null && activeSession.pausedTimeRemaining > 0) {
       const remainingMs = activeSession.pausedTimeRemaining;
       activeSession.pausedTimeRemaining = null;
+      resumeSecondsRemaining = Math.ceil(remainingMs / 1000);
 
       // Determine what callback to use based on current status
       if (!_timerCallbacks) {
         logger.warn({ sessionId: data.sessionId }, 'Timer callbacks not injected — cannot resume timer');
       } else {
         const callback = getTimerCallbackForState(data.sessionId, activeSession, _timerCallbacks);
+        // startSegmentTimer recomputes endsAt = now + duration internally and
+        // restarts the 5s sync interval — the broadcast below is the immediate
+        // unified snapshot so clients don't drift waiting for the next tick.
         startSegmentTimer(io, data.sessionId, remainingMs / 1000, callback);
       }
     }
 
     persistSessionState(data.sessionId, activeSession).catch(() => {});
+
+    io.to(sessionRoom(data.sessionId)).emit('timer:sync', {
+      segmentType: activeSession.status,
+      secondsRemaining: resumeSecondsRemaining,
+      paused: false,
+    });
 
     io.to(sessionRoom(data.sessionId)).emit('session:status_changed', {
       sessionId: data.sessionId,
@@ -353,7 +391,10 @@ export async function handleHostResume(
       isPaused: false,
     });
 
-    logger.info({ sessionId: data.sessionId }, 'Session resumed');
+    logger.info(
+      { sessionId: data.sessionId, resumeSecondsRemaining },
+      'Session resumed — broadcast unified timer:sync snapshot',
+    );
   } catch (err: any) {
     socket.emit('error', { code: 'RESUME_FAILED', message: err.message });
   }
@@ -1229,15 +1270,39 @@ export async function pauseSession(sessionId: string, hostUserId: string): Promi
     throw new ValidationError('Session cannot be paused');
   }
 
+  // Bug #1 fix — see handleHostPause for full rationale. Compute snapshot
+  // ONCE on server, broadcast unified timer:sync so all clients freeze at
+  // the same value (no per-client tick drift).
+  let pausedSecondsRemaining = 0;
   if (activeSession.timer && activeSession.timerEndsAt) {
-    const remaining = Math.max(0, activeSession.timerEndsAt.getTime() - Date.now());
+    const remainingMs = Math.max(0, activeSession.timerEndsAt.getTime() - Date.now());
+    pausedSecondsRemaining = Math.ceil(remainingMs / 1000);
     clearTimeout(activeSession.timer);
     activeSession.timer = null;
-    activeSession.pausedTimeRemaining = remaining;
+    activeSession.pausedTimeRemaining = remainingMs;
+  }
+  if (activeSession.timerSyncInterval) {
+    clearInterval(activeSession.timerSyncInterval);
+    activeSession.timerSyncInterval = null;
   }
 
   activeSession.isPaused = true;
-  logger.info({ sessionId }, 'Session paused via REST');
+
+  if (_io) {
+    _io.to(sessionRoom(sessionId)).emit('timer:sync', {
+      segmentType: activeSession.status,
+      secondsRemaining: pausedSecondsRemaining,
+      paused: true,
+    });
+    _io.to(sessionRoom(sessionId)).emit('session:status_changed', {
+      sessionId,
+      status: activeSession.status,
+      currentRound: activeSession.currentRound,
+      isPaused: true,
+    });
+  }
+
+  logger.info({ sessionId, pausedSecondsRemaining }, 'Session paused via REST');
 }
 
 export async function resumeSession(sessionId: string, hostUserId: string): Promise<void> {
@@ -1253,9 +1318,12 @@ export async function resumeSession(sessionId: string, hostUserId: string): Prom
 
   activeSession.isPaused = false;
 
+  // Bug #1 fix — same unified-snapshot pattern as handleHostResume.
+  let resumeSecondsRemaining = 0;
   if (activeSession.pausedTimeRemaining !== null && activeSession.pausedTimeRemaining > 0) {
     const remainingMs = activeSession.pausedTimeRemaining;
     activeSession.pausedTimeRemaining = null;
+    resumeSecondsRemaining = Math.ceil(remainingMs / 1000);
     if (_timerCallbacks) {
       const callback = getTimerCallbackForState(sessionId, activeSession, _timerCallbacks);
       startSegmentTimer(_io!, sessionId, remainingMs / 1000, callback);
@@ -1264,7 +1332,21 @@ export async function resumeSession(sessionId: string, hostUserId: string): Prom
     }
   }
 
-  logger.info({ sessionId }, 'Session resumed via REST');
+  if (_io) {
+    _io.to(sessionRoom(sessionId)).emit('timer:sync', {
+      segmentType: activeSession.status,
+      secondsRemaining: resumeSecondsRemaining,
+      paused: false,
+    });
+    _io.to(sessionRoom(sessionId)).emit('session:status_changed', {
+      sessionId,
+      status: activeSession.status,
+      currentRound: activeSession.currentRound,
+      isPaused: false,
+    });
+  }
+
+  logger.info({ sessionId, resumeSecondsRemaining }, 'Session resumed via REST');
 }
 
 export async function endSession(sessionId: string, hostUserId: string): Promise<void> {

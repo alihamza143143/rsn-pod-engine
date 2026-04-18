@@ -63,7 +63,12 @@ function VideoTile({ trackRef, label, isWaiting, isPinned }: { trackRef?: any; l
   return (
     <div className={`relative rounded-xl overflow-hidden ${hasVideo ? 'bg-black' : 'bg-[#3c4043]'} ${isPinned ? 'h-full w-full' : 'aspect-video'} flex items-center justify-center`}>
       {hasVideo ? (
-        <VideoTrack trackRef={trackRef} className={`h-full w-full ${isPinned ? 'object-contain' : 'object-cover'}`} />
+        // Object-cover universally — never object-contain. Portrait videos in
+        // landscape containers (and vice-versa) get cropped to fill, matching
+        // FaceTime / Google Meet / WhatsApp behavior. The previous isPinned
+        // ternary caused mobile portrait video to render with massive black
+        // bars (letterbox / pillarbox) on the host's pinned tile (Bug #2).
+        <VideoTrack trackRef={trackRef} className="h-full w-full object-cover" />
       ) : (
         <div className="flex flex-col items-center gap-2">
           <div className={`h-20 w-20 rounded-full bg-[#5f6368] flex items-center justify-center ${isWaiting ? 'animate-pulse' : ''}`}>

@@ -518,6 +518,20 @@ export default function useSessionSocket(sessionId: string) {
       const currentPhase = useSessionStore.getState().phase;
       if (currentPhase === 'lobby' || currentPhase === 'complete') return;
       store.setTimer(data.secondsRemaining);
+
+      // Bug #1 fix — honor server's paused flag in unified snapshot. When the
+      // host pauses, the server emits a single timer:sync with paused:true and
+      // an authoritative secondsRemaining. The client must STOP its 1s tick
+      // and freeze the displayed value at that snapshot — otherwise host and
+      // participants drift (network jitter = different "stop times").
+      if (data.paused === true) {
+        clearTimer();
+        store.setIsPaused(true);
+        return;
+      }
+      // Resume snapshot or normal periodic sync
+      if (data.paused === false) store.setIsPaused(false);
+
       // Always clear existing interval then start fresh — prevents ghost timer overlap
       if (data.secondsRemaining > 0) {
         clearTimer();
