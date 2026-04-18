@@ -88,6 +88,110 @@ describe('Dr Arch April 19 — Bug 8: Tighter timer sync interval (5s → 2s)', 
   });
 });
 
+describe('Dr Arch April 19 — Bug 6.5: Desktop video cells capped at 16:9 aspect', () => {
+  it('VideoRoom desktop grid cells wrap VideoTile in an aspectRatio:16/9 container', () => {
+    const src = nodeFs.readFileSync(
+      nodePath.join(__dirname, '../../../../../client/src/features/live/VideoRoom.tsx'),
+      'utf8',
+    );
+    // The inner wrapper around VideoTile in the desktop grid uses
+    // aspectRatio: '16 / 9' inline style to match webcam source aspect.
+    expect(src).toMatch(/aspectRatio:\s*['"]16\s*\/\s*9['"][\s\S]*?maxHeight:\s*['"]100%['"]/);
+  });
+
+  it('Pinned tile container uses the same 16:9 cap', () => {
+    const src = nodeFs.readFileSync(
+      nodePath.join(__dirname, '../../../../../client/src/features/live/VideoRoom.tsx'),
+      'utf8',
+    );
+    // Pinned view also wraps the VideoTile in an aspect-16/9 container so a
+    // landscape webcam fills the pinned area without a tall black bar below.
+    const pinnedBlock = src.match(/if \(pinnedTile\)[\s\S]{0,2000}/)?.[0] || '';
+    expect(pinnedBlock).toMatch(/aspectRatio:\s*['"]16\s*\/\s*9['"]/);
+  });
+});
+
+describe('Dr Arch April 19 — Bug 8.5: Single source of truth for timer (server endsAt)', () => {
+  it('timer-manager periodic sync includes endsAt ISO string', () => {
+    const src = readSource('../../../services/orchestration/handlers/timer-manager.ts');
+    // The periodic emit must include endsAt so clients derive their display
+    // from a single authoritative source instead of decrementing locally.
+    const block = src.match(/setInterval\([\s\S]*?timer:sync[\s\S]*?\}, \d+\)/)?.[0] || '';
+    expect(block).toMatch(/endsAt:\s*session\.timerEndsAt/);
+  });
+
+  it('handleHostExtendRound timer:sync includes endsAt', () => {
+    const src = readSource('../../../services/orchestration/handlers/host-actions.ts');
+    const fnStart = src.indexOf('export async function handleHostExtendRound');
+    expect(fnStart).toBeGreaterThan(-1);
+    const fn = src.slice(fnStart, fnStart + 2500);
+    expect(fn).toMatch(/timer:sync[\s\S]*?endsAt:\s*newEndsAt\.toISOString/);
+  });
+
+  it('handleHostPause timer:sync sends endsAt:null + paused:true', () => {
+    const src = readSource('../../../services/orchestration/handlers/host-actions.ts');
+    const fnStart = src.indexOf('export async function handleHostPause');
+    expect(fnStart).toBeGreaterThan(-1);
+    const fnEnd = src.indexOf('\nexport async function handleHostResume', fnStart);
+    const fn = src.slice(fnStart, fnEnd > -1 ? fnEnd : fnStart + 4000);
+    // Pause snapshot must explicitly null endsAt so client recompute pauses
+    expect(fn).toMatch(/paused:\s*true/);
+    expect(fn).toMatch(/endsAt:\s*null/);
+  });
+
+  it('handleHostResume timer:sync includes refreshed endsAt', () => {
+    const src = readSource('../../../services/orchestration/handlers/host-actions.ts');
+    const fnStart = src.indexOf('export async function handleHostResume');
+    expect(fnStart).toBeGreaterThan(-1);
+    const fnEnd = src.indexOf('\nexport ', fnStart + 30);
+    const fn = src.slice(fnStart, fnEnd > -1 ? fnEnd : fnStart + 4000);
+    expect(fn).toMatch(/endsAt:\s*activeSession\.timerEndsAt/);
+  });
+
+  it('emitHostDashboard payload includes timerEndsAt for unified host display', () => {
+    const src = readSource('../../../services/orchestration/handlers/matching-flow.ts');
+    const fnStart = src.indexOf('export async function emitHostDashboard');
+    expect(fnStart).toBeGreaterThan(-1);
+    // Function is large; scan to end of file or next export.
+    const fnEnd = src.indexOf('\nexport ', fnStart + 30);
+    const fn = src.slice(fnStart, fnEnd > -1 ? fnEnd : src.length);
+    // host:round_dashboard payload must include timerEndsAt so the host
+    // display matches participants (same source of truth).
+    expect(fn).toMatch(/timerEndsAt:/);
+  });
+
+  it('client store tickTimer recomputes from timerEndsAt (no local decrement)', () => {
+    const src = nodeFs.readFileSync(
+      nodePath.join(__dirname, '../../../../../client/src/stores/sessionStore.ts'),
+      'utf8',
+    );
+    // Find the IMPLEMENTATION (not the TS interface declaration) — the
+    // implementation uses an arrow body `tickTimer: () => set(...)`.
+    const implIdx = src.indexOf('tickTimer: () => set');
+    expect(implIdx).toBeGreaterThan(-1);
+    const tickBlock = src.slice(implIdx, implIdx + 800);
+    expect(tickBlock).toMatch(/s\.timerEndsAt/);
+    expect(tickBlock).toMatch(/getTime\(\)\s*-\s*Date\.now\(\)/);
+    // Hard-fail if anyone re-introduces the old decrement.
+    expect(tickBlock).not.toMatch(/timerSeconds\s*-\s*1/);
+  });
+});
+
+describe('Dr Arch April 19 — Bug 12: Room button visible at every stage', () => {
+  it('All-rounds-complete (isSessionEnding) screen exposes the Room button', () => {
+    const src = nodeFs.readFileSync(
+      nodePath.join(__dirname, '../../../../../client/src/features/live/HostControls.tsx'),
+      'utf8',
+    );
+    const idx = src.indexOf('isSessionEnding');
+    expect(idx).toBeGreaterThan(-1);
+    // The early-return block (when allRoundsDone) must include the Room
+    // button (UserPlus icon + "Room" label) alongside Another Round and End Event.
+    const allRoundsBlock = src.match(/All rounds complete[\s\S]{0,3500}/)?.[0] || '';
+    expect(allRoundsBlock).toMatch(/<UserPlus[\s\S]{0,200}Room/);
+  });
+});
+
 describe('Dr Arch April 19 — Bug 9: "Another Round" routes through Match People flow', () => {
   it('HostControls "Another Round" button emits host:generate_matches (not host:start_round)', () => {
     const src = readSource('../../../../../client/src/features/live/HostControls.tsx');

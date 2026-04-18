@@ -128,9 +128,11 @@ function VideoStage() {
   if (pinnedTile) {
     return (
       <div className="flex-1 flex flex-col gap-3 max-h-[calc(100dvh-160px)]">
-        {/* Pinned tile — large */}
-        <div className="flex-1 min-h-0 cursor-pointer" onClick={() => setPinnedSid(null)}>
-          <div className="relative h-full">
+        {/* Pinned tile — large. Bug 6.5: same aspect-video cap as the grid
+            cells so the pinned tile matches webcam source aspect (16:9)
+            and avoids the huge black bar below the video on tall windows. */}
+        <div className="flex-1 min-h-0 flex items-center justify-center cursor-pointer" onClick={() => setPinnedSid(null)}>
+          <div className="relative w-full" style={{ aspectRatio: '16 / 9', maxHeight: '100%' }}>
             <VideoTile trackRef={pinnedTile.trackRef} label={pinnedTile.label} isPinned />
             <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
               Pinned · click to unpin
@@ -157,17 +159,29 @@ function VideoStage() {
       {remoteTracks.length > 0 ? (
         <>
           {/* Desktop: equal grid tiles including self-view.
-              Bug 2 (April 18 Dr Arch): each cell is h-full + min-h-0 so the
-              VideoTile fills the cell vertically. Without h-full on the cell,
-              the tile defaulted to its natural height and shrank to a strip. */}
+              Bug 2 (April 18) — cells are h-full so VideoTile fills vertically.
+              Bug 6.5 (April 19) — cap each tile to 16:9 aspect ratio so the
+              tile matches the webcam source (which is universally 16:9). The
+              previous "fill the cell" approach made each cell ~960×920
+              (almost square) on a 1920px-wide desktop; with object-contain
+              that left huge black bars below the video. Now: cells flex-
+              center the inner tile with aspect-ratio 16/9 + max-h-full, so
+              the tile is naturally sized like a Google Meet tile (width =
+              column, height = width × 9/16). On short windows max-h-full
+              caps the height and width shrinks proportionally to maintain
+              the aspect ratio — no distortion, no overflow. */}
           <div className={`hidden md:grid h-full gap-4 ${isTrio ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-2'}`}>
             {remoteTracks.map((rt, i) => (
-              <div key={rt.participant.sid} className="h-full cursor-pointer" onClick={() => setPinnedSid(rt.participant.sid)}>
-                <VideoTile trackRef={rt} label={userDisplayLabel(rt.participant.name || currentPartners[i])} />
+              <div key={rt.participant.sid} className="h-full flex items-center justify-center cursor-pointer" onClick={() => setPinnedSid(rt.participant.sid)}>
+                <div className="w-full" style={{ aspectRatio: '16 / 9', maxHeight: '100%' }}>
+                  <VideoTile trackRef={rt} label={userDisplayLabel(rt.participant.name || currentPartners[i])} />
+                </div>
               </div>
             ))}
-            <div className="h-full cursor-pointer" onClick={() => setPinnedSid(localParticipant.sid)}>
-              <VideoTile trackRef={localTrack} label="You" />
+            <div className="h-full flex items-center justify-center cursor-pointer" onClick={() => setPinnedSid(localParticipant.sid)}>
+              <div className="w-full" style={{ aspectRatio: '16 / 9', maxHeight: '100%' }}>
+                <VideoTile trackRef={localTrack} label="You" />
+              </div>
             </div>
           </div>
 

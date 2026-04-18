@@ -110,6 +110,10 @@ export function startSegmentTimer(
       segmentType: session.status,
       secondsRemaining: Math.ceil(remainingMs / 1000),
       totalSeconds: durationSeconds,
+      // Bug 8.5: include the authoritative endsAt so clients compute
+      // their own display from a single source of truth instead of
+      // decrementing a fragile local counter (caused 60s+ drift).
+      endsAt: session.timerEndsAt!.toISOString(),
     });
   }, 2000);
 

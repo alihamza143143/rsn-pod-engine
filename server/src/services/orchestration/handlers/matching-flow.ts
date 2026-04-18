@@ -699,6 +699,11 @@ export async function emitHostDashboard(io: SocketServer, sessionId: string): Pr
       rooms,
       byeParticipants,
       timerSecondsRemaining,
+      // Bug 8.5: send endsAt so the host dashboard computes its display
+      // from the SAME source as participant tiles. Was: dashboard refreshed
+      // every 5s with a server-computed snapshot while participants
+      // decremented locally → host always showed MORE time than participants.
+      timerEndsAt: activeSession.timerEndsAt ? activeSession.timerEndsAt.toISOString() : null,
       eligibleMainRoomCount,
       reassignmentInProgress: false,
     });

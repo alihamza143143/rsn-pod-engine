@@ -224,8 +224,11 @@ export default function useSessionSocket(sessionId: string) {
       store.setPartnerDisconnected(false);
       store.setTransitionStatus(null);
       store.setMatchPreview(null);
-      const duration = Math.floor((new Date(data.endsAt).getTime() - Date.now()) / 1000);
-      store.setTimer(Math.max(0, duration));
+      // Bug 8.5: store the authoritative endsAt; the 1s interval just
+      // triggers tickTimer() which RECOMPUTES from endsAt (no local
+      // decrement). Eliminates drift from tab throttling, sleep, missed
+      // syncs.
+      store.setTimerEndsAt(new Date(data.endsAt));
       clearTimer();
       intervalRef.current = setInterval(() => store.tickTimer(), 1000);
     });
@@ -517,22 +520,32 @@ export default function useSessionSocket(sessionId: string) {
       // Only accept timer syncs when in a match or rating — ignore stale syncs in lobby
       const currentPhase = useSessionStore.getState().phase;
       if (currentPhase === 'lobby' || currentPhase === 'complete') return;
-      store.setTimer(data.secondsRemaining);
 
-      // Bug #1 fix — honor server's paused flag in unified snapshot. When the
-      // host pauses, the server emits a single timer:sync with paused:true and
-      // an authoritative secondsRemaining. The client must STOP its 1s tick
-      // and freeze the displayed value at that snapshot — otherwise host and
-      // participants drift (network jitter = different "stop times").
+      // Bug 8.5 — pause path: server sends endsAt:null + paused:true with
+      // an authoritative secondsRemaining snapshot. Freeze display at the
+      // snapshot, clear endsAt so the recompute path stops auto-decrementing.
       if (data.paused === true) {
         clearTimer();
         store.setIsPaused(true);
+        store.setTimerEndsAt(null);
+        store.setTimer(data.secondsRemaining);
         return;
       }
-      // Resume snapshot or normal periodic sync
       if (data.paused === false) store.setIsPaused(false);
 
-      // Always clear existing interval then start fresh — prevents ghost timer overlap
+      // Bug 8.5 — non-paused path: source-of-truth is server's endsAt.
+      // setTimerEndsAt also recomputes timerSeconds = ceil((endsAt - now) / 1000)
+      // immediately so the display jumps to the correct value within one
+      // socket round-trip — no waiting for the next 1s tick.
+      if (data.endsAt) {
+        store.setTimerEndsAt(new Date(data.endsAt));
+      } else if (typeof data.secondsRemaining === 'number') {
+        // Fallback: server didn't send endsAt (older payload, transitional).
+        store.setTimer(data.secondsRemaining);
+      }
+
+      // Always clear existing interval then start fresh — prevents ghost timer overlap.
+      // The interval triggers tickTimer() which RECOMPUTES from endsAt (no decrement).
       if (data.secondsRemaining > 0) {
         clearTimer();
         intervalRef.current = setInterval(() => store.tickTimer(), 1000);

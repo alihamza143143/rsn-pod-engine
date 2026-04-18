@@ -248,10 +248,6 @@ export default function HostControls({ sessionId }: Props) {
               <Button size="sm" onClick={() => {
                 // Bug 9 (April 19) — Another Round must follow the same flow as
                 // Round 1/2: Match People → preview → confirm → Start Round.
-                // Was emitting host:start_round directly which skipped the
-                // preview step and just dumped people into a new room.
-                // Server allows generate_matches in CLOSING_LOBBY state too
-                // (matching-flow.ts handleHostGenerateMatches).
                 if (eligibleCount < 2) {
                   alert(`Need at least 2 participants to start a round (currently ${eligibleCount})`);
                   return;
@@ -259,6 +255,20 @@ export default function HostControls({ sessionId }: Props) {
                 socket?.emit('host:generate_matches', { sessionId });
               }}>
                 <Shuffle className="h-4 w-4 mr-1" /> Another Round
+              </Button>
+              {/* Bug 12 (April 19) — Room (manual breakout) button must be
+                  available at EVERY stage: lobby, mid-round, between rounds,
+                  AND on the all-rounds-complete screen. Was hidden in the
+                  isSessionEnding block; participants are still connected
+                  here and the host might want a final manual breakout
+                  before End Event. */}
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => { setShowRoomModal(!showRoomModal); setRoomRows([new Set()]); }}
+                title="Create one or more breakout rooms"
+              >
+                <UserPlus className="h-4 w-4 mr-1" /> Room
               </Button>
               <Button size="sm" variant="danger" onClick={() => socket?.emit('host:end_session', { sessionId })}>
                 <Square className="h-4 w-4 mr-1" /> End Event

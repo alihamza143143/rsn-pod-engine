@@ -100,21 +100,23 @@ describe('Dr Arch April 18 — Bug 2: 1:1 + trio breakout tiles fill available s
     );
   });
 
-  it('desktop 1:1 grid cells are h-full so VideoTile fills cell vertically', () => {
-    // Hidden md:grid layout for 1:1: each remoteTrack + selfView wrapped in a
-    // div. That wrapper must be h-full (or use min-h-0 + flex) so the tile
-    // expands. Without h-full on the cell, aspect-video collapses the tile.
-    // We assert the desktop grid block uses h-full on its child cells.
+  it('desktop 1:1 grid cells are h-full + flex-center so VideoTile fills cell vertically', () => {
+    // Bug 6.5 (April 19): each grid cell now uses
+    // `h-full flex items-center justify-center cursor-pointer` so the inner
+    // 16:9-capped tile centers vertically inside the row. Previously the
+    // cell was just `h-full cursor-pointer` and the tile filled the entire
+    // cell — nearly square on a wide desktop, causing huge bottom black bar
+    // when source video was landscape 16:9.
     const desktopGridIdx = videoRoomSrc.indexOf("hidden md:grid h-full");
     expect(desktopGridIdx).toBeGreaterThan(-1);
-    // Within ~800 chars after the grid wrapper, the cells should be h-full
-    // (the cursor-pointer wrapper around each VideoTile).
-    const block = videoRoomSrc.slice(desktopGridIdx, desktopGridIdx + 1200);
-    // Each cell in the desktop grid must include h-full so children fill height.
-    // Multiple `h-full cursor-pointer` (or equivalent) markers expected.
-    const hFullCellMatches = (block.match(/className="h-full cursor-pointer"/g) || []).length
-      + (block.match(/className="cursor-pointer h-full"/g) || []).length;
-    expect(hFullCellMatches).toBeGreaterThanOrEqual(2);
+    const block = videoRoomSrc.slice(desktopGridIdx, desktopGridIdx + 1800);
+    // Cells must include h-full AND flex-center so the inner 16:9 wrapper
+    // can center vertically. Allow the markers in any order on the className.
+    const cellMatches = (block.match(/className="h-full flex items-center justify-center cursor-pointer"/g) || []).length;
+    expect(cellMatches).toBeGreaterThanOrEqual(2);
+    // The inner 16:9 wrapper is what holds the actual VideoTile. Verify it
+    // exists (aspectRatio inline style + maxHeight: 100%).
+    expect(block).toMatch(/aspectRatio:\s*['"]16\s*\/\s*9['"][\s\S]*?maxHeight:\s*['"]100%['"]/);
   });
 
   it('VideoTile applies h-full w-full when not pinned (replaces aspect-video collapse)', () => {

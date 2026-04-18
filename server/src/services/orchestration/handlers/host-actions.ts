@@ -325,10 +325,13 @@ export async function handleHostPause(
     // Unified snapshot — same secondsRemaining for host AND participants.
     // Client useSessionSocket reads `paused` to stop its 1s tick interval and
     // freeze the displayed value at secondsRemaining.
+    // Bug 8.5: endsAt:null signals to the client to clear timerEndsAt so
+    // the recompute path stops auto-decrementing during pause.
     io.to(sessionRoom(data.sessionId)).emit('timer:sync', {
       segmentType: activeSession.status,
       secondsRemaining: pausedSecondsRemaining,
       paused: true,
+      endsAt: null,
     });
 
     io.to(sessionRoom(data.sessionId)).emit('session:status_changed', {
@@ -391,10 +394,14 @@ export async function handleHostResume(
 
     persistSessionState(data.sessionId, activeSession).catch(() => {});
 
+    // Bug 8.5: include endsAt so clients restart their derived-from-endsAt
+    // computation. activeSession.timerEndsAt was reset by startSegmentTimer
+    // above to (now + remainingMs) — exactly what the client needs.
     io.to(sessionRoom(data.sessionId)).emit('timer:sync', {
       segmentType: activeSession.status,
       secondsRemaining: resumeSecondsRemaining,
       paused: false,
+      endsAt: activeSession.timerEndsAt ? activeSession.timerEndsAt.toISOString() : null,
     });
 
     io.to(sessionRoom(data.sessionId)).emit('session:status_changed', {
@@ -1068,11 +1075,14 @@ export async function handleHostExtendRound(
       }, remainingMs);
     }
 
-    // Broadcast updated timer to all participants
+    // Broadcast updated timer to all participants. Bug 8.5: include endsAt
+    // so the client's derived-from-endsAt computation immediately reflects
+    // the +120s extension instead of waiting for the next periodic sync.
     const remaining = Math.ceil(remainingMs / 1000);
     io.to(sessionRoom(data.sessionId)).emit('timer:sync', {
       segmentType: activeSession.status,
       secondsRemaining: remaining,
+      endsAt: newEndsAt.toISOString(),
     });
 
     persistSessionState(data.sessionId, activeSession);

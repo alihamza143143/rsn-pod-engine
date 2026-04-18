@@ -4602,3 +4602,66 @@ User reported 4 issues during live testing on the branded api.rsn.network endpoi
 - `server/src/services/orchestration/handlers/timer-manager.ts` (Bug 8 sync interval)
 - `server/src/services/orchestration/handlers/matching-flow.ts` (Bug 9 CLOSING_LOBBY allowed)
 - `server/src/__tests__/services/orchestration/dr-arch-april-19-bugs.test.ts` (new)
+
+---
+
+## 2026-04-19 (03:50 UTC) — Bug 6.5 + 8.5 + 12 (timer/video/UI)
+
+User stressed during live testing that the previous 2026-04-18 fixes weren't enough:
+- Video tile still had huge bottom black bar on desktop (Bug 6 follow-up)
+- Host timer (8:27) and breakout participant timer (7:30) drifted ~57s apart even after the 5s→2s sync interval fix (Bug 8 was a band-aid)
+- "Room" (manual breakout) button was hidden on the all-rounds-complete screen
+
+Did a deep Dr Arch dive before any code; user approved plan; implemented autonomously.
+
+### Bug 6.5 — Desktop video tile aspect-ratio cap
+
+Root cause: my prior fix changed the inner `<VideoTrack>` className from object-cover to object-contain (correct), and the global CSS override in index.css (correct). BUT the grid CELL was still ~960x920 (nearly square) on a 1920px-wide desktop. With landscape webcam source (16:9), object-contain shows the video at 960×540 leaving ~380px of empty space below.
+
+Fix: each grid cell now wraps the VideoTile in an inner container with `aspectRatio: '16 / 9'` + `maxHeight: '100%'`, and the grid cell uses `flex items-center justify-center` to center the inner tile vertically. Tile naturally matches webcam source aspect; no big black bar. Pinned view gets the same treatment.
+
+### Bug 8.5 — Single source of truth for the timer
+
+Root cause: THREE timer sources running in parallel:
+1. `host:round_dashboard.timerSecondsRemaining` (server-computed every 5s) → host display
+2. `timer:sync.secondsRemaining` (server every 2s) → participant store
+3. `useSessionStore.tickTimer` (client local 1s decrement) → participant display
+
+Local decrement is fragile to tab throttling, browser sleep, clock skew, missed syncs during reconnect — easily produces 60s+ drift between host and participants.
+
+Fix: ONE source of truth — server's authoritative `endsAt` ISO timestamp.
+- Server: every `timer:sync` (periodic, pause, resume, extend) now includes `endsAt`. Pause sends `endsAt: null` so client recompute pauses. Resume includes refreshed endsAt.
+- Server: `host:round_dashboard` payload also includes `timerEndsAt`.
+- Client: store has new `timerEndsAt: Date | null`. `tickTimer()` no longer decrements — it recomputes `timerSeconds = max(0, ceil((endsAt - Date.now()) / 1000))`. Immune to tab throttling because the value is always derived from the wall clock.
+- Client: `setTimerEndsAt()` immediately updates timerSeconds so display jumps to the correct value within one socket round-trip — no waiting for the next tick.
+- HostRoundDashboard already reads `timerSeconds` from the store, so host now displays the SAME computed value as participants.
+
+Forward-compat: when phase 2 (Redis) lands, `endsAt` becomes a single key in Redis and timer:sync becomes pub/sub-driven.
+
+### Bug 12 — "Room" button always visible
+
+The all-rounds-complete (`isSessionEnding`) screen previously only showed Announcement / Another Round / End Event. Host couldn't create a final manual breakout. Fix: added the Room button to that block too. Now visible at every stage: lobby, mid-round, between rounds, after all rounds done.
+
+### Additional ship from this session
+
+- **Bug 9 follow-up reminder**: "Another Round" already routes through Match People preview flow (shipped in 1ac8f76).
+- **Bug 7 reminder**: manual breakout overlap rejection already shipped in 1ac8f76.
+
+### Tests
+
+- Updated `dr-arch-april-18-bugs.test.ts` Bug 2 assertion to match the new flex-center cell layout.
+- New file `dr-arch-april-19-bugs.test.ts` updated with 9 assertions covering 6.5, 8.5, 12.
+- 446/446 server tests pass (was 437 — +9 new).
+
+### Files touched
+
+- `client/src/index.css` (Bug 6 already from prior commit — no change)
+- `client/src/features/live/VideoRoom.tsx` (Bug 6.5 grid cell aspect cap + pinned)
+- `client/src/features/live/HostControls.tsx` (Bug 12 Room button in isSessionEnding)
+- `client/src/stores/sessionStore.ts` (Bug 8.5 timerEndsAt + tickTimer rewrite)
+- `client/src/hooks/useSessionSocket.ts` (Bug 8.5 setTimerEndsAt on session:round_started + timer:sync)
+- `server/src/services/orchestration/handlers/timer-manager.ts` (Bug 8.5 endsAt in periodic sync)
+- `server/src/services/orchestration/handlers/host-actions.ts` (Bug 8.5 endsAt in pause/resume/extend)
+- `server/src/services/orchestration/handlers/matching-flow.ts` (Bug 8.5 timerEndsAt in dashboard)
+- `server/src/__tests__/services/orchestration/dr-arch-april-18-bugs.test.ts` (Bug 2 assertion update)
+- `server/src/__tests__/services/orchestration/dr-arch-april-19-bugs.test.ts` (Bug 6.5/8.5/12 assertions)

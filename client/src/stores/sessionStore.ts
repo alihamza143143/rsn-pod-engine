@@ -106,7 +106,18 @@ interface SessionLiveState {
   addParticipant: (p: Participant) => void;
   removeParticipant: (userId: string) => void;
   setMatch: (m: MatchPartner | null, matchId?: string | null, partners?: MatchPartner[]) => void;
+  // Bug 8.5 (April 19) — Timer is now derived from server's authoritative
+  // `endsAt` timestamp, NOT from a local 1s decrement. Local decrement was
+  // fragile to tab throttling, browser sleep, clock skew, and missed syncs
+  // during reconnect — easily producing >60s drift between host and
+  // participants. Now: server sends `endsAt`; client recomputes
+  // `timerSeconds = max(0, ceil((endsAt - now) / 1000))` on every tick.
+  // The 1s "tick" interval still runs, but it just triggers a recompute
+  // — never decrements. Result: drift bounded by clock skew (few seconds)
+  // regardless of how many ticks the client missed.
+  timerEndsAt: Date | null;
   setTimer: (s: number) => void;
+  setTimerEndsAt: (endsAt: Date | null) => void;
   tickTimer: () => void;
   setRound: (r: number) => void;
   addBroadcast: (msg: string) => void;
@@ -154,6 +165,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   currentPartners: [],
   currentMatchId: null,
   timerSeconds: 0,
+  timerEndsAt: null,
   currentRound: 0,
   broadcasts: [],
   error: null,
@@ -198,7 +210,25 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   })),
   setMatch: (currentMatch, matchId = null, partners = []) => set({ currentMatch, currentMatchId: matchId, currentPartners: partners }),
   setTimer: (timerSeconds) => set({ timerSeconds }),
-  tickTimer: () => set((s) => ({ timerSeconds: Math.max(0, s.timerSeconds - 1) })),
+  setTimerEndsAt: (timerEndsAt) => set(() => {
+    // Whenever endsAt is updated, immediately recompute the displayed
+    // seconds. Pause path passes null and uses setTimer separately to
+    // freeze the displayed value at the snapshot.
+    if (!timerEndsAt) return { timerEndsAt: null };
+    const remaining = Math.max(0, Math.ceil((timerEndsAt.getTime() - Date.now()) / 1000));
+    return { timerEndsAt, timerSeconds: remaining };
+  }),
+  tickTimer: () => set((s) => {
+    // Bug 8.5 (April 19) — recompute from authoritative server endsAt
+    // instead of decrementing a local counter. Decrementing was fragile
+    // to tab throttling, sleep, clock skew, and missed syncs during
+    // reconnect — producing >60s drift between host and participants.
+    // When timerEndsAt is null (paused or no active timer), keep the
+    // existing displayed value so paused snapshots stay frozen.
+    if (!s.timerEndsAt || s.isPaused) return {};
+    const remaining = Math.max(0, Math.ceil((s.timerEndsAt.getTime() - Date.now()) / 1000));
+    return { timerSeconds: remaining };
+  }),
   setRound: (currentRound) => set({ currentRound }),
   addBroadcast: (msg) => set((s) => ({ broadcasts: [...s.broadcasts.slice(-9), msg] })),
   setError: (error) => set({ error }),
@@ -254,7 +284,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
     phase: 'lobby', connectionStatus: 'connecting', transitionStatus: null,
     sessionStatus: 'scheduled', hostInLobby: false, hostUserId: null, totalRounds: 5,
     participants: [], currentMatch: null, currentPartners: [], currentMatchId: null,
-    timerSeconds: 0, currentRound: 0, broadcasts: [], error: null,
+    timerSeconds: 0, timerEndsAt: null, currentRound: 0, broadcasts: [], error: null,
     isReconnecting: false, isByeRound: false, liveKitToken: null, livekitUrl: null, currentRoomId: null,
     lobbyToken: null, lobbyUrl: null, lobbyRoomId: null,
     timerVisibility: 'always_visible', breakoutTimerHidden: false, matchPreview: null,
