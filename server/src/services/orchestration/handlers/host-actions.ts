@@ -16,6 +16,7 @@ import {
 import {
   ActiveSession, activeSessions, withSessionGuard,
   sessionRoom, userRoom, getUserIdFromSocket, persistSessionState,
+  emitRatingWindowOnce,
 } from '../state/session-state';
 import { startSegmentTimer, getTimerCallbackForState, TimerCallbacks } from './timer-manager';
 import * as sessionService from '../../session/session.service';
@@ -723,7 +724,7 @@ export async function handleHostRemoveFromRoom(
         const pnm = new Map(partnerNameRes.rows.map(r => [r.id, r.display_name || 'Partner']));
         const partnersWithNames = partnerIds.map(pid => ({ userId: pid, displayName: pnm.get(pid) || 'Partner' }));
 
-        io.to(userRoom(data.userId)).emit('rating:window_open', {
+        await emitRatingWindowOnce(io, data.userId, data.matchId, {
           matchId: data.matchId,
           partnerId: partnerIds[0],
           partnerDisplayName: pnm.get(partnerIds[0]) || 'Partner',
@@ -775,7 +776,7 @@ export async function handleHostRemoveFromRoom(
           for (const partnerId of partnerIds) {
             await sessionService.updateParticipantStatus(data.sessionId, partnerId, ParticipantStatus.IN_LOBBY).catch(() => {});
 
-            io.to(userRoom(partnerId)).emit('rating:window_open', {
+            await emitRatingWindowOnce(io, partnerId, data.matchId, {
               matchId: data.matchId,
               partnerId: data.userId,
               partnerDisplayName: removedName,
@@ -1544,7 +1545,7 @@ export async function handleHostCreateBreakout(
 
               await sessionService.updateParticipantStatus(sessionId, pid, ParticipantStatus.IN_LOBBY).catch(() => {});
 
-              io.to(userRoom(pid)).emit('rating:window_open', {
+              await emitRatingWindowOnce(io, pid, matchId, {
                 matchId,
                 partnerId: partners[0]?.userId,
                 partnerDisplayName: partners[0]?.displayName,

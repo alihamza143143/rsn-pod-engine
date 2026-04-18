@@ -13,7 +13,7 @@ import { SessionStatus, ParticipantStatus, UserRole } from '@rsn/shared';
 import {
   ActiveSession, activeSessions, disconnectTimeouts, withSessionGuard,
   sessionRoom, userRoom, getUserIdFromSocket,
-  chatMessages,
+  chatMessages, emitRatingWindowOnce,
 } from '../state/session-state';
 import * as sessionService from '../../session/session.service';
 import * as matchingService from '../../matching/matching.service';
@@ -188,6 +188,40 @@ export async function handleJoinSession(
         }
       } catch {
         // Participant may not exist (e.g. host who's not a participant) — that's OK
+      }
+
+      // ── FIX A: Defensive status reset for stuck disconnected/in_round users ──
+      // If the user is reconnecting AFTER their match was already terminated
+      // (disconnect timeout fired, host ended room, or partner left), their
+      // session_participants.status can be left at 'disconnected' or 'in_round'.
+      // Both make them ineligible for future manual rooms / algorithm rounds
+      // (host-actions.ts:227, matching-flow.ts:545,550 filter for in_lobby/
+      // checked_in/registered). Explicit guard: if no active match exists for
+      // this user, force status back to 'in_lobby' so they can be matched again.
+      try {
+        const userActiveMatch = await query<{ id: string }>(
+          `SELECT id FROM matches
+           WHERE session_id = $1 AND status = 'active'
+             AND (participant_a_id = $2 OR participant_b_id = $2 OR participant_c_id = $2)
+           LIMIT 1`,
+          [data.sessionId, userId],
+        );
+        if (userActiveMatch.rows.length === 0) {
+          const resetResult = await query<{ user_id: string }>(
+            `UPDATE session_participants SET status = 'in_lobby'
+             WHERE session_id = $1 AND user_id = $2
+               AND status IN ('disconnected', 'in_round')
+             RETURNING user_id`,
+            [data.sessionId, userId],
+          );
+          if (resetResult.rows.length > 0) {
+            logger.info({ sessionId: data.sessionId, userId },
+              'Fix A: reset stuck participant status (disconnected/in_round → in_lobby) on reconnect');
+          }
+        }
+      } catch (resetErr) {
+        logger.warn({ err: resetErr, sessionId: data.sessionId, userId },
+          'Fix A status-reset query failed — non-fatal');
       }
 
       // Notify others — include isHost flag for client-side tracking
@@ -852,7 +886,7 @@ export async function handleLeaveConversation(
               );
               const departedName = departedNameRes.rows[0]?.display_name || 'Partner';
 
-              io.to(userRoom(soloPartnerId)).emit('rating:window_open', {
+              await emitRatingWindowOnce(io, soloPartnerId, userMatch.id, {
                 matchId: userMatch.id,
                 partnerId: userId,
                 partnerDisplayName: departedName,

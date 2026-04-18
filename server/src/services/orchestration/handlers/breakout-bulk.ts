@@ -25,7 +25,7 @@ import logger from '../../../config/logger';
 import { query } from '../../../db';
 import { ParticipantStatus } from '@rsn/shared';
 import {
-  activeSessions, withSessionGuard, userRoom,
+  activeSessions, withSessionGuard, userRoom, emitRatingWindowOnce,
 } from '../state/session-state';
 import {
   roomTimers, roomSyncIntervals, RoomTimerState, verifyHost, clearRoomTimers,
@@ -291,7 +291,7 @@ export async function handleHostCreateBreakoutBulk(
 
               await sessionService.updateParticipantStatus(sessionId, pid, ParticipantStatus.IN_LOBBY).catch(() => {});
 
-              io.to(userRoom(pid)).emit('rating:window_open', {
+              await emitRatingWindowOnce(io, pid, matchId, {
                 matchId,
                 partnerId: partners[0]?.userId,
                 partnerDisplayName: partners[0]?.displayName,
@@ -456,7 +456,7 @@ export async function handleHostEndBreakoutAll(
 
         await sessionService.updateParticipantStatus(sessionId, pid, ParticipantStatus.IN_LOBBY).catch(() => {});
 
-        io.to(userRoom(pid)).emit('rating:window_open', {
+        await emitRatingWindowOnce(io, pid, m.id, {
           matchId: m.id,
           partnerId: partners[0]?.userId,
           partnerDisplayName: partners[0]?.displayName,

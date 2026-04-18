@@ -225,6 +225,41 @@ async function persistChatToRedis(sessionId: string, messages: ChatMessage[]): P
   } catch { /* non-fatal */ }
 }
 
+// ─── Rating Emit Dedup Helper ───────────────────────────────────────────────
+//
+// Centralised dedup for `rating:window_open` emits. Many flows can fire this
+// event for the same (matchId, userId): voluntary leave, host-remove,
+// breakout-end, disconnect→reassign, reconnect-replay, end-of-round. Without
+// dedup, a user who already submitted a rating gets the form again — they
+// either resubmit (duplicate insert attempt → ConflictError, with the rating
+// silently overwritten via ON CONFLICT DO UPDATE) or are confused by a stale
+// prompt for a partner they already rated.
+//
+// This helper checks the ratings table and skips the emit if a rating exists.
+// Fail-open: if the DB query errors, we still emit (better a duplicate prompt
+// than a missed one — and the rating service itself will reject the dup).
+
+export async function emitRatingWindowOnce(
+  io: { to: (room: string) => { emit: (event: string, payload: unknown) => void } },
+  userId: string,
+  matchId: string,
+  payload: unknown,
+): Promise<void> {
+  try {
+    const existing = await query<{ id: string }>(
+      `SELECT id FROM ratings WHERE match_id = $1 AND from_user_id = $2 LIMIT 1`,
+      [matchId, userId],
+    );
+    if (existing.rows.length > 0) {
+      logger.info({ matchId, userId }, 'Skipping rating:window_open — user already rated this match');
+      return;
+    }
+  } catch (err) {
+    logger.warn({ err, matchId, userId }, 'rating dedup check failed — emitting anyway (fail-open)');
+  }
+  io.to(userRoom(userId)).emit('rating:window_open', payload);
+}
+
 // ─── Health / Diagnostics ───────────────────────────────────────────────────
 
 /** Number of active sessions currently tracked in memory */

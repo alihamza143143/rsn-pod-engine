@@ -4270,3 +4270,71 @@ Applied fixes based on client (Stefan/Shradha) feedback on Change 1.5.
 - GitHub CI: last 3 runs green
 - Vercel: 200 OK
 - DB: 37 users, 0 active sessions, 0 active matches, migrations 037/038/039 applied
+
+---
+
+## 2026-04-18 — Disconnect-rejoin bug fix (live test b6cdea35)
+
+### Bug
+
+Live test session `b6cdea35` exposed two related bugs in the disconnect+rejoin path:
+
+1. **Stuck participant status**: when a user disconnected mid-match and the
+   server ended the match (status='completed' due to >30s duration + ratings
+   present), the user's `session_participants.status` remained at `disconnected`
+   or `in_round`. On rejoin the existing flow usually self-heals via
+   `updateParticipantStatus`, but under race conditions (timeout fired AFTER
+   rejoin began, or `registerParticipant` swallowed a ConflictError without
+   updating status) the user could be left ineligible for future manual rooms
+   / rounds (host-actions filter `status IN (in_lobby, checked_in, registered)`).
+
+2. **Duplicate `rating:window_open` emit**: Bug D's earlier fix only added
+   dedup in round-end (`round-lifecycle.ts`). The disconnect+rejoin and
+   manual-room-end paths in `host-actions.ts`, `breakout-bulk.ts`, and
+   `participant-flow.ts` still re-fired the rating prompt for users who had
+   already submitted a rating, producing the duplicate insert observed at
+   `23:55:51` then again at `23:58:58` for the same `matchId=93c73fd8`.
+
+### Fix A — defensive status reset on reconnect
+
+In `handleJoinSession` after the standard `updateParticipantStatus` block, add
+an explicit guard: query for any active match involving the user; if NONE,
+`UPDATE session_participants SET status = 'in_lobby' WHERE status IN
+('disconnected', 'in_round')`. Logs only when a row is actually reset (no
+noise for happy path).
+
+### Fix B — centralized `emitRatingWindowOnce` helper
+
+New helper in `services/orchestration/state/session-state.ts`:
+
+```ts
+export async function emitRatingWindowOnce(io, userId, matchId, payload) {
+  // SELECT id FROM ratings WHERE match_id=$1 AND from_user_id=$2 LIMIT 1
+  // skip emit if rating exists, fail-open on DB error
+}
+```
+
+Applied to all 6 emit sites that target a specific user via `io.to(userRoom)`:
+- `host-actions.ts` x3 (host-remove user, host-remove partner, breakout
+  per-room timer expiry)
+- `breakout-bulk.ts` x2 (per-room expiry, bulk-end)
+- `participant-flow.ts` x1 (auto-reassign solo partner timeout)
+
+The 2 `socket.emit` calls in `participant-flow.ts` already had inline dedup
+(reconnect-replay) or are immediately on user action (leave-conversation) and
+don't need the helper. Round-end in `round-lifecycle.ts` keeps its existing
+batched dedup pattern.
+
+### Files touched
+
+- `server/src/services/orchestration/state/session-state.ts` — new helper
+- `server/src/services/orchestration/handlers/participant-flow.ts` — Fix A + helper at solo-partner reassign
+- `server/src/services/orchestration/handlers/host-actions.ts` — helper at 3 sites
+- `server/src/services/orchestration/handlers/breakout-bulk.ts` — helper at 2 sites
+- `server/src/__tests__/services/orchestration/disconnect-rejoin.test.ts` — 10 new tests (TDD: helper behaviour, fail-open path, structural assertions for emit sites + Fix A SQL ordering)
+
+### Test suite
+
+- 364 → **374 passing** (28 suites, +10 new tests, no regressions)
+- TS strict / `tsc --noEmit` clean
+- `npm run build` clean
