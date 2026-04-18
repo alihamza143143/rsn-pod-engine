@@ -26,7 +26,12 @@ describe('Bug #1 — Pause timer sync (no drift between host and participants)',
       // inside that block, not anywhere else in the file.
       const pauseIdx = content.indexOf('export async function handleHostPause');
       expect(pauseIdx).toBeGreaterThan(-1);
-      const pauseBlock = content.slice(pauseIdx, pauseIdx + 2500);
+      // Slice until the next `export async function` or +5000 chars (whichever
+      // comes first) — the function grew with Bug 8.6 (April 19) timerEndsAt
+      // null-clear comments, pushing the timer:sync emit past the old 2500
+      // window.
+      const nextExport = content.indexOf('\nexport async function ', pauseIdx + 30);
+      const pauseBlock = content.slice(pauseIdx, nextExport > -1 ? nextExport : pauseIdx + 5000);
 
       // Must compute remaining ONCE from endsAt - Date.now() and use Math.ceil
       // for the second-precision snapshot.
