@@ -267,6 +267,11 @@ export async function transitionToRound(
           logger.error({ matchId: match.id, sessionId }, 'Match cancelled due to room creation failure');
         }
       }
+      // Architectural rule: emit dashboard after batch transition. The
+      // post-transition emit at L409 will cover this for the happy path,
+      // but emitting here too keeps the contract local to the UPDATE site
+      // and makes the rule trivially auditable.
+      emitHostDashboard(io, sessionId);
     }
 
     // Step 3: Batch-update ALL matches to active status in one query
@@ -441,6 +446,11 @@ export async function endRound(
        WHERE session_id = $1 AND round_number = $2 AND status = 'active'`,
       [sessionId, roundNumber]
     );
+
+    // Architectural rule: refresh host dashboard on every match transition.
+    // Round-end completes a batch — emit immediately so the host sees the
+    // ROUND_RATING state without waiting for the next polling tick.
+    emitHostDashboard(io, sessionId);
 
     // Broadcast round end
     io.to(sessionRoom(sessionId)).emit('session:round_ended', {
@@ -910,6 +920,7 @@ export async function detectNoShows(
 
   try {
     const matches = await matchingService.getMatchesByRound(sessionId, roundNumber);
+    let anyTransition = false;
 
     for (const match of matches) {
       if (match.status !== 'active') continue;
@@ -923,6 +934,7 @@ export async function detectNoShows(
           `UPDATE matches SET status = 'no_show' WHERE id = $1`,
           [match.id]
         );
+        anyTransition = true;
         await sessionService.updateParticipantStatus(sessionId, match.participantAId, ParticipantStatus.NO_SHOW);
         await sessionService.updateParticipantStatus(sessionId, match.participantBId, ParticipantStatus.NO_SHOW);
         await query(
@@ -940,6 +952,7 @@ export async function detectNoShows(
           `UPDATE matches SET status = 'no_show' WHERE id = $1`,
           [match.id]
         );
+        anyTransition = true;
         await sessionService.updateParticipantStatus(sessionId, missingUserId, ParticipantStatus.NO_SHOW);
         await query(
           'UPDATE session_participants SET is_no_show = TRUE WHERE session_id = $1 AND user_id = $2',
@@ -954,6 +967,13 @@ export async function detectNoShows(
 
         logger.warn({ sessionId, roundNumber, missingUserId, waitingUserId }, 'No-show detected');
       }
+    }
+
+    // Architectural rule: refresh host dashboard on every match transition.
+    // Batch all no-show updates into a single emit (avoids dashboard spam
+    // when many matches no-show at once).
+    if (anyTransition) {
+      emitHostDashboard(io, sessionId);
     }
   } catch (err) {
     logger.error({ err, sessionId, roundNumber }, 'Error detecting no-shows');

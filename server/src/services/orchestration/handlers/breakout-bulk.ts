@@ -29,6 +29,7 @@ import {
 } from '../state/session-state';
 import {
   roomTimers, roomSyncIntervals, RoomTimerState, verifyHost, clearRoomTimers,
+  ensureManualDashboardInterval,
 } from './host-actions';
 import * as sessionService from '../../session/session.service';
 import * as videoService from '../../video/video.service';
@@ -341,6 +342,9 @@ export async function handleHostCreateBreakoutBulk(
     }
 
     if (_emitHostDashboard) await _emitHostDashboard(sessionId).catch(() => {});
+    // Defensive: ensure LOBBY_OPEN dashboard polling is running while any
+    // active manual match exists. Self-stops once they all drain.
+    ensureManualDashboardInterval(io, sessionId);
 
     logger.info(
       { sessionId, roomCount: rooms.length, createdMatchIds, sharedDurationSeconds, timerVisibility },

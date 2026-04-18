@@ -721,6 +721,12 @@ export async function handleLeaveConversation(
       // Clear any per-room timer/sync for this match (prevents ghost timers)
       clearRoomTimers(userMatch.id);
 
+      // Architectural rule: refresh host dashboard on every match transition.
+      // Manual rooms run during LOBBY_OPEN where the round-lifecycle polling
+      // interval doesn't cover us, so emit explicitly here to clear the
+      // ghost-room card from the host's view.
+      emitHostDashboard(sessionId);
+
       // Move user back to lobby status
       await sessionService.updateParticipantStatus(sessionId, userId, ParticipantStatus.IN_LOBBY);
 
@@ -1027,6 +1033,11 @@ export async function handleDisconnect(
                   { sessionId, matchId: disconnectMatchId, userId, durationS, ratingCount, terminalStatus },
                   'Match ended by disconnect',
                 );
+
+                // Architectural rule: refresh host dashboard on every match
+                // transition. Manual rooms during LOBBY_OPEN need this since
+                // the round-lifecycle polling only runs in ROUND_ACTIVE.
+                emitHostDashboard(sessionId);
 
                 // Step 3: Try auto-reassignment — find another isolated participant via presence
                 const isolatedUserIds = await findIsolatedParticipants(

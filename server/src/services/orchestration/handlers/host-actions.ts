@@ -1411,6 +1411,80 @@ export function clearRoomTimers(matchId: string): void {
   if (interval) { clearInterval(interval); roomSyncIntervals.delete(matchId); }
 }
 
+// ─── LOBBY_OPEN dashboard polling — defensive safety net ──────────────────
+//
+// The round-lifecycle dashboard polling interval (round-lifecycle.ts) only runs
+// during ROUND_ACTIVE. Manual breakout rooms (handleHostCreateBreakout +
+// handleHostCreateBreakoutBulk) run during LOBBY_OPEN, so the dashboard never
+// auto-refreshed during that phase and ghost-room cards persisted indefinitely
+// when matches transitioned to terminal status.
+//
+// This map tracks per-session polling intervals that fire while there is at
+// least one active manual match. The interval self-stops when no manual match
+// remains, so it has zero overhead during normal (algorithm) rounds.
+//
+// Forward-compat: phase 2 Redis pub/sub can replace this poll by subscribing
+// to a `match:status_changed` channel — call sites already emit at every
+// transition, so the migration is mechanical (poll → subscribe).
+
+export const manualDashboardIntervals = new Map<string, NodeJS.Timeout>();
+
+const MANUAL_DASHBOARD_INTERVAL_MS = 5000;
+
+/**
+ * Ensure a per-session 5s dashboard refresh interval is running. Idempotent —
+ * calling twice for the same session returns the same handle. The interval
+ * self-stops when no active manual matches remain for the session (or the
+ * session leaves activeSessions entirely).
+ *
+ * Call this from any flow that creates a manual breakout room (single or bulk).
+ */
+export function ensureManualDashboardInterval(_io: SocketServer, sessionId: string): void {
+  if (manualDashboardIntervals.has(sessionId)) return;
+
+  const interval = setInterval(async () => {
+    const session = activeSessions.get(sessionId);
+    if (!session) {
+      const h = manualDashboardIntervals.get(sessionId);
+      if (h) clearInterval(h);
+      manualDashboardIntervals.delete(sessionId);
+      return;
+    }
+
+    // Stop polling once active manual matches drain — saves CPU during long
+    // idle stretches between rounds. Caller will start a fresh interval the
+    // next time a manual room is created.
+    let hasActiveManual = false;
+    try {
+      const r = await query<{ exists: boolean }>(
+        `SELECT EXISTS(
+           SELECT 1 FROM matches
+           WHERE session_id = $1 AND status = 'active' AND is_manual = TRUE
+         ) AS exists`,
+        [sessionId],
+      );
+      hasActiveManual = r.rows[0]?.exists === true;
+    } catch (err) {
+      // DB blip — keep polling next tick rather than dropping the interval
+      logger.warn({ err, sessionId }, 'Manual-dashboard poll: DB check failed, will retry');
+      return;
+    }
+
+    if (!hasActiveManual) {
+      const h = manualDashboardIntervals.get(sessionId);
+      if (h) clearInterval(h);
+      manualDashboardIntervals.delete(sessionId);
+      return;
+    }
+
+    if (_emitHostDashboard) {
+      await _emitHostDashboard(sessionId).catch(() => {});
+    }
+  }, MANUAL_DASHBOARD_INTERVAL_MS);
+
+  manualDashboardIntervals.set(sessionId, interval);
+}
+
 export async function handleHostCreateBreakout(
   io: SocketServer,
   socket: Socket,
@@ -1675,10 +1749,14 @@ export async function handleHostCreateBreakout(
         }
       }
 
-      // Step 6: Refresh dashboard
+      // Step 6: Refresh dashboard + start LOBBY_OPEN polling safety net
       if (_emitHostDashboard) {
         await _emitHostDashboard(sessionId).catch(() => {});
       }
+      // Defensive: keep dashboard fresh during LOBBY_OPEN. Self-stops when no
+      // active manual matches remain (covers any transition that might miss
+      // an explicit emit — e.g. future code paths or race conditions).
+      ensureManualDashboardInterval(io, sessionId);
 
       logger.info({ sessionId, matchId, participantIds, roomSlug, durationSeconds: duration }, 'Host created breakout room');
     } catch (err: any) {
