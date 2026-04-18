@@ -475,69 +475,48 @@ export default function SessionDetailPage() {
           {/* Overflow menu for host/admin. Host Controls button intentionally removed —
               live host controls live inside the /live page once the host clicks Enter Live Event. */}
           {(isHost || isAdmin) && sessionStatusPhase(session.status) !== 'cancelled' && (
-            <div className="relative ml-auto" data-overflow-menu>
+            <div className="ml-auto flex items-center gap-2 flex-wrap">
+              {sessionStatusPhase(session.status) !== 'done' && (
+                <button
+                  type="button"
+                  onClick={() => { setInviteLink(''); setInviteEmail(''); setInviteOpen(true); }}
+                  className="h-9 px-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+                  title="Invite people to this event"
+                >
+                  <Mail className="h-4 w-4" /> <span className="hidden sm:inline">Invite</span>
+                </button>
+              )}
               <button
                 type="button"
-                aria-label="Manage event"
-                onClick={() => setOverflowOpen(v => !v)}
-                className="h-9 px-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+                onClick={() => duplicateMutation.mutate()}
+                disabled={duplicateMutation.isPending}
+                className="h-9 px-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors disabled:opacity-60"
+                title="Duplicate this event"
               >
-                <Settings className="h-4 w-4" />
-                <span>Manage</span>
-                <svg className={`h-3.5 w-3.5 transition-transform ${overflowOpen ? 'rotate-180' : ''}`} viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.06l3.71-3.83a.75.75 0 111.08 1.04l-4.25 4.39a.75.75 0 01-1.08 0L5.21 8.27a.75.75 0 01.02-1.06z" clipRule="evenodd"/></svg>
+                <CopyPlus className="h-4 w-4" /> <span className="hidden sm:inline">Copy</span>
               </button>
-              {overflowOpen && (
-                <>
-                  {/* Transparent backdrop — click anywhere outside menu closes it */}
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setOverflowOpen(false)}
-                    aria-hidden="true"
-                  />
-                  <div
-                    className="absolute right-0 mt-1 w-52 rounded-lg border border-gray-200 bg-white shadow-lg z-20 py-1"
-                  >
-                  <button
-                    type="button"
-                    onClick={() => { setOverflowOpen(false); duplicateMutation.mutate(); }}
-                    disabled={duplicateMutation.isPending}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-                  >
-                    <CopyPlus className="h-4 w-4" /> Copy Event
-                  </button>
-                  {sessionStatusPhase(session.status) === 'pre' && (
-                    <button
-                      type="button"
-                      onClick={() => { setOverflowOpen(false); openEdit(); }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                    >
-                      <Pencil className="h-4 w-4" /> Edit Event
-                    </button>
-                  )}
-                  {sessionStatusPhase(session.status) !== 'done' && (
-                    <button
-                      type="button"
-                      onClick={() => { setOverflowOpen(false); setInviteLink(''); setInviteEmail(''); setInviteOpen(true); }}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                    >
-                      <Mail className="h-4 w-4" /> Invite to Event
-                    </button>
-                  )}
-                  {sessionStatusPhase(session.status) !== 'live' && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOverflowOpen(false);
-                        if (confirm('Delete this event? This cannot be undone.')) deleteMutation.mutate();
-                      }}
-                      disabled={deleteMutation.isPending}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-60"
-                    >
-                      <Trash2 className="h-4 w-4" /> Delete
-                    </button>
-                  )}
-                  </div>
-                </>
+              {sessionStatusPhase(session.status) === 'pre' && (
+                <button
+                  type="button"
+                  onClick={() => openEdit()}
+                  className="h-9 px-3 rounded-lg border border-gray-200 bg-white hover:bg-gray-50 flex items-center gap-1.5 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+                  title="Edit event"
+                >
+                  <Pencil className="h-4 w-4" /> <span className="hidden sm:inline">Edit</span>
+                </button>
+              )}
+              {sessionStatusPhase(session.status) !== 'live' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm('Delete this event? This cannot be undone.')) deleteMutation.mutate();
+                  }}
+                  disabled={deleteMutation.isPending}
+                  className="h-9 px-3 rounded-lg border border-red-200 bg-white hover:bg-red-50 flex items-center gap-1.5 text-sm font-medium text-red-600 hover:text-red-700 transition-colors disabled:opacity-60"
+                  title="Delete event"
+                >
+                  <Trash2 className="h-4 w-4" /> <span className="hidden sm:inline">Delete</span>
+                </button>
               )}
             </div>
           )}
