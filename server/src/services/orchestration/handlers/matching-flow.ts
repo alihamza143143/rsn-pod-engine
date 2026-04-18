@@ -673,8 +673,13 @@ export async function emitHostDashboard(io: SocketServer, sessionId: string): Pr
       }
     }
 
+    // Bug 8.6 (April 19) — when paused, timerEndsAt is null. Use the frozen
+    // pausedTimeRemaining (ms) instead so the host display has a sane value
+    // to render if it ever consumes the dashboard's timerSecondsRemaining.
     const timerSecondsRemaining = activeSession.timerEndsAt
       ? Math.max(0, Math.ceil((activeSession.timerEndsAt.getTime() - Date.now()) / 1000))
+      : activeSession.pausedTimeRemaining
+      ? Math.max(0, Math.ceil(activeSession.pausedTimeRemaining / 1000))
       : 0;
 
     // Count of main-room participants eligible for the next algorithm round.

@@ -312,6 +312,14 @@ export async function handleHostPause(
       clearTimeout(activeSession.timer);
       activeSession.timer = null;
       activeSession.pausedTimeRemaining = remainingMs;
+      // Bug 8.6 (April 19) — also clear timerEndsAt during pause. Otherwise
+      // emitHostDashboard (which runs every 5s during ROUND_ACTIVE regardless
+      // of pause) keeps computing `(timerEndsAt - Date.now())` and emits a
+      // decreasing value to the host. Even though the client store doesn't
+      // currently re-derive timerSeconds from the dashboard payload, this
+      // makes the server state internally consistent: paused == no
+      // running endsAt. Resume restores it via startSegmentTimer.
+      activeSession.timerEndsAt = null;
     }
     // Stop the periodic 5s timer:sync interval — we'll restart it on resume.
     if (activeSession.timerSyncInterval) {

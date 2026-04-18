@@ -210,12 +210,23 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   })),
   setMatch: (currentMatch, matchId = null, partners = []) => set({ currentMatch, currentMatchId: matchId, currentPartners: partners }),
   setTimer: (timerSeconds) => set({ timerSeconds }),
-  setTimerEndsAt: (timerEndsAt) => set(() => {
+  setTimerEndsAt: (timerEndsAt) => set((s) => {
     // Whenever endsAt is updated, immediately recompute the displayed
     // seconds. Pause path passes null and uses setTimer separately to
     // freeze the displayed value at the snapshot.
-    if (!timerEndsAt) return { timerEndsAt: null };
+    if (!timerEndsAt) {
+      // Bug 8.6 — skip the update when state is already null (avoids
+      // re-renders from repeated paused timer:sync arrivals).
+      if (s.timerEndsAt === null) return {};
+      return { timerEndsAt: null };
+    }
     const remaining = Math.max(0, Math.ceil((timerEndsAt.getTime() - Date.now()) / 1000));
+    // Bug 8.6 — same-millisecond endsAt arrivals (the 2s periodic sync
+    // sends the SAME endsAt repeatedly) should not trigger re-renders.
+    // Compare timestamps not references.
+    if (s.timerEndsAt && s.timerEndsAt.getTime() === timerEndsAt.getTime() && s.timerSeconds === remaining) {
+      return {};
+    }
     return { timerEndsAt, timerSeconds: remaining };
   }),
   tickTimer: () => set((s) => {
@@ -227,6 +238,11 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
     // existing displayed value so paused snapshots stay frozen.
     if (!s.timerEndsAt || s.isPaused) return {};
     const remaining = Math.max(0, Math.ceil((s.timerEndsAt.getTime() - Date.now()) / 1000));
+    // Bug 8.6 (April 19) — only emit a state update when the seconds
+    // value actually CHANGED. Returning {timerSeconds: same} still
+    // makes Zustand re-render subscribers and was causing the breakout
+    // controls + timer to "blink" 3+ times/sec (1s tick + 2s sync).
+    if (remaining === s.timerSeconds) return {};
     return { timerSeconds: remaining };
   }),
   setRound: (currentRound) => set({ currentRound }),
