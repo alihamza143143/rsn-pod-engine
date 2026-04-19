@@ -343,8 +343,15 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
 
   return (
     <div className="flex items-center gap-1.5">
+      {/* Bug 17 (April 19) — labels show STATE not action. Was: when camera
+          on, button text said "Cam Off" (= click to turn off) which confused
+          hosts into thinking the camera was already off. Now: text matches
+          icon — both reflect current state, button colour signals action
+          affordance (red bg = currently off, click to turn on). Tooltip
+          gives the action verb for clarity. */}
       <button
         onClick={toggleMic}
+        title={micEnabled ? 'Click to mute' : 'Click to unmute'}
         className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors backdrop-blur-sm ${
           micEnabled
             ? 'bg-black/40 text-white hover:bg-black/60'
@@ -352,10 +359,11 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
         }`}
       >
         {micEnabled ? <Mic className="h-3 w-3" /> : <MicOff className="h-3 w-3" />}
-        {micEnabled ? 'Mute' : 'Unmute'}
+        {micEnabled ? 'Mic On' : 'Mic Off'}
       </button>
       <button
         onClick={toggleCam}
+        title={camEnabled ? 'Click to turn camera off' : 'Click to turn camera on'}
         className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium transition-colors backdrop-blur-sm ${
           camEnabled
             ? 'bg-black/40 text-white hover:bg-black/60'
@@ -363,7 +371,7 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
         }`}
       >
         {camEnabled ? <Video className="h-3 w-3" /> : <VideoOff className="h-3 w-3" />}
-        {camEnabled ? 'Cam Off' : 'Cam On'}
+        {camEnabled ? 'Cam On' : 'Cam Off'}
       </button>
       {/* Virtual background toggle */}
       <div className="relative">

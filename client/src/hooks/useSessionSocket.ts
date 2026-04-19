@@ -527,9 +527,26 @@ export default function useSessionSocket(sessionId: string) {
 
     // ── Sync & errors ──
     socket.on('timer:sync', (data: any) => {
-      // Only accept timer syncs when in a match or rating — ignore stale syncs in lobby
-      const currentPhase = useSessionStore.getState().phase;
-      if (currentPhase === 'lobby' || currentPhase === 'complete') return;
+      // Bug 17 (April 19) — REAL root cause of the persistent "host pause
+      // doesn't actually pause" bug. The previous guard `if (phase === 'lobby'
+      // || phase === 'complete') return;` dropped EVERY timer:sync — including
+      // the pause snapshot — for the host, because the host stays in 'lobby'
+      // phase throughout the round (they don't enter breakouts). Their local
+      // 1s tick interval kept running while the server thought everything
+      // was synced. Result: host display kept ticking during pause; on resume
+      // the new endsAt arrived but the host's tick had already advanced.
+      //
+      // New rule: pause/resume snapshots are ALWAYS processed (every client
+      // needs to know). For non-pause sync, only skip after a true terminal
+      // 'complete' phase OR before any round has started (currentRound===0
+      // AND phase==='lobby'). Host viewing the dashboard during a round has
+      // currentRound > 0, so accepts timer:sync.
+      const state = useSessionStore.getState();
+      const isPauseSnapshot = data.paused === true || data.paused === false;
+      if (!isPauseSnapshot) {
+        if (state.phase === 'complete') return;
+        if (state.currentRound === 0 && state.phase === 'lobby') return;
+      }
 
       // Bug 8.5 — pause path: server sends endsAt:null + paused:true with
       // an authoritative secondsRemaining snapshot. Freeze display at the
