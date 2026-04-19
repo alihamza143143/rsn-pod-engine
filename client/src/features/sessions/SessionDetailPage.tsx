@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -152,10 +152,17 @@ export default function SessionDetailPage() {
   const isRestrictedPod = pod?.visibility === 'invite_only' || pod?.visibility === 'private';
   const canRegister = isMember || !isRestrictedPod;
   const [autoRegistering, setAutoRegistering] = useState(false);
+  // Bug 13 (April 19) — block the auto-register useEffect after an EXPLICIT
+  // unregister click. Without this, unregister → isRegistered flips false →
+  // useEffect fires → re-registers automatically (the visible "flash" of
+  // Register-then-back-to-Registered the user reported).
+  const explicitlyUnregisteredRef = useRef(false);
 
   // Auto-register: if user landed here and isn't registered, register them immediately.
-  // Shows loading state so "Register" button never flashes.
+  // Shows loading state so "Register" button never flashes. Skipped after an
+  // explicit unregister (see ref above).
   useEffect(() => {
+    if (explicitlyUnregisteredRef.current) return;
     if (session && user && participants && !isRegistered && !autoRegistering && sessionId) {
       setAutoRegistering(true);
       api.post(`/sessions/${sessionId}/register`).then(() => {
@@ -288,6 +295,8 @@ export default function SessionDetailPage() {
   const unregisterMutation = useMutation({
     mutationFn: () => api.delete(`/sessions/${sessionId}/register`),
     onSuccess: () => {
+      // Bug 13 — block the auto-register useEffect from firing after this.
+      explicitlyUnregisteredRef.current = true;
       qc.refetchQueries({ queryKey: ['session-participants', sessionId] });
       qc.refetchQueries({ queryKey: ['session', sessionId] });
       qc.invalidateQueries({ queryKey: ['my-sessions'] });

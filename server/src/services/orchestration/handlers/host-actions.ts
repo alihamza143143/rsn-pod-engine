@@ -1153,10 +1153,14 @@ export async function handleHostExtendBreakoutRoom(
     const msRemaining = Math.max(0, newEndsAt.getTime() - Date.now());
     roomTimer.timeoutHandle = setTimeout(() => { roomTimer.fireCallback(); }, msRemaining);
 
-    // Broadcast timer:sync to match participants immediately (don't wait for 5s tick)
+    // Broadcast timer:sync to match participants immediately (don't wait for 5s tick).
+    // Bug 15 — include endsAt so client recompute (Bug 8.5) reflects the
+    // extended duration; otherwise the digit jumps to the new value once
+    // and then doesn't tick down.
     const secondsRemaining = Math.ceil(msRemaining / 1000);
+    const newEndsAtIso = newEndsAt.toISOString();
     for (const pid of roomTimer.participantIds) {
-      io.to(userRoom(pid)).emit('timer:sync', { secondsRemaining });
+      io.to(userRoom(pid)).emit('timer:sync', { secondsRemaining, endsAt: newEndsAtIso });
     }
 
     // Refresh host dashboard

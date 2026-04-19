@@ -291,8 +291,14 @@ export async function handleHostCreateBreakoutBulk(
           }
           const remaining = Math.max(0, Math.ceil((state.endsAt.getTime() - Date.now()) / 1000));
           if (timerVisibility === 'visible') {
+            // Bug 15 (April 19) — include endsAt so the client's Bug 8.5
+            // recompute path drives the manual room timer too. Without
+            // endsAt the participant fell back to a one-shot setTimer
+            // and the digit never ticked down (manual room timer not
+            // showing in the breakout window — reported during live test).
+            const endsAtIso = state.endsAt.toISOString();
             for (const pid of state.participantIds) {
-              io.to(userRoom(pid)).emit('timer:sync', { secondsRemaining: remaining });
+              io.to(userRoom(pid)).emit('timer:sync', { secondsRemaining: remaining, endsAt: endsAtIso });
             }
           }
           if (remaining <= 0) {
@@ -370,8 +376,12 @@ export async function handleHostCreateBreakoutBulk(
         roomTimers.set(matchId, state);
 
         if (timerVisibility === 'visible') {
+          // Bug 15 — initial timer:sync must include endsAt so the client's
+          // Bug 8.5 recompute path takes over (otherwise the digit stays
+          // frozen at sharedDurationSeconds and never ticks).
+          const initEndsAtIso = endsAt.toISOString();
           for (const pid of participantIds) {
-            io.to(userRoom(pid)).emit('timer:sync', { secondsRemaining: sharedDurationSeconds });
+            io.to(userRoom(pid)).emit('timer:sync', { secondsRemaining: sharedDurationSeconds, endsAt: initEndsAtIso });
           }
         }
       }
@@ -520,7 +530,13 @@ export async function handleHostEndBreakoutAll(
           } catch { /* skip */ }
         }
 
-        io.to(userRoom(pid)).emit('match:return_to_lobby', { reason: 'host_ended_room' });
+        // Bug 14 (April 19) — DO NOT emit match:return_to_lobby here. The
+        // client's handler sets phase='lobby' which dismisses the rating
+        // prompt that just opened (race: rating:window_open arrives, then
+        // match:return_to_lobby arrives ~µs later, phase flips back to
+        // lobby, rating UI vanishes). Participants need to RATE first;
+        // submitting the rating naturally returns them to lobby via the
+        // existing rating-completion flow.
       }
     }
 
