@@ -30,6 +30,9 @@ export default function HostControls({ sessionId }: Props) {
   // Unified breakout-room creation modal (replaces separate "Room" + "Bulk" buttons).
   // Always submits via host:create_breakout_bulk — single-room is N=1.
   const [showRoomModal, setShowRoomModal] = useState(false);
+  // Bug 19 (April 19) — invite modal (replaces window.open popup of full event page).
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
   const [roomDuration, setRoomDuration] = useState(300);
   const [roomVisibility, setRoomVisibility] = useState<'visible' | 'hidden'>('visible');
   const [roomRows, setRoomRows] = useState<Array<Set<string>>>([new Set()]); // array of room-participant sets
@@ -452,6 +455,68 @@ export default function HostControls({ sessionId }: Props) {
         </div>
       )}
 
+      {/* Bug 19 (April 19) — Invite modal. Replaces the window.open popup
+          of the entire SessionDetailPage. Mobile-responsive: full-width on
+          small screens (px-4), capped at max-w-2xl on desktop. */}
+      {showInviteModal && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+          <div className="bg-white w-full sm:max-w-lg rounded-t-2xl sm:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h3 className="text-base font-semibold text-[#1a1a2e] flex items-center gap-2">
+                <UserPlus className="h-4 w-4 text-emerald-500" /> Invite people
+              </h3>
+              <button
+                onClick={() => { setShowInviteModal(false); setInviteLinkCopied(false); }}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="text-xs font-medium text-gray-700 mb-1.5 block">Share invite link</label>
+                <div className="flex items-stretch gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${window.location.origin}/sessions/${sessionId}`}
+                    onFocus={(e) => e.currentTarget.select()}
+                    className="flex-1 min-w-0 rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-xs sm:text-sm font-mono text-gray-700 focus:outline-none focus:ring-1 focus:ring-emerald-400"
+                  />
+                  <Button
+                    size="sm"
+                    variant={inviteLinkCopied ? 'secondary' : 'primary' as any}
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/sessions/${sessionId}`);
+                      setInviteLinkCopied(true);
+                      setTimeout(() => setInviteLinkCopied(false), 2500);
+                    }}
+                    className="shrink-0"
+                  >
+                    {inviteLinkCopied ? <><Check className="h-3.5 w-3.5 mr-1" /> Copied</> : 'Copy link'}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-gray-500 mt-1.5">Anyone with this link can join the event.</p>
+              </div>
+              <div className="border-t border-gray-200 pt-4">
+                <p className="text-xs text-gray-600">
+                  Need to invite specific people, manage pending invites, or change event settings?
+                </p>
+                <button
+                  onClick={() => {
+                    window.open(`/sessions/${sessionId}`, 'rsn-invite', 'width=900,height=720,scrollbars=yes,resizable=yes');
+                  }}
+                  className="mt-2 text-xs font-medium text-emerald-600 hover:text-emerald-700 underline"
+                >
+                  Open the full event page →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Unified breakout-room creation modal — replaces the old "Room" + "Bulk" buttons.
           Always submits via host:create_breakout_bulk (N=1 is a degenerate bulk). */}
       {showRoomModal && (
@@ -822,11 +887,11 @@ export default function HostControls({ sessionId }: Props) {
               </Button>
             )}
 
-            {/* Invite people — opens session page in popup window (host stays in event) */}
+            {/* Bug 19 (April 19) — Invite modal (was opening the whole event
+                page in a popup window). Inline modal: invite link + copy +
+                close. Host stays in the live event. */}
             {(sessionStatus === 'lobby_open' || sessionStatus === 'round_transition') && (
-              <Button size="sm" variant="secondary" onClick={() => {
-                window.open(`/sessions/${sessionId}`, 'rsn-invite', 'width=700,height=700,scrollbars=yes,resizable=yes');
-              }}>
+              <Button size="sm" variant="secondary" onClick={() => setShowInviteModal(true)}>
                 <UserPlus className="h-4 w-4 mr-1" /> Invite
               </Button>
             )}

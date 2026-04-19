@@ -79,10 +79,17 @@ interface SessionLiveState {
       participants: { userId: string; displayName: string; isConnected: boolean }[];
       isTrio: boolean;
       isManual?: boolean;
+      // Bug 18 (April 19) — per-manual-room timer. null for algorithm
+      // rooms (they share the session-level round timer).
+      roomEndsAt?: string | null;
+      roomStartedAt?: string | null;
     }[];
     byeParticipants: { userId: string; displayName: string }[];
     reassignmentInProgress: boolean;
     eligibleMainRoomCount?: number;
+    // Algorithm round endsAt — top-level. null when no algorithm round
+    // is active (e.g. between rounds, or only manual breakouts running).
+    timerEndsAt?: string | null;
   } | null;
   chatMessages: ChatMessage[];
   unreadChatCount: number;

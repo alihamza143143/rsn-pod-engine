@@ -440,8 +440,12 @@ describe('Task 14 — bulk manual breakout handlers', () => {
         path.join(__dirname, '../../../services/orchestration/handlers/matching-flow.ts'),
         'utf8',
       );
-      // Must use the column, not the roomId LIKE pattern
-      expect(content).toMatch(/isManual:\s*m\.isManual/);
+      // Must read from the m.isManual column (not the brittle roomId LIKE
+      // pattern). Bug 18 (April 19) refactored the room-mapping closure
+      // to compute `const isManual = m.isManual === true;` once and use
+      // shorthand `{ isManual }` in the dashboard payload — same source,
+      // different surface form. Accept either pattern.
+      expect(content).toMatch(/m\.isManual\s*===\s*true|isManual:\s*m\.isManual/);
     });
   });
 });

@@ -618,6 +618,12 @@ export async function emitHostDashboard(io: SocketServer, sessionId: string): Pr
       for (const row of nameResult.rows) nameMap.set(row.id, row.displayName);
     }
 
+    // Bug 18 (April 19) — per-room manual timer in dashboard payload.
+    // Each manual room has its own RoomTimerState in the roomTimers Map
+    // (host-actions.ts). Surface that endsAt + duration in the dashboard
+    // so the host UI can render a per-room timer (or detect "all share
+    // the same duration" and render a column header timer).
+    const { roomTimers } = await import('./host-actions');
     const rooms = matches
       .filter(m => m.status === 'active')
       .map(m => {
@@ -643,15 +649,21 @@ export async function emitHostDashboard(io: SocketServer, sessionId: string): Pr
             isConnected: activeSession.presenceMap.has(m.participantCId),
           });
         }
+        const isManual = m.isManual === true;
+        // Per-room timer (manual rooms only — algorithm rooms share the
+        // session-level round timer at the dashboard's `timerEndsAt`).
+        const roomTimer = isManual ? roomTimers.get(m.id) : undefined;
         return {
           matchId: m.id,
           roomId: m.roomId || '',
           status: m.status,
           participants,
           isTrio: !!m.participantCId,
-          // Read from matches.is_manual column (migration 040). Manual breakouts
-          // and algorithm rounds are architecturally independent.
-          isManual: m.isManual === true,
+          isManual,
+          // Manual-room-only fields. null when the manual room has no
+          // timer (host chose "no limit") or when this is an algorithm room.
+          roomEndsAt: roomTimer ? roomTimer.endsAt.toISOString() : null,
+          roomStartedAt: roomTimer ? roomTimer.startedAt.toISOString() : null,
         };
       });
 
