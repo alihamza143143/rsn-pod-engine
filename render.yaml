@@ -7,7 +7,14 @@ services:
     name: rsn-api
     runtime: node
     region: frankfurt
-    plan: free
+    # CRITICAL: this MUST match the live Render dashboard plan exactly.
+    # Render syncs render.yaml on every deploy and will auto-downgrade
+    # the live service if the YAML drifts. Past incident: 2026-04-20 a
+    # code-only push triggered a Blueprint sync that reverted the live
+    # service from Starter back to Free (the value pre-existing here
+    # since 2026-03-06). When upgrading to Standard, change this in the
+    # SAME commit as the dashboard change.
+    plan: starter
     rootDir: .
     buildCommand: npm install --include=dev && npm run build:shared && npm run build:server && cp -r server/src/db/migrations server/dist/db/
     startCommand: node server/dist/index.js
