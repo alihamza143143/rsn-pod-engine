@@ -60,6 +60,18 @@ const server = http.createServer(app);
 
 // ─── Socket.IO ──────────────────────────────────────────────────────────────
 
+// Tier-1 A6: pin transport to WebSocket by default.
+// Long-polling fallback is a foot-gun at scale: corporate proxies that block
+// WS silently degrade to ~6 HTTP requests/min per client, which hit the
+// global rate limiter and lock users out. Our real users are Vercel +
+// LiveKit clients that already require WebSocket, so constraining the
+// transport is safe. An env override exists for edge cases (set
+// SOCKET_IO_TRANSPORTS=websocket,polling to restore the old behaviour).
+// pingTimeout bumped from 30 s to 45 s for mobile tolerance — iOS Safari
+// can background a tab for >30 s, triggering churn in the disconnect
+// timeout + reassign flow that this value mitigates.
+const SOCKET_IO_TRANSPORTS = (process.env.SOCKET_IO_TRANSPORTS?.split(',').map(t => t.trim()).filter(Boolean) as ('websocket' | 'polling')[] | undefined) || ['websocket'];
+
 const io = new SocketServer(server, {
   cors: {
     origin: function(origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
@@ -76,8 +88,9 @@ const io = new SocketServer(server, {
     methods: ['GET', 'POST'],
     credentials: true,
   },
-  pingTimeout: 30_000,
+  pingTimeout: 45_000,
   pingInterval: 10_000,
+  transports: SOCKET_IO_TRANSPORTS,
 });
 
 // Socket.IO authentication middleware
@@ -153,7 +166,12 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Trust first proxy (for rate limiting behind reverse proxy)
 app.set('trust proxy', 1);
 
-// Global rate limiter
+// Global rate limiter — applies to /api/* only.
+// Tier-1 A6: /socket.io/* is deliberately excluded. Long-polling fallback
+// emits ~6 HTTP requests/min per client, which with 20+ users behind a
+// single NAT gateway would trip the 100/min quota and cause false lockouts.
+// Since we now pin transports to WebSocket by default (see above), this
+// exemption is belt-and-braces for edge cases where polling is re-enabled.
 app.use('/api', apiLimiter);
 
 // Request logging
@@ -202,24 +220,79 @@ app.use((req, res, next) => {
 
 // ─── Health Check ───────────────────────────────────────────────────────────
 
-app.get('/health', async (_req, res) => {
-  try {
-    const dbStart = Date.now();
-    await pool.query('SELECT 1');
-    const dbLatency = Date.now() - dbStart;
+// Tier-1 A5: cache the DB-ping result for 30 s so Render's ~10 s health
+// probe doesn't run SELECT 1 six times per minute. Render only needs a
+// liveness signal; correctness of the cache is enforced by our own error
+// handling if the DB ever falls over (we flip to degraded and the next
+// check refreshes). /health/deep bypasses the cache for manual diagnostic
+// use (e.g. during an outage, don't trust stale "ok").
+const HEALTH_CACHE_TTL_MS = 30_000;
+let healthCache: { result: { ok: boolean; latencyMs: number }; cachedAt: number } | null = null;
 
+async function pingDatabase(): Promise<{ ok: boolean; latencyMs: number }> {
+  const dbStart = Date.now();
+  try {
+    await pool.query('SELECT 1');
+    return { ok: true, latencyMs: Date.now() - dbStart };
+  } catch {
+    return { ok: false, latencyMs: Date.now() - dbStart };
+  }
+}
+
+app.get('/health', async (_req, res) => {
+  const now = Date.now();
+  if (!healthCache || now - healthCache.cachedAt >= HEALTH_CACHE_TTL_MS) {
+    const result = await pingDatabase();
+    healthCache = { result, cachedAt: now };
+  }
+  const { ok, latencyMs } = healthCache.result;
+  if (!ok) {
+    logger.warn('Health check reporting degraded — DB unreachable (cached)');
+    res.status(503).json({
+      status: 'degraded',
+      timestamp: new Date().toISOString(),
+      db: { connected: false, latencyMs, cached: true },
+    });
+    return;
+  }
+  res.json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    environment: config.env,
+    db: { connected: true, latencyMs, cached: now - healthCache.cachedAt > 0 },
+  });
+});
+
+/**
+ * Deep health probe — bypasses the 30 s cache. Use when diagnosing an
+ * incident and you need an authoritative read of DB reachability. Do NOT
+ * wire this into Render's healthCheckPath (it would defeat the cache).
+ */
+app.get('/health/deep', async (_req, res) => {
+  try {
+    const { ok, latencyMs } = await pingDatabase();
+    // Refresh the shared cache with the fresh result so subsequent /health
+    // calls see the current truth, not the old cached value.
+    healthCache = { result: { ok, latencyMs }, cachedAt: Date.now() };
+    if (!ok) {
+      res.status(503).json({
+        status: 'degraded',
+        timestamp: new Date().toISOString(),
+        db: { connected: false, latencyMs, cached: false },
+      });
+      return;
+    }
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
       environment: config.env,
-      db: { connected: true, latencyMs: dbLatency },
+      db: { connected: true, latencyMs, cached: false },
     });
   } catch (err) {
-    logger.error({ err }, 'Health check failed — DB unreachable');
+    logger.error({ err }, 'Deep health check failed');
     res.status(503).json({
-      status: 'degraded',
+      status: 'error',
       timestamp: new Date().toISOString(),
-      db: { connected: false },
     });
   }
 });

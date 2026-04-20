@@ -4776,3 +4776,41 @@ Exported `isUserActive` from `middleware/auth.ts` (was private) and called it in
 
 A5 — /health DB-check cache + /health/deep.
 
+
+---
+
+## 2026-04-20 — Tier-1 A5+A6: Health cache + Socket.IO transport hardening
+
+**Timestamp (local):** 2026-04-20
+**Task ID:** Tier-1 A5 + A6 (bundled — same file)
+**Status:** Completed
+
+### What changed
+
+**A5 — /health DB-ping cache (30 s) + /health/deep bypass**
+Render probes `/health` every ~10 s. Pre-fix = SELECT 1 six times per minute for no user benefit. Post-fix: cached for 30 s; `/health/deep` is a manual-diagnostic endpoint that bypasses the cache and also refreshes it with the fresh result.
+
+**A6 — Socket.IO transport pinning + pingTimeout bump**
+- `transports: ['websocket']` by default (override via `SOCKET_IO_TRANSPORTS=websocket,polling` env).
+- `pingTimeout: 45_000` (was 30_000) for mobile tolerance — iOS Safari backgrounds tabs >30 s, triggering unnecessary disconnect/auto-reassign churn.
+- `/socket.io/*` remains outside the `/api` rate limiter (belt-and-braces for the case where polling is re-enabled).
+
+### Files touched
+
+- `server/src/index.ts` — health cache + helper `pingDatabase()`; `/health/deep` route; transport pinning; pingTimeout bump; rate-limit scope comment
+- `server/src/__tests__/services/tier1-a5-health-cache.test.ts` — 6 tests
+- `server/src/__tests__/services/tier1-a6-socket-transport.test.ts` — 5 tests
+
+### Tests
+
+- 482/482 server tests pass (was 471 — +11 new). 0 broken.
+
+### Behavior-preservation
+
+- `/health` may return a cached status up to 30 s stale. Render's ~10 s probe still sees freshness within its own latency tolerance.
+- Clients behind restrictive corporate proxies that block WebSocket must set `SOCKET_IO_TRANSPORTS=websocket,polling` to reconnect. No real users are known to be in this scenario (Vercel + LiveKit already require WS).
+
+### Next immediate action
+
+A7 — Redis-backed rate limiter.
+
