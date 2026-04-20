@@ -4814,3 +4814,43 @@ Render probes `/health` every ~10 s. Pre-fix = SELECT 1 six times per minute for
 
 A7 — Redis-backed rate limiter.
 
+
+---
+
+## 2026-04-20 — Tier-1 A7+A8: Redis rate-limit store + render.yaml IaC sync
+
+**Timestamp (local):** 2026-04-20
+**Task ID:** Tier-1 A7 + A8 (bundled)
+**Status:** Completed
+
+### What changed
+
+**A7 — Redis-backed rate-limit store (feature-flagged)**
+Installed `rate-limit-redis@^4.3.1`. Added `buildStore()` helper in `rateLimit.ts` that returns a RedisStore when `RATE_LIMIT_STORE=redis` is set (else undefined = default MemoryStore). sendCommand resolves Redis per-request; if Redis is unavailable at request time, sendCommand throws and express-rate-limit fails open (request proceeds unaccounted — safer than blocking). All three limiters (api/auth/invite) now opt into the hybrid pattern.
+
+Default is still in-memory (flag off). This is Tier-2 prep — flip when going multi-instance so counters apply globally.
+
+**A8 — render.yaml IaC sync for Redis envs**
+Added `REDIS_URL` (sync:false — value lives in Render dashboard), `REDIS_CHAT_TTL_SECONDS=14400`, `REDIS_SESSION_TTL_SECONDS=14400`. Added commented guidance for future `RATE_LIMIT_STORE`, `SOCKET_IO_TRANSPORTS`, `SESSION_TIMEOUT_REGISTRY_ENABLED` flags.
+
+### Files touched
+
+- `server/package.json` — added `rate-limit-redis: ^4.3.1`
+- `server/src/middleware/rateLimit.ts` — RedisStore wiring with per-request lookup + fail-open
+- `server/src/__tests__/services/tier1-a7-redis-rate-limit.test.ts` — 8 new tests
+- `render.yaml` — Redis envs + commented Tier-1 feature flag guidance
+
+### Tests
+
+- 490/490 server tests pass (was 482 — +8 new). 0 broken.
+- `npm run build` compiles cleanly (no TS errors).
+
+### Decisions
+
+- Factory returns the RedisStore UNCONDITIONALLY when the flag is set, resolving Redis availability inside `sendCommand`. Doing the null-check in the factory itself would miss Redis becoming available after module load (since rateLimit.ts evaluates before `initRedis` runs in `start()`).
+- Kept `plan: free` in render.yaml. Stefan will upgrade to Standard via Render dashboard in Phase C, then I'll sync the YAML in a follow-up commit.
+
+### Next immediate action
+
+A9 — suppress benign LiveKit mobile AbortError in client.
+

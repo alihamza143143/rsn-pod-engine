@@ -55,3 +55,28 @@ services:
         value: "60000"
       - key: RATE_LIMIT_MAX_REQUESTS
         value: "100"
+      # Tier-1 A7: leave RATE_LIMIT_STORE unset for in-process counters on
+      # single-instance deploys. Set to "redis" when rolling out multiple
+      # instances so rate quotas apply globally.
+      # - key: RATE_LIMIT_STORE
+      #   value: "redis"
+
+      # Redis — the live service reads this from the Render dashboard. It's
+      # declared here so IaC deploys stay in sync; value is set at runtime.
+      - key: REDIS_URL
+        sync: false
+      - key: REDIS_CHAT_TTL_SECONDS
+        value: "14400"
+      - key: REDIS_SESSION_TTL_SECONDS
+        value: "14400"
+
+      # Tier-1 A6: Socket.IO transport pinning override. Default in the code
+      # is ['websocket']; set to "websocket,polling" to re-enable long-
+      # polling fallback. Only needed for clients behind restrictive
+      # corporate proxies that block WebSocket upgrades.
+      # - key: SOCKET_IO_TRANSPORTS
+      #   value: "websocket,polling"
+
+      # Tier-1 A3: session-scoped timeout registry feature flag. Default on.
+      # - key: SESSION_TIMEOUT_REGISTRY_ENABLED
+      #   value: "true"
