@@ -4854,3 +4854,42 @@ Added `REDIS_URL` (sync:false — value lives in Render dashboard), `REDIS_CHAT_
 
 A9 — suppress benign LiveKit mobile AbortError in client.
 
+
+---
+
+## 2026-04-20 — Tier-1 A9: Silence benign LiveKit/WebRTC noise in client Sentry
+
+**Timestamp (local):** 2026-04-20
+**Task ID:** Tier-1 A9
+**Status:** Completed
+
+### What changed
+
+Client-side Sentry `beforeSend` hook now matches against a `BENIGN_ERROR_PATTERNS` regex list and returns null on match. Patterns filtered:
+
+- `Network Error` (pre-existing)
+- `publishing rejected as engine not connected within timeout` — LiveKit track-publish race (RSN-CLIENT-2/3/4)
+- `AbortError: The operation was aborted` — LiveKit transport abort (RSN-CLIENT-7, today)
+- `NotAllowedError: Permission denied` — user-denied camera/mic (RSN-CLIENT-5)
+- `NotReadableError: Could not start video source` — OS holding the device (RSN-CLIENT-6)
+
+All are user-environment or LiveKit SDK internal races during rapid mobile room transitions. Server-side Sentry unaffected.
+
+### Files touched
+
+- `client/src/lib/sentry.ts` — pattern list + iteration in `beforeSend`
+- `server/src/__tests__/services/tier1-a9-sentry-filter.test.ts` — 7 tests (source-pattern, client file)
+
+### Tests
+
+- 497/497 server tests pass (was 490 — +7 new). 0 broken.
+
+### Decisions
+
+- Filter via regex list (not hardcoded if-chain) so future patterns are one-line additions.
+- Return null from `beforeSend` — Sentry drops the event entirely. Chose not to use `ignoreErrors` option because regex there is stringier and less explicit.
+
+### Next immediate action
+
+A3 — session-scoped timeout registry (feature-flagged, largest change).
+
