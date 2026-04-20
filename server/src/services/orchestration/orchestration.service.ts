@@ -143,8 +143,9 @@ export function initOrchestration(socketServer: SocketServer): void {
   // ── TTL cleanup (every 5 minutes, remove sessions older than 4 hours) ──
 
   const MAX_SESSION_AGE_MS = 4 * 60 * 60 * 1000;
-  setInterval(() => {
+  setInterval(async () => {
     const now = Date.now();
+    const { clearDashboardCoalesce } = await import('./handlers/matching-flow');
     for (const [sessionId, session] of activeSessions) {
       const lastActivity = session.timerEndsAt?.getTime() || now;
       if (now - lastActivity > MAX_SESSION_AGE_MS) {
@@ -152,6 +153,8 @@ export function initOrchestration(socketServer: SocketServer): void {
         clearSessionTimers(sessionId);
         activeSessions.delete(sessionId);
         cleanupChatMessages(sessionId);
+        // Tier-1 A1: also clear dashboard coalesce state
+        clearDashboardCoalesce(sessionId);
       }
     }
   }, 5 * 60 * 1000);

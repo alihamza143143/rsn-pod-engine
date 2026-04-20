@@ -594,29 +594,115 @@ export async function sendMatchPreview(
 }
 
 // ─── Host Round Dashboard ─────────────────────────────────────────────────
+//
+// Tier-1 A1 (April 20) — the dashboard emit is the hottest fan-out path in
+// the server. It fires on every match transition + a 5-sec interval during
+// ROUND_ACTIVE + a 5-sec interval during LOBBY_OPEN when manual rooms are
+// live. At 200 users / 100 matches each call = 3 DB round-trips including a
+// NOT EXISTS subquery. Pre-fix, bursts during round transitions saturated
+// the Neon pooler and blocked the event loop.
+//
+// Two behavior-preserving optimisations:
+//
+// 1. COALESCE to max 1 emit/sec per session. Rapid calls (transition +
+//    interval tick + host action overlapping) fold into a single leading
+//    emit + trailing emit. Host sees the same data just without the thrash.
+//
+// 2. CACHE display names on ActiveSession.displayNameCache. Names don't
+//    change mid-event. On first emit we bulk-fetch uncached ids; subsequent
+//    emits hit the cache (O(n) map lookups, no DB). Cache is tied to the
+//    ActiveSession lifecycle — cleared automatically on completeSession.
+
+const DASHBOARD_COALESCE_MS = 1000;
+
+interface DashboardEmitState {
+  lastEmit: number;      // epoch ms of the last immediate emit
+  pendingTimer: NodeJS.Timeout | null; // trailing-edge timer
+}
+
+const dashboardEmitState = new Map<string, DashboardEmitState>();
+
+/** Reset coalesce state for a session — call from completeSession / cleanup. */
+export function clearDashboardCoalesce(sessionId: string): void {
+  const state = dashboardEmitState.get(sessionId);
+  if (state?.pendingTimer) clearTimeout(state.pendingTimer);
+  dashboardEmitState.delete(sessionId);
+}
 
 export async function emitHostDashboard(io: SocketServer, sessionId: string): Promise<void> {
+  const activeSession = activeSessions.get(sessionId);
+  if (!activeSession || !io) return;
+
+  const now = Date.now();
+  const state = dashboardEmitState.get(sessionId) || { lastEmit: 0, pendingTimer: null };
+  const elapsed = now - state.lastEmit;
+
+  if (elapsed >= DASHBOARD_COALESCE_MS) {
+    // Leading edge — fire immediately. Cancel any pending trailing emit
+    // since we're firing a fresh one right now.
+    if (state.pendingTimer) {
+      clearTimeout(state.pendingTimer);
+      state.pendingTimer = null;
+    }
+    state.lastEmit = now;
+    dashboardEmitState.set(sessionId, state);
+    return emitHostDashboardImmediate(io, sessionId);
+  }
+
+  // Within coalesce window — schedule a trailing emit if not already queued.
+  if (!state.pendingTimer) {
+    const delay = DASHBOARD_COALESCE_MS - elapsed;
+    state.pendingTimer = setTimeout(() => {
+      const s = dashboardEmitState.get(sessionId);
+      if (!s) return; // session ended during window
+      s.lastEmit = Date.now();
+      s.pendingTimer = null;
+      emitHostDashboardImmediate(io, sessionId).catch(err =>
+        logger.warn({ err, sessionId }, 'Trailing emitHostDashboard failed'),
+      );
+    }, delay);
+    dashboardEmitState.set(sessionId, state);
+  }
+  // else: trailing already scheduled — nothing to do, caller's event folds
+  // into the pending emit.
+}
+
+async function emitHostDashboardImmediate(io: SocketServer, sessionId: string): Promise<void> {
   const activeSession = activeSessions.get(sessionId);
   if (!activeSession || !io) return;
 
   try {
     const matches = await matchingService.getMatchesByRound(sessionId, activeSession.currentRound);
 
-    // Look up display names for all participant IDs
+    // Look up display names for all participant IDs — use per-session cache
+    // (Tier-1 A1) to skip the DB round-trip for names we've already fetched
+    // during this event. Names are stable for the session lifetime.
     const allUserIds = new Set<string>();
     for (const m of matches) {
       allUserIds.add(m.participantAId);
       allUserIds.add(m.participantBId);
       if (m.participantCId) allUserIds.add(m.participantCId);
     }
-    const nameMap = new Map<string, string>();
-    if (allUserIds.size > 0) {
+    // Also include presence + host so bye-participant rendering has names
+    for (const uid of activeSession.presenceMap.keys()) allUserIds.add(uid);
+
+    if (!activeSession.displayNameCache) activeSession.displayNameCache = new Map();
+    const cache = activeSession.displayNameCache;
+    const missingIds: string[] = [];
+    for (const uid of allUserIds) {
+      if (!cache.has(uid)) missingIds.push(uid);
+    }
+
+    if (missingIds.length > 0) {
       const nameResult = await query<{ id: string; displayName: string }>(
         `SELECT id, display_name AS "displayName" FROM users WHERE id = ANY($1)`,
-        [Array.from(allUserIds)]
+        [missingIds]
       );
-      for (const row of nameResult.rows) nameMap.set(row.id, row.displayName);
+      for (const row of nameResult.rows) cache.set(row.id, row.displayName || 'User');
+      // Negative-cache misses so we don't re-query a user who has a null name
+      for (const uid of missingIds) if (!cache.has(uid)) cache.set(uid, 'User');
     }
+    const nameMap = cache;
 
     // Bug 18 (April 19) — per-room manual timer in dashboard payload.
     // Each manual room has its own RoomTimerState in the roomTimers Map

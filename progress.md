@@ -4665,3 +4665,47 @@ The all-rounds-complete (`isSessionEnding`) screen previously only showed Announ
 - `server/src/services/orchestration/handlers/matching-flow.ts` (Bug 8.5 timerEndsAt in dashboard)
 - `server/src/__tests__/services/orchestration/dr-arch-april-18-bugs.test.ts` (Bug 2 assertion update)
 - `server/src/__tests__/services/orchestration/dr-arch-april-19-bugs.test.ts` (Bug 6.5/8.5/12 assertions)
+
+---
+
+## 2026-04-20 — Tier-1 A1: Dashboard coalesce + display-name cache
+
+**Timestamp (local):** 2026-04-20
+**Task ID:** Tier-1 A1 (load-handling for 100–200 concurrent users)
+**Status:** Completed
+
+### What changed
+
+Two behavior-preserving optimisations on the hottest fan-out path (`emitHostDashboard`):
+
+1. **Coalesce to max 1 emit/sec per session.** Added `DASHBOARD_COALESCE_MS=1000` constant and per-session `dashboardEmitState` Map with leading + trailing edge emits. Rapid calls during round transitions (match transition + 5-sec interval + host action overlapping) fold into one leading emit + optional trailing emit. Host sees the same data, just without the thrash.
+
+2. **Cache display names on `ActiveSession.displayNameCache`.** First emit bulk-fetches uncached ids; subsequent emits hit the map (O(n) lookups, no DB). Negative-caches unknown ids to prevent repeated misses. Cleared automatically on `completeSession` and on 4-hour TTL eviction.
+
+### Files touched
+
+- `server/src/services/orchestration/state/session-state.ts` — added `displayNameCache?: Map<string, string>` to ActiveSession
+- `server/src/services/orchestration/handlers/matching-flow.ts` — split emitHostDashboard into public coalescing wrapper + `emitHostDashboardImmediate` inner worker; added `clearDashboardCoalesce` export
+- `server/src/services/orchestration/handlers/round-lifecycle.ts` — `completeSession` calls `clearDashboardCoalesce` in finally
+- `server/src/services/orchestration/orchestration.service.ts` — TTL sweeper clears coalesce state
+- `server/src/__tests__/services/orchestration/tier1-a1-dashboard-coalesce.test.ts` — 12 new source-pattern tests pinning the architecture
+
+### Tests
+
+- 457/457 server tests pass (was 445 — +12 new). No existing tests broken.
+
+### Decisions
+
+- Scoped A1 down from the original plan: dropped the `eligibleMainRoomCount` counter refactor. The `NOT EXISTS` subquery is already covered by `idx_matches_session_round_status` (migration 022), so the perf gain is marginal vs. the risk of miscounting across all status-transition paths. Behavior preservation wins.
+- Chose leading + trailing edge coalesce (not pure trailing) so the host sees the first update immediately, with only the repeated bursts folded into a trailing emit.
+- Name cache invalidation strategy: per-session lifetime. Names don't change mid-event (RSN workflow), so we never invalidate inside an active session — only on session end.
+
+### Behavior-preservation
+
+- Host dashboard updates at most 1/sec (was: instant on every transition + 5-sec interval). Imperceptible, net-positive UX.
+- Display names read from cache after first lookup. If someone renamed mid-event their old name persists until session ends; not a supported RSN workflow.
+
+### Next immediate action
+
+A2 — batch `incrementRoundsCompleted` in `endRound` (replace 3×N sequential awaits with one `UPDATE … ANY($2)`).
+

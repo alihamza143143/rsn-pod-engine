@@ -738,6 +738,10 @@ export async function completeSession(io: SocketServer, sessionId: string): Prom
     activeSessions.delete(sessionId);
     cleanupChatMessages(sessionId);
     clearPersistedState(sessionId).catch(() => {});
+    // Tier-1 A1: clear dashboard coalesce state so any pending trailing
+    // emit doesn't fire after the session is gone.
+    const { clearDashboardCoalesce } = await import('./matching-flow');
+    clearDashboardCoalesce(sessionId);
   }
 }
 

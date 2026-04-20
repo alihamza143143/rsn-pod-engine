@@ -24,6 +24,10 @@ export interface ActiveSession {
   presenceMap: Map<string, { lastHeartbeat: Date; socketId: string; reconnectedAt?: Date }>;
   pendingRoundNumber: number | null;  // Round number for pre-generated matches awaiting host confirmation
   manuallyLeftRound: Set<string>;     // Users who clicked "Leave Conversation" — skip in reconnect/reassignment
+  // Tier-1 A1: per-session cache for display names used by emitHostDashboard
+  // and sendMatchPreview. Names don't change during an event, so we populate
+  // on first lookup and reuse until the session ends.
+  displayNameCache?: Map<string, string>;
 }
 
 export interface ChatMessage {
