@@ -4893,3 +4893,59 @@ All are user-environment or LiveKit SDK internal races during rapid mobile room 
 
 A3 — session-scoped timeout registry (feature-flagged, largest change).
 
+
+---
+
+## 2026-04-20 — Tier-1 A3: Session-end guard on deferred callbacks
+
+**Timestamp (local):** 2026-04-20
+**Task ID:** Tier-1 A3
+**Status:** Completed
+
+### What changed
+
+Scoped A3 down from the original "full registry + feature flag" plan to a surgical fix. Audit of all orchestration setTimeouts showed 9 of the 10 already had session-ended guards (via `activeSessions.get(sessionId)` checks, `disconnectTimeouts` registry, or status filters).
+
+Only one was exposed: `host-actions.ts:838` — the 5s post-remove partner-return flow. Added a first-line `activeSessions.get(data.sessionId)` check with informational log and early return. If the host ends the session during the 5s window, we no longer emit rating prompts or reissue lobby tokens against a dead session.
+
+Added a pinning test file that asserts the session-end guard pattern is present on all material orchestration deferred callbacks.
+
+### Files touched
+
+- `server/src/services/orchestration/handlers/host-actions.ts` — added guard to the host-remove 5s setTimeout
+- `server/src/__tests__/services/orchestration/tier1-a3-timeout-guards.test.ts` — 5 new pinning tests
+- `server/src/__tests__/services/orchestration/dashboard-refresh-on-transition.test.ts` — bumped the `handleHostRemoveFromRoom` proximity-proxy window from 6000 → 8000 chars (architectural invariant unchanged; the guard added ~400 chars of legitimate code, pushing the emit to 6020 chars from the UPDATE)
+
+### Tests
+
+- 502/502 server tests pass (was 497 — +5 new, +1 fixed). 0 broken.
+
+### Decisions
+
+- **Full registry deferred to Tier-2.** Memory leak from orphan timeouts is secondary (Node timeouts are ~1 KB each, <100 active at peak = ~100 KB, not material at 512 MB / 2 GB headroom). Zombie-fire race was the primary bug — fixed with guards.
+- **No feature flag.** The guard is behaviour-preserving by design: old code fired against stale data (a bug); new code bails early (correct). No circumstance where the old behaviour is desirable, so no flag needed.
+- Test-threshold adjustment is legitimate architectural-invariant preservation, documented in the test comment.
+
+### Tier-1 Phase A complete
+
+All nine Tier-1 items (A1–A9) shipped to staging. Full summary:
+
+| ID | Change | Files | Tests added |
+|---|---|---|---|
+| A1 | Coalesce emitHostDashboard + name cache | 4 | 12 |
+| A2 | Batch incrementRoundsCompleted | 3 | 7 |
+| A3 | Session-end guard on deferred callbacks | 2 | 5 |
+| A4 | Shared HTTP/socket auth cache | 2 | 7 |
+| A5 | /health DB-ping cache + /health/deep | 1 | 6 |
+| A6 | Socket.IO transport pinning + pingTimeout | 1 | 5 |
+| A7 | Redis-backed rate limiter (feature-flagged) | 2 | 8 |
+| A8 | render.yaml Redis env sync | 1 | — |
+| A9 | Silence benign LiveKit/WebRTC Sentry noise | 1 | 7 |
+
+502/502 server tests pass (was 445 at baseline — +57 new tests; 0 broken).
+
+### Next immediate action
+
+- Produce Phase B handoff: the step-by-step guide + Stefan message.
+- Verify CI green on staging, then fast-forward main.
+

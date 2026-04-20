@@ -90,9 +90,14 @@ describe('Architectural: dashboard refresh on every match status transition', ()
       // The remove-from-room handler: status = $2 (terminalStatus)
       const updIdx = src.indexOf("UPDATE matches SET status = $2, ended_at = NOW() WHERE id = $1 AND status = 'active'");
       expect(updIdx).toBeGreaterThan(-1);
-      // emitHostDashboard must appear within ~6000 chars after the UPDATE
-      // (the 5s setTimeout block + post-cleanup emit at end of handler).
-      const block = src.slice(updIdx, updIdx + 6000);
+      // emitHostDashboard must appear within the same handler block after
+      // the UPDATE (5s setTimeout body + post-cleanup emit at end of
+      // handler). Threshold bumped from 6000 → 8000 to accommodate the
+      // Tier-1 A3 session-end guard that was added inside the setTimeout
+      // block. The architectural invariant is unchanged — transition
+      // followed by dashboard refresh inside the same handler — only the
+      // proximity-proxy window widened.
+      const block = src.slice(updIdx, updIdx + 8000);
       expect(block).toMatch(/_emitHostDashboard\(data\.sessionId\)/);
     });
 

@@ -834,8 +834,19 @@ export async function handleHostRemoveFromRoom(
       }
 
       // Server-side 5s timeout: return partner to rating → lobby
-      // (Client's auto-leave won't work because match is already 'no_show')
+      // (Client's auto-leave won't work because match is already 'no_show').
+      //
+      // Tier-1 A3: guard the deferred callback against session-ended race.
+      // If the host ended the event during this 5 s window, firing rating
+      // prompts + reissuing lobby tokens against a dead session would emit
+      // stale events to disconnected sockets and touch a DB row whose
+      // parent session is in the completed/deleted state. Bail out early.
       setTimeout(async () => {
+        const currentSession = activeSessions.get(data.sessionId);
+        if (!currentSession) {
+          logger.info({ sessionId: data.sessionId, userId: data.userId }, 'Session ended during host-remove 5s grace — skipping partner-return flow');
+          return;
+        }
         try {
           const removedNameRes = await query<{ display_name: string }>(
             `SELECT display_name FROM users WHERE id = $1`, [data.userId]
