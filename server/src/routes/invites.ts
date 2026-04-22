@@ -435,7 +435,14 @@ router.post(
     try {
       // T0-4 — acceptInvite now returns { invite, redirectTo, registeredFor }
       // so the client can navigate definitively without guessing.
-      const result = await inviteService.acceptInvite(req.params.code, req.user!.userId);
+      // T1-1 — pass req.user.email so the service can enforce the
+      // identity-match guard (rejects if invite.invitee_email is set and
+      // doesn't match this user's authenticated email).
+      const result = await inviteService.acceptInvite(
+        req.params.code,
+        req.user!.userId,
+        req.user!.email,
+      );
       const response: ApiResponse = {
         success: true,
         data: {

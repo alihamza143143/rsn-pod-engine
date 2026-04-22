@@ -5276,3 +5276,52 @@ Idempotent re-acceptance preserved: same user re-clicking an already-consumed in
 
 Push staging → main as a single batch (per user direction "together no rush"). Then begin Tier 1 (T1-1 through T1-6).
 
+
+---
+
+## 2026-04-23 — T1-1: Email identity-match guard on invite acceptance (Issue 1)
+
+**Timestamp (local):** 2026-04-23
+**Task ID:** T1-1
+**Status:** Completed
+
+### What changed
+
+Architectural fix for Issue 1 (Identity & Account Recognition). Multi-device scenario: User A logged in on phone clicks an invite addressed to User B from a desktop. Pre-fix: User A consumed User B's invite. Post-fix: server rejects with `IDENTITY_MISMATCH` (HTTP 403) and message naming both emails.
+
+Guard:
+- Only runs when BOTH `invite.inviteeEmail` AND authenticated `userEmail` are set (back-compat for code-only public invites + legacy callers).
+- Case-insensitive comparison after `trim().toLowerCase()`.
+- Throws BEFORE the use-count idempotent path so a different account cannot trigger re-acceptance through the back door.
+
+### Files touched
+
+- `server/src/services/invite/invite.service.ts` — `acceptInvite(code, userId, userEmail?)` adds optional 3rd arg + identity-match guard
+- `server/src/routes/invites.ts` — `POST /invites/:code/accept` now forwards `req.user!.email`
+- `shared/src/types/api.ts` — added `IDENTITY_MISMATCH` to `ErrorCodes` enum
+- `server/src/__tests__/services/invite/t1-1-identity-match.test.ts` (new) — 7 tests covering: signature, both-set guard, case-insensitive match, error message shape, throw position before use-count, HTTP 403, route wiring
+- `server/src/__tests__/routes/invite-accept-flow.test.ts` — updated existing test to expect 3-arg signature
+
+### Tests
+
+- 589/589 server tests pass (was 582 — +7 new). 0 broken (1 existing test updated for new signature).
+- Build clean.
+
+### Behavior preservation
+
+- Public/code-only invites without `invitee_email`: guard doesn't run → unchanged behavior.
+- Legacy callers without email: guard doesn't run → unchanged behavior.
+- Same-email accept (happy path) still works identically.
+- Idempotent re-acceptance still works for the same-email case.
+
+### Why architectural, not patched
+
+- Optional parameter preserves all existing callers without modification.
+- Centralized in `acceptInvite()` — any future invite-acceptance entry point automatically inherits the guard.
+- Uses HTTP 403 (Forbidden) — distinguishes identity issues from validation errors (400) so client UI can offer "switch account" affordance specifically.
+- IDENTITY_MISMATCH added to typed `ErrorCodes` enum so client code-handlers are type-safe.
+
+### Next immediate action
+
+T1-2 — decouple onboarding gate from ProtectedRoute (biggest UX win).
+

@@ -427,7 +427,11 @@ function computeRedirectTo(_invite: Invite, registered: { sessionId?: string; po
   return '/dashboard';
 }
 
-export async function acceptInvite(code: string, userId: string): Promise<AcceptInviteResult> {
+export async function acceptInvite(
+  code: string,
+  userId: string,
+  userEmail?: string,
+): Promise<AcceptInviteResult> {
   return transaction(async (client) => {
     // ── 1. Lock + validate ──
     const inviteResult = await client.query(
@@ -465,6 +469,25 @@ export async function acceptInvite(code: string, userId: string): Promise<Accept
       const sessionStatus = sessionResult.rows[0]?.status;
       if (sessionStatus === 'completed' || sessionStatus === 'cancelled') {
         throw new AppError(400, 'EVENT_ENDED', 'This event has already ended');
+      }
+    }
+
+    // ── T1-1 (Issue 1) — identity-match guard. If the invite was issued to
+    //     a specific email AND the authenticated user's email is known AND
+    //     they don't match (case-insensitive), reject. Prevents the
+    //     multi-device confusion where User A logged-in on phone clicks
+    //     User B's invite from desktop and accidentally consumes it. The
+    //     useEmail param is optional so legacy callers and code-only invites
+    //     (no invitee_email) keep working unchanged.
+    if (invite.inviteeEmail && userEmail) {
+      const inviteEmailNorm = invite.inviteeEmail.trim().toLowerCase();
+      const userEmailNorm = userEmail.trim().toLowerCase();
+      if (inviteEmailNorm !== userEmailNorm) {
+        throw new AppError(
+          403,
+          'IDENTITY_MISMATCH',
+          `This invite was sent to ${invite.inviteeEmail}, but you're logged in as ${userEmail}. Sign in to the right account to accept.`,
+        );
       }
     }
 

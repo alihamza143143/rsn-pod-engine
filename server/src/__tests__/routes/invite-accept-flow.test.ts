@@ -198,7 +198,13 @@ describe('Invite accept flow — no auto-registration on view', () => {
 
     expect(res.status).toBe(200);
     expect(inviteService.acceptInvite).toHaveBeenCalledTimes(1);
-    expect(inviteService.acceptInvite).toHaveBeenCalledWith(INVITE_CODE, expect.any(String));
+    // T1-1: route now passes (code, userId, userEmail) so the service
+    // can enforce the identity-match guard against invitee_email.
+    expect(inviteService.acceptInvite).toHaveBeenCalledWith(
+      INVITE_CODE,
+      expect.any(String),
+      expect.any(String),
+    );
   });
 
   it('DELETE /sessions/:id/register works after acceptance — user can unregister', async () => {
