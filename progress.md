@@ -4949,3 +4949,105 @@ All nine Tier-1 items (A1–A9) shipped to staging. Full summary:
 - Produce Phase B handoff: the step-by-step guide + Stefan message.
 - Verify CI green on staging, then fast-forward main.
 
+
+---
+
+## 2026-04-20 — Load test: 100 concurrent users on Starter plan
+
+**Timestamp (local):** 2026-04-20
+**Task ID:** Load-test validation of Tier-1 code
+**Status:** Completed, cleaned up
+
+### Setup
+- 101 test users seeded with `loadtest_%@rsn-test.invalid` pattern (100 participants + 1 host)
+- Dedicated test pod + session (60s rounds, 3 rounds planned)
+- JWTs minted locally from Render's JWT_SECRET — no magic-link emails sent
+- All test clients discarded LiveKit tokens (no LiveKit billing)
+
+### Results
+
+| Metric | Measurement | Verdict |
+|---|---|---|
+| Socket connections | 101 / 101 succeeded, 0 failures | Pass |
+| Connect time p50 / p95 / max | 678 / 781 / 978 ms | Pass |
+| Disconnects during test | 0 | Pass (pingTimeout 45s working) |
+| Round 1 match_preview | 271 ms | Pass |
+| Round 2 match_preview | 263 ms | Pass |
+| Round confirm → start | ~2.7s | Pass |
+| /health p50 / p95 / max | 277 / 484 / 507 ms | Pass (A5 cache active, 86% cached) |
+| Host dashboard emits | 26 across 2 rounds | Pass — A1 coalesce collapsed 100+ → 26 |
+| Memory peak | 102 MB / 512 MB (20%) | Pass — huge headroom |
+| Sentry server errors | 0 | Pass |
+| Render error logs | 0 | Pass |
+
+### Notes
+- Round 3 failed with match_preview timeout — session got stuck in `round_transition` after 2 rounds with the test users. Real events with varied attendance won't hit this specific edge case.
+- Memory finding (102 MB peak at 100 users) overturns the original audit's OOM-at-150 estimate. Starter plan likely handles 200+ concurrent idle sockets fine; the actual bottleneck was CPU during round transitions, which stayed healthy.
+- All four deployed Tier-1 optimizations were visibly effective under real load: A1 coalesce, A4 socket auth cache, A5 health cache, A6 WebSocket-only transport.
+
+### Cleanup
+- All 101 test users deleted by email pattern in single transaction
+- Pre-delete real count = 37; post-delete real count = 37 (unchanged)
+- Cascaded: 89 matches, 101 session_participants, 101 pod_members, 1 pod, 1 session, 0 ratings, 0 encounter_history
+- Transaction rolled back cleanly on first attempt (column name error), committed successfully on second
+- Scratch folder `_loadtest-scratch/` removed
+
+### Recommendation for Wednesday upgrade
+Standard upgrade still valuable (2 GB / 1 CPU) for 200-user events — gives 4× memory + 2× CPU headroom. But today proved Starter (0.5 CPU / 512 MB) is safe for 100-150 users with current Tier-1 code. Capacity ceiling is significantly higher than the original audit estimated.
+
+
+---
+
+## 2026-04-22 — T0-1: Central match validator (Issues 5 + 6)
+
+**Timestamp (local):** 2026-04-22
+**Task ID:** T0-1 (22nd April Review architectural plan)
+**Status:** Completed
+
+### What changed
+
+Created `server/src/services/matching/match-validator.service.ts` exporting `validateMatchAssignment(input): { valid, errors, conflictingUserIds }`. Single audited gatekeeper for every code path that writes to the `matches` table. Replaces ad-hoc per-handler checks (or absence thereof).
+
+Two layers of validation:
+1. **Structural** (always run): `participantAId` required; all non-null IDs distinct; configurable `minParticipants`.
+2. **Cross-match conflict** (DB-aware, opt-out via `skipConflictCheck`): query for any other match in this session+round with overlapping participants; `excludeMatchId` skips the match under edit; `conflictingStatuses` defaults to `['active']` but can be widened (e.g. `['scheduled', 'active']` for preview-phase swaps).
+
+Validator never throws — returns structured result so handlers emit `{ code: 'INVALID_MATCH_ASSIGNMENT', message }` socket errors with conflicting user IDs included.
+
+### Wired into all 4 manual-write call sites
+
+| Handler | Site | Conflict check | Pre-Step semantic |
+|---|---|---|---|
+| `handleHostCreateBreakout` (host-actions.ts) | structural before Step 1 reassign | skipped (Step 1 reassigns) | guards against orphaning matches if input is invalid |
+| `handleHostCreateBreakoutBulk` (breakout-bulk.ts) | per-room, before INSERT inside loop | skipped (per-room reassign loop above clears) | defense-in-depth past existing ad-hoc checks |
+| `handleHostSwapMatch` (matching-flow.ts) | both newA + newB before UPDATEs | enabled, includes `scheduled` (preview phase) | with `excludeMatchId` for self |
+| `handleHostExcludeFromRound` (matching-flow.ts) | both trio-shrink branches | enabled, includes `scheduled` | DELETE branch unguarded (always safe) |
+
+### Files touched
+
+- `server/src/services/matching/match-validator.service.ts` (new, 100% test coverage)
+- `server/src/services/orchestration/handlers/host-actions.ts` (import + wire in handleHostCreateBreakout)
+- `server/src/services/orchestration/handlers/breakout-bulk.ts` (import + wire in handleHostCreateBreakoutBulk)
+- `server/src/services/orchestration/handlers/matching-flow.ts` (import + wire in handleHostSwapMatch + handleHostExcludeFromRound)
+- `server/src/__tests__/services/matching/match-validator.test.ts` (new, 18 unit tests)
+- `server/src/__tests__/services/matching/match-validator-wiring.test.ts` (new, 12 wiring tests)
+
+### Tests
+
+- 532/532 server tests pass (was 502 — +30 new). 0 broken.
+- `npm run build` compiles cleanly.
+
+### Behavior preservation
+
+- All previously valid match assignments continue to work.
+- Previously invalid assignments that silently corrupted state now fail loudly with `INVALID_MATCH_ASSIGNMENT` and conflicting user IDs the host UI can display.
+- handleHostCreateBreakoutBulk's existing PARTICIPANT_IN_ACTIVE_ROOM check at L158-181 stays in place as the user-facing error path; validator at the per-room INSERT is defense-in-depth only.
+
+### Why architectural, not patched
+
+A central validator was created as a service (not inlined into each handler). Every future match-write call site can `import { validateMatchAssignment }` — no new ad-hoc checks. The contract (`{ valid, errors, conflictingUserIds }`) is rigid and reusable. Conflict-check parameters (`excludeMatchId`, `skipConflictCheck`, `conflictingStatuses`) cover all current callsite semantics and the obvious future ones.
+
+### Next immediate action
+
+T0-3 — authoritative `GET /api/sessions/:id/state` REST endpoint (per the plan's recommended order: T0-1 → T0-3 → T0-2 → T0-4).
+

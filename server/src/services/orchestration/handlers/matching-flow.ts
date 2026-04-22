@@ -21,6 +21,7 @@ import {
 } from '../state/session-state';
 import { verifyHost, getAllHostIds } from './host-actions';
 import * as matchingService from '../../matching/matching.service';
+import { validateMatchAssignment } from '../../matching/match-validator.service';
 
 // ─── Cross-module references (wired in Task 7) ────────────────────────────
 // transitionToRound lives in round-lifecycle.ts.
@@ -280,6 +281,32 @@ export async function handleHostSwapMatch(
     const newA = replaceInMatch(matchA, data.userA, data.userB);
     const newB = replaceInMatch(matchB, data.userB, data.userA);
 
+    // T0-1: validate the resulting matches before UPDATE. The swap is in
+    // preview phase (status='scheduled' for both), so we check conflicts
+    // against scheduled+active rows; excludeMatchId lets each validation
+    // ignore the match it's updating.
+    for (const [check, label] of [
+      [{ result: newA, matchId: matchA.id }, 'matchA'] as const,
+      [{ result: newB, matchId: matchB.id }, 'matchB'] as const,
+    ]) {
+      const validation = await validateMatchAssignment({
+        sessionId: data.sessionId,
+        roundNumber,
+        participantAId: check.result.a,
+        participantBId: check.result.b,
+        participantCId: check.result.c,
+        excludeMatchId: check.matchId,
+        conflictingStatuses: ['scheduled', 'active'],
+      });
+      if (!validation.valid) {
+        socket.emit('error', {
+          code: 'INVALID_MATCH_ASSIGNMENT',
+          message: `Swap rejected (${label}): ${validation.errors.join('; ')}`,
+        });
+        return;
+      }
+    }
+
     await query('UPDATE matches SET participant_a_id = $1, participant_b_id = $2, participant_c_id = $3 WHERE id = $4',
       [newA.a, newA.b, newA.c, matchA.id]);
     await query('UPDATE matches SET participant_a_id = $1, participant_b_id = $2, participant_c_id = $3 WHERE id = $4',
@@ -321,16 +348,54 @@ export async function handleHostExcludeFromRound(
     if (userMatch) {
       if (userMatch.participantCId === data.userId) {
         // Trio: just remove participant C — pair remains intact
+        // T0-1: validate the resulting pair (the unchanged A/B). This is a
+        // safety net — input was valid, so output should be too, but the
+        // validator catches drift caused by other handlers writing in
+        // parallel since we read userMatch.
+        const validation = await validateMatchAssignment({
+          sessionId: data.sessionId,
+          roundNumber,
+          participantAId: userMatch.participantAId,
+          participantBId: userMatch.participantBId,
+          participantCId: null,
+          excludeMatchId: userMatch.id,
+          conflictingStatuses: ['scheduled', 'active'],
+        });
+        if (!validation.valid) {
+          socket.emit('error', {
+            code: 'INVALID_MATCH_ASSIGNMENT',
+            message: `Exclude rejected: ${validation.errors.join('; ')}`,
+          });
+          return;
+        }
         await query('UPDATE matches SET participant_c_id = NULL WHERE id = $1', [userMatch.id]);
       } else if (userMatch.participantCId) {
         // Trio: excluded user is A or B — promote C to fill the gap
         const remaining = [userMatch.participantAId, userMatch.participantBId, userMatch.participantCId]
           .filter(id => id !== data.userId);
         const sorted = remaining.sort();
+        // T0-1: validate the resulting pair (B promoted from C, or A/B unchanged with new ordering).
+        const validation = await validateMatchAssignment({
+          sessionId: data.sessionId,
+          roundNumber,
+          participantAId: sorted[0]!,
+          participantBId: sorted[1] || null,
+          participantCId: null,
+          excludeMatchId: userMatch.id,
+          conflictingStatuses: ['scheduled', 'active'],
+        });
+        if (!validation.valid) {
+          socket.emit('error', {
+            code: 'INVALID_MATCH_ASSIGNMENT',
+            message: `Exclude rejected: ${validation.errors.join('; ')}`,
+          });
+          return;
+        }
         await query('UPDATE matches SET participant_a_id = $1, participant_b_id = $2, participant_c_id = NULL WHERE id = $3',
           [sorted[0], sorted[1], userMatch.id]);
       } else {
-        // Pair: delete the match — the partner becomes a bye participant
+        // Pair: delete the match — the partner becomes a bye participant.
+        // No validator needed — DELETE is always safe.
         await query('DELETE FROM matches WHERE id = $1', [userMatch.id]);
       }
     }

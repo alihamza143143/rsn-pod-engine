@@ -33,6 +33,7 @@ import {
 } from './host-actions';
 import * as sessionService from '../../session/session.service';
 import * as videoService from '../../video/video.service';
+import { validateMatchAssignment } from '../../matching/match-validator.service';
 
 // ─── Host dashboard refresh — injected lazily to avoid circular imports ───
 let _emitHostDashboard: ((sessionId: string) => Promise<void>) | null = null;
@@ -223,6 +224,29 @@ export async function handleHostCreateBreakoutBulk(
       // Insert match — is_manual=TRUE so algorithm exclusion ignores this match.
       const matchId = uuid();
       const sorted = [...participantIds].sort();
+
+      // T0-1: defense-in-depth structural check before INSERT. The handler
+      // already validates count + cross-room dedup + active-match conflicts
+      // above, so this catches edge cases (in-room dupes that survived
+      // earlier checks). Conflict check skipped since the per-room reassign
+      // loop above just cleared any active-match conflicts for these IDs.
+      const validation = await validateMatchAssignment({
+        sessionId,
+        roundNumber: activeSession.currentRound,
+        participantAId: sorted[0],
+        participantBId: sorted[1] || null,
+        participantCId: sorted[2] || null,
+        skipConflictCheck: true,
+      });
+      if (!validation.valid) {
+        logger.error({ sessionId, matchId, errors: validation.errors }, 'Bulk-create validator caught invalid room');
+        socket.emit('error', {
+          code: 'INVALID_MATCH_ASSIGNMENT',
+          message: validation.errors.join('; '),
+        });
+        continue;
+      }
+
       try {
         await query(
           `INSERT INTO matches (id, session_id, round_number, participant_a_id, participant_b_id, participant_c_id, room_id, status, started_at, timer_visibility, is_manual)

@@ -23,6 +23,7 @@ import * as sessionService from '../../session/session.service';
 import * as videoService from '../../video/video.service';
 import { ForbiddenError, ValidationError } from '../../../middleware/errors';
 import * as matchingService from '../../matching/matching.service';
+import { validateMatchAssignment } from '../../matching/match-validator.service';
 
 // ─── Cross-module references (wired in Task 7) ────────────────────────────
 // Functions from round-lifecycle.ts that don't exist yet.
@@ -1558,6 +1559,30 @@ export async function handleHostCreateBreakout(
       if (participantIds.length > 3) {
         socket.emit('error', { code: 'VALIDATION_ERROR', message: 'Maximum 3 participants per breakout room' });
         return;
+      }
+
+      // T0-1: structural validation BEFORE Step 1's reassign so we never
+      // orphan existing matches if the new payload is itself invalid
+      // (duplicate participants, missing IDs). Conflict check is skipped
+      // here — Step 1 below explicitly reassigns existing active matches
+      // for these participants, which is a legitimate intent.
+      if (participantIds.length >= 1) {
+        const sortedForValidation = [...participantIds].sort();
+        const structureCheck = await validateMatchAssignment({
+          sessionId,
+          roundNumber: activeSession.currentRound,
+          participantAId: sortedForValidation[0],
+          participantBId: sortedForValidation[1] || null,
+          participantCId: sortedForValidation[2] || null,
+          skipConflictCheck: true,
+        });
+        if (!structureCheck.valid) {
+          socket.emit('error', {
+            code: 'INVALID_MATCH_ASSIGNMENT',
+            message: structureCheck.errors.join('; '),
+          });
+          return;
+        }
       }
 
       // Step 1: Remove each participant from ANY active match (across all rounds)
