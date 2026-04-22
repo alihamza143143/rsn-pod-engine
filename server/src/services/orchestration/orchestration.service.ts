@@ -20,6 +20,7 @@ import {
 import {
   handleJoinSession, handleLeaveSession, handleHeartbeat, handleReady,
   handleDisconnect, handleRatingSubmit, handleLeaveConversation,
+  handleRoomJoined,
   startHeartbeatStaleDetection, notifyRatingSubmitted,
   injectDependencies as injectParticipantDeps,
 } from './handlers/participant-flow';
@@ -179,6 +180,14 @@ export function initOrchestration(socketServer: SocketServer): void {
     socket.on('presence:ready', async (data) => {
       try { await handleReady(io, socket, data); }
       catch (err) { logger.error({ err, userId }, 'Ready handler error'); }
+    });
+    // T0-2 (Issue 7) — fired by VideoRoom after LiveKit room.connect()
+    // resolves. Distinct from presence:ready: this confirms LiveKit room
+    // membership specifically, so the host dashboard can show real
+    // breakout state instead of false-positive "active".
+    socket.on('presence:room_joined', async (data) => {
+      try { await handleRoomJoined(io, socket, data); }
+      catch (err) { logger.error({ err, userId }, 'Room-joined handler error'); }
     });
 
     // ── Host Events (guarded — state-mutating) ──

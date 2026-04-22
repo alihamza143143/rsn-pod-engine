@@ -28,6 +28,15 @@ export interface ActiveSession {
   // and sendMatchPreview. Names don't change during an event, so we populate
   // on first lookup and reuse until the session ends.
   displayNameCache?: Map<string, string>;
+  // T0-2 (Issue 7) — track actual LiveKit room presence (NOT socket
+  // presence). presenceMap.has(userId) is true once the participant's
+  // socket joins the session room, but their LiveKit client may still be
+  // fetching tokens or negotiating WebRTC. Until the client emits
+  // `presence:room_joined { matchId, roomId }` after the LiveKit
+  // `room.connect()` resolves, this Map stays empty for that user — so
+  // emitHostDashboard reports `isConnected: false` and the host can see
+  // the room hasn't actually started.
+  roomParticipants?: Map<string, { matchId: string; roomId: string; joinedAt: Date }>;
 }
 
 export interface ChatMessage {

@@ -775,6 +775,20 @@ async function emitHostDashboardImmediate(io: SocketServer, sessionId: string): 
     // so the host UI can render a per-room timer (or detect "all share
     // the same duration" and render a column header timer).
     const { roomTimers } = await import('./host-actions');
+
+    // T0-2 (Issue 7) — choose presence source for isConnected.
+    // ROOM_JOINED requires the participant's LiveKit client to have emitted
+    // presence:room_joined after a successful room.connect(). Falls back to
+    // socket presence (legacy) if the feature flag is off OR if the
+    // session pre-dates the upgrade (no roomParticipants map yet).
+    const requireRoomJoined = process.env.BREAKOUT_REQUIRE_ROOM_JOINED !== 'false';
+    const isConnectedFor = (uid: string): boolean => {
+      if (requireRoomJoined && activeSession.roomParticipants) {
+        return activeSession.roomParticipants.has(uid);
+      }
+      return activeSession.presenceMap.has(uid);
+    };
+
     const rooms = matches
       .filter(m => m.status === 'active')
       .map(m => {
@@ -783,21 +797,21 @@ async function emitHostDashboardImmediate(io: SocketServer, sessionId: string): 
           participants.push({
             userId: m.participantAId,
             displayName: nameMap.get(m.participantAId) || 'User',
-            isConnected: activeSession.presenceMap.has(m.participantAId),
+            isConnected: isConnectedFor(m.participantAId),
           });
         }
         if (m.participantBId) {
           participants.push({
             userId: m.participantBId,
             displayName: nameMap.get(m.participantBId) || 'User',
-            isConnected: activeSession.presenceMap.has(m.participantBId),
+            isConnected: isConnectedFor(m.participantBId),
           });
         }
         if (m.participantCId) {
           participants.push({
             userId: m.participantCId,
             displayName: nameMap.get(m.participantCId) || 'User',
-            isConnected: activeSession.presenceMap.has(m.participantCId),
+            isConnected: isConnectedFor(m.participantCId),
           });
         }
         const isManual = m.isManual === true;

@@ -5101,3 +5101,59 @@ Built a single source of truth for "what's the current state of this session?" u
 
 T0-2 — breakout state machine + `presence:room_joined` explicit signal.
 
+
+---
+
+## 2026-04-22 — T0-2: Breakout state machine — explicit LiveKit-room presence (Issue 7)
+
+**Timestamp (local):** 2026-04-22
+**Task ID:** T0-2
+**Status:** Completed
+
+### What changed
+
+Architectural fix for Issue 7 (Breakout Transition Logic). Pre-fix: host dashboard reported `isConnected: true` the moment a participant's socket joined the session room, even before LiveKit WebRTC negotiation completed. The host saw rooms as "active" while participants were still loading — fake transitions.
+
+Post-fix: a new `presence:room_joined` socket event fires from the client AFTER `LiveKitRoom.onConnected` resolves. Server tracks this in a per-session `roomParticipants` map. `emitHostDashboard` reads from this map (not socket presence) for the `isConnected` flag — host now sees real LiveKit room state.
+
+### Files touched
+
+**Server:**
+- `server/src/services/orchestration/state/session-state.ts` — `roomParticipants?: Map<userId, { matchId, roomId, joinedAt }>` on ActiveSession
+- `server/src/services/orchestration/handlers/participant-flow.ts` — new `handleRoomJoined()` handler + `clearRoomParticipant()` + `clearRoomParticipantsForMatch()` helpers; disconnect handler clears roomParticipants alongside presenceMap
+- `server/src/services/orchestration/orchestration.service.ts` — registers `socket.on('presence:room_joined', ...)`
+- `server/src/services/orchestration/handlers/matching-flow.ts` — `emitHostDashboard` chooses presence source via `BREAKOUT_REQUIRE_ROOM_JOINED` env (default on); falls back to socket presence if flag is off OR session pre-dates upgrade (`roomParticipants` map absent)
+
+**Shared types:**
+- `shared/src/types/events.ts` — `presence:room_joined` added to ClientToServerEvents
+
+**Client:**
+- `client/src/features/live/VideoRoom.tsx` — subscribes `currentMatchId`; new `onConnected` handler on `<LiveKitRoom>` emits `presence:room_joined { sessionId, matchId, roomId }`
+
+**Tests:**
+- `server/src/__tests__/services/orchestration/t0-2-room-presence.test.ts` (new) — 13 source-pattern tests covering ActiveSession field, handler exports, dispatch wiring, env-flag behaviour, isConnectedFor helper, client onConnected payload + store subscription
+
+### Tests
+
+- 559/559 server tests pass (was 546 — +13 new). 0 broken.
+- Server build clean. Client typecheck clean. Shared types rebuilt.
+
+### Behavior preservation
+
+- **Feature flag `BREAKOUT_REQUIRE_ROOM_JOINED=true` is default-on.** To revert during a live event: set to `'false'` via Render env (no redeploy needed for the new code path). This restores the legacy socket-presence behaviour exactly.
+- **Graceful fallback for legacy sessions:** if `activeSession.roomParticipants` is absent (session created before this code shipped), `isConnectedFor()` falls back to `presenceMap.has()`. No retroactive breakage.
+- **Cleanup:** participant disconnect clears their `roomParticipants` entry alongside `presenceMap`. Match-status terminal transitions don't need explicit cleanup because `emitHostDashboard` only iterates `m.status === 'active'` matches.
+- All other socket events (`session:join`, `presence:heartbeat`, `presence:ready`) continue to work identically.
+
+### Why architectural, not patched
+
+- New signal is a **distinct socket event** with explicit semantics (vs piggybacking on `presence:ready` which has different meaning).
+- `roomParticipants` is **typed and tracked** as part of `ActiveSession`, not module-level scratch state.
+- `clearRoomParticipant` / `clearRoomParticipantsForMatch` exposed as public helpers so future match-state handlers can call them explicitly.
+- Feature flag enables zero-redeploy rollback.
+- Legacy fallback prevents data-state migrations.
+
+### Next immediate action
+
+T0-4 — atomic invite acceptance transaction (last of the 4 Tier-0 items).
+

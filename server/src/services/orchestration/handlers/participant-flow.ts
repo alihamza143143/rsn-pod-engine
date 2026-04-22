@@ -544,6 +544,70 @@ export async function handleReady(
   );
 }
 
+// ─── Room-Joined Signal (T0-2 / Issue 7) ────────────────────────────────────
+//
+// Client fires this after LiveKit `room.connect()` resolves AND tracks have
+// been successfully published. Distinct from `presence:ready` (which signals
+// generic in-lobby readiness). Lets the host dashboard distinguish "socket
+// connected to session room" from "actually inside the LiveKit breakout
+// room" — eliminating the false-positive "active" state the host UI used to
+// show before participants had finished WebRTC setup.
+//
+// Cleanup happens automatically: socket disconnect clears the user from
+// roomParticipants (handled in handleDisconnect). Match status flipping to
+// completed/cancelled clears all participants in clearRoomParticipantsForMatch.
+
+export async function handleRoomJoined(
+  _io: SocketServer,
+  socket: Socket,
+  data: { sessionId: string; matchId: string; roomId: string },
+): Promise<void> {
+  const userId = getUserIdFromSocket(socket);
+  if (!userId || !data.sessionId || !data.matchId || !data.roomId) return;
+
+  const activeSession = activeSessions.get(data.sessionId);
+  if (!activeSession) return;
+
+  if (!activeSession.roomParticipants) {
+    activeSession.roomParticipants = new Map();
+  }
+  activeSession.roomParticipants.set(userId, {
+    matchId: data.matchId,
+    roomId: data.roomId,
+    joinedAt: new Date(),
+  });
+
+  logger.debug({ sessionId: data.sessionId, userId, matchId: data.matchId },
+    'presence:room_joined — participant confirmed in LiveKit room');
+
+  // Refresh host dashboard so the green dot now reflects real LiveKit
+  // presence (not just socket presence).
+  if (_emitHostDashboard) await _emitHostDashboard(data.sessionId).catch(() => {});
+}
+
+/**
+ * Drop a participant from the roomParticipants map. Called on socket
+ * disconnect / leave / participant removal. Safe no-op if not present.
+ */
+export function clearRoomParticipant(sessionId: string, userId: string): void {
+  const activeSession = activeSessions.get(sessionId);
+  if (!activeSession?.roomParticipants) return;
+  activeSession.roomParticipants.delete(userId);
+}
+
+/**
+ * Drop ALL participants from a specific match's roomParticipants entries.
+ * Called when a match transitions to a terminal status so we don't carry
+ * stale presence into the next round.
+ */
+export function clearRoomParticipantsForMatch(sessionId: string, matchId: string): void {
+  const activeSession = activeSessions.get(sessionId);
+  if (!activeSession?.roomParticipants) return;
+  for (const [uid, entry] of activeSession.roomParticipants) {
+    if (entry.matchId === matchId) activeSession.roomParticipants.delete(uid);
+  }
+}
+
 // ─── Rating Submit (via Socket) ─────────────────────────────────────────────
 
 export async function handleRatingSubmit(
@@ -960,6 +1024,9 @@ export async function handleDisconnect(
     if (activeSession.presenceMap.has(userId)) {
       handledSessionIds.add(sessionId);
       activeSession.presenceMap.delete(userId);
+      // T0-2 — also clear room-presence so dashboard reflects the actual
+      // LiveKit-room state, not just socket disconnect.
+      activeSession.roomParticipants?.delete(userId);
 
       await sessionService.updateParticipantStatus(
         sessionId, userId, ParticipantStatus.DISCONNECTED

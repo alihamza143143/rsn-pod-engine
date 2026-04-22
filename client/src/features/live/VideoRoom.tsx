@@ -461,6 +461,10 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
   const liveKitToken = useSessionStore(s => s.liveKitToken);
   const livekitUrl = useSessionStore(s => s.livekitUrl);
   const currentRoomId = useSessionStore(s => s.currentRoomId);
+  // T0-2 (Issue 7) — needed by onConnected to emit presence:room_joined
+  // so the host dashboard can show real LiveKit-room presence instead of
+  // false-positive "active" before WebRTC negotiation completes.
+  const currentMatchId = useSessionStore(s => s.currentMatchId);
   const timerVisibility = useSessionStore(s => s.timerVisibility);
   const breakoutTimerHidden = useSessionStore(s => s.breakoutTimerHidden);
   const partnerDisconnected = useSessionStore(s => s.partnerDisconnected);
@@ -529,6 +533,19 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
       audio={true}
       options={{
         videoCaptureDefaults: { resolution: { width: 1280, height: 720, frameRate: 30 } },
+      }}
+      onConnected={() => {
+        // T0-2 (Issue 7) — confirm LiveKit room membership to the server so
+        // host dashboard reports real "in-breakout" presence instead of just
+        // socket presence. Skipped if we don't have all 3 identifiers yet
+        // (race during fast room swaps — server tolerates the gap).
+        if (sessionId && currentMatchId && currentRoomId) {
+          getSocket()?.emit('presence:room_joined', {
+            sessionId,
+            matchId: currentMatchId,
+            roomId: currentRoomId,
+          });
+        }
       }}
       onDisconnected={() => {
         if (useSessionStore.getState().phase !== 'matched') return;

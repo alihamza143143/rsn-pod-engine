@@ -103,6 +103,9 @@ export interface ClientToServerEvents {
   // Presence
   'presence:heartbeat': (data: { sessionId: string }) => void;
   'presence:ready': (data: { sessionId: string }) => void;
+  // T0-2 (Issue 7) — fired by client after LiveKit room.connect() resolves.
+  // Distinct from presence:ready: confirms LiveKit room membership specifically.
+  'presence:room_joined': (data: { sessionId: string; matchId: string; roomId: string }) => void;
 
   // Rating
   'rating:submit': (data: { matchId: string; qualityScore: number; meetAgain: boolean; feedback?: string }) => void;
