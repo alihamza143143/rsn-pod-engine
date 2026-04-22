@@ -5425,3 +5425,61 @@ Fix:
 
 T1-4 — three canonical participant counts.
 
+
+---
+
+## 2026-04-23 — T1-4: Three canonical participant counts (Issue 8)
+
+**Timestamp (local):** 2026-04-23
+**Task ID:** T1-4
+**Status:** Completed
+
+### What changed
+
+Architectural fix for Issue 8 (Participant Count Accuracy). Pre-fix: five different code paths computed counts in inconsistent ways (socket presence, DB COUNT, presenceMap.size, REST endpoints), with the host sometimes counted, ghost/test accounts always counted, and no single source of truth.
+
+`buildSessionStateSnapshot` now produces a single canonical `participantCounts` object with five fields:
+
+```typescript
+participantCounts: {
+  connected: number;     // Real-time socket presence (host EXCLUDED)
+  registered: number;    // session_participants rows, non-ghost statuses (host EXCLUDED)
+  active: number;        // Intersection: registered AND connected (host EXCLUDED)
+  hostConnected: boolean;// Surfaced separately so UI can show "+1 host"
+  ghostFiltered: true;   // Confirms test/loadtest accounts removed
+}
+```
+
+Filters baked in:
+- `status NOT IN ('removed', 'left', 'no_show')`
+- `email NOT LIKE 'loadtest_%@rsn-test.invalid'` (test accounts)
+- Host always excluded from headline counts; surfaced via `hostConnected`
+
+### Files touched
+
+- `server/src/services/session/session-state-snapshot.service.ts` — refactored count computation; query now returns rows of user_ids (not just COUNT) so `active = registered ∩ connected` can be computed without a second query
+- `client/src/stores/sessionStore.ts` — `SessionStateSnapshot.participantCounts` interface widened to match
+- `server/src/__tests__/services/session/session-state-snapshot.test.ts` — updated 2 existing tests for new shape; added 2 new tests for the new fields
+
+### Tests
+
+- 608/608 server tests pass (was 606 — +2 new). 0 broken (3 existing tests updated for new shape).
+- Server build clean. Client typecheck clean.
+
+### Behavior preservation
+
+- The legacy `participant:count` socket emit is unchanged (still emits a single `count`). All UI surfaces using that channel continue working.
+- The `GET /api/sessions/:id/state` snapshot now returns the richer counts object — UI can opt in incrementally.
+- `connectedParticipants` array still includes the host (UI may need it for "host present" badges) — only the headline count excludes host.
+
+### Why architectural, not patched
+
+- Single source of truth: one helper computes all three counts from a consistent base (the same SELECT that lists registered ids).
+- TypeScript interface mirrored on both sides — compile-time enforcement that client + server agree on shape.
+- Filter conditions (ghost statuses, loadtest accounts) baked into the query so they can't be skipped accidentally elsewhere.
+- Host explicitly separated — no more "is the host in this number or not?" ambiguity.
+
+### Next immediate action
+
+T1-5 — unified getEffectiveRole resolver + permissions:updated event + host transfer (largest Tier-1 item).
+

@@ -44,12 +44,18 @@ export interface SessionStateSnapshot {
   /** Whether the host's socket is currently in the lobby room. */
   hostInLobby: boolean;
 
-  /** Coarse counts. Refined further in T1-4. */
+  /** T1-4 — three canonical counts that disambiguate "X participants" UX. */
   participantCounts: {
-    /** Sockets currently in the session room. */
+    /** Real-time socket presence — users with an active socket in the session room. Excludes host by default. */
     connected: number;
-    /** Rows in session_participants with status NOT IN ('removed', 'left', 'no_show'). */
+    /** DB rows in session_participants with status NOT IN ('removed','left','no_show'). Excludes host by default. */
     registered: number;
+    /** Subset of registered who are also currently connected — what hosts mean by "active right now". Excludes host by default. */
+    active: number;
+    /** Whether the host is currently connected (for explicit display, NOT included in the counts above). */
+    hostConnected: boolean;
+    /** True if test/loadtest accounts (email LIKE 'loadtest_%@rsn-test.invalid') were filtered out. Always true post-T1-4. */
+    ghostFiltered: boolean;
   };
 
   /** UI hint propagated from session config. */
@@ -104,13 +110,37 @@ export async function buildSessionStateSnapshot(
   );
   const cohosts = cohostResult.rows.map(r => r.user_id);
 
-  // ── Registered count (filtered for ghost/no-show) ─────────────────────
-  const registeredRes = await query<{ c: string }>(
-    `SELECT COUNT(*)::text AS c FROM session_participants
-     WHERE session_id = $1 AND status NOT IN ('removed', 'left', 'no_show')`,
+  // ── T1-4 — three canonical counts ────────────────────────────────────
+  // Registered: all session_participants rows with non-ghost statuses,
+  //   filtered for test/loadtest accounts and the host.
+  // Connected: socket presence in the session room, minus host.
+  // Active: registered AND connected — what hosts intuitively mean by
+  //   "X participants right now".
+  // hostConnected: separate boolean so UI can show "+1 host" explicitly.
+  const registeredRes = await query<{ user_id: string }>(
+    `SELECT sp.user_id
+     FROM session_participants sp
+     JOIN users u ON u.id = sp.user_id
+     WHERE sp.session_id = $1
+       AND sp.status NOT IN ('removed', 'left', 'no_show')
+       AND u.email NOT LIKE 'loadtest_%@rsn-test.invalid'`,
     [sessionId],
   );
-  const registeredCount = parseInt(registeredRes.rows[0]?.c || '0', 10);
+  const registeredIds = new Set(registeredRes.rows.map(r => r.user_id));
+  // Exclude host from the headline count — surfaced separately as hostConnected
+  if (session.hostUserId) registeredIds.delete(session.hostUserId);
+
+  const connectedIds = new Set(
+    connectedParticipants.map(p => p.userId).filter(uid => uid && uid !== session.hostUserId),
+  );
+
+  // Active = intersection of registered + connected (with host excluded from both)
+  let activeCount = 0;
+  for (const uid of connectedIds) if (registeredIds.has(uid)) activeCount++;
+
+  const hostConnected = session.hostUserId
+    ? connectedParticipants.some(p => p.userId === session.hostUserId)
+    : false;
 
   // ── Compose snapshot ───────────────────────────────────────────────────
   return {
@@ -130,8 +160,11 @@ export async function buildSessionStateSnapshot(
     hostInLobby,
 
     participantCounts: {
-      connected: connectedParticipants.length,
-      registered: registeredCount,
+      connected: connectedIds.size,
+      registered: registeredIds.size,
+      active: activeCount,
+      hostConnected,
+      ghostFiltered: true,
     },
 
     timerVisibility: (config as any).timerVisibility || 'last_10s',

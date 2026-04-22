@@ -67,7 +67,11 @@ describe('T0-3 — buildSessionStateSnapshot', () => {
   it('falls back to DB session when activeSessions has no entry', async () => {
     mockGetSessionById.mockResolvedValue(makeSession({ status: 'completed', currentRound: 3 }));
     mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });           // cohosts
-    mockQuery.mockResolvedValueOnce({ rows: [{ c: '8' }], rowCount: 1 }); // registered count
+    // T1-4: registered is now SELECT user_id (not COUNT) so we can compute active too
+    mockQuery.mockResolvedValueOnce({
+      rows: Array.from({ length: 8 }, (_, i) => ({ user_id: `u-${i}` })),
+      rowCount: 8,
+    });
 
     const snapshot = await buildSessionStateSnapshot(SESSION_ID, null);
 
@@ -138,10 +142,20 @@ describe('T0-3 — buildSessionStateSnapshot', () => {
     expect(snapshot!.timerEndsAt).toBeNull();
   });
 
-  it('counts socket presence from io when provided, sets connected/hostInLobby', async () => {
+  it('counts socket presence from io, excludes host from headline counts (T1-4)', async () => {
     mockGetSessionById.mockResolvedValue(makeSession({ hostUserId: 'host-1' }));
     mockQuery.mockResolvedValueOnce({ rows: [], rowCount: 0 });
-    mockQuery.mockResolvedValueOnce({ rows: [{ c: '5' }], rowCount: 1 });
+    // T1-4: registered query returns rows of {user_id} not {c} count
+    mockQuery.mockResolvedValueOnce({
+      rows: [
+        { user_id: 'host-1' },  // host present in DB but excluded from registered count
+        { user_id: 'user-2' },
+        { user_id: 'user-3' },
+        { user_id: 'user-4' },
+        { user_id: 'user-5' },
+      ],
+      rowCount: 5,
+    });
 
     const io = makeIo([
       { userId: 'host-1', displayName: 'Host' },
@@ -151,11 +165,16 @@ describe('T0-3 — buildSessionStateSnapshot', () => {
 
     const snapshot = await buildSessionStateSnapshot(SESSION_ID, io);
 
+    // Raw connected list still includes host (UI may need it for "host present" badge)
     expect(snapshot!.connectedParticipants).toHaveLength(3);
     expect(snapshot!.connectedParticipants[0].userId).toBe('host-1');
     expect(snapshot!.hostInLobby).toBe(true);
-    expect(snapshot!.participantCounts.connected).toBe(3);
-    expect(snapshot!.participantCounts.registered).toBe(5);
+    // T1-4: headline counts EXCLUDE host
+    expect(snapshot!.participantCounts.connected).toBe(2);  // user-2, user-3 (host excluded)
+    expect(snapshot!.participantCounts.registered).toBe(4); // 5 - host = 4
+    expect(snapshot!.participantCounts.active).toBe(2);     // intersection: user-2, user-3
+    expect(snapshot!.participantCounts.hostConnected).toBe(true);
+    expect(snapshot!.participantCounts.ghostFiltered).toBe(true);
   });
 
   it('returns hostInLobby=false when host socket is not in the room', async () => {
@@ -181,17 +200,45 @@ describe('T0-3 — buildSessionStateSnapshot', () => {
     expect(snapshot!.cohosts).toEqual(['cohost-1', 'cohost-2']);
   });
 
-  it('filters registered count for ghost statuses (removed/left/no_show)', async () => {
+  it('filters registered list for ghost statuses + loadtest accounts (T1-4)', async () => {
     mockGetSessionById.mockResolvedValue(makeSession());
     mockQuery
       .mockResolvedValueOnce({ rows: [], rowCount: 0 })
-      .mockResolvedValueOnce({ rows: [{ c: '4' }], rowCount: 1 });
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
 
     await buildSessionStateSnapshot(SESSION_ID, null);
 
-    // The query for registered count must filter out ghost statuses
-    const countQuery = mockQuery.mock.calls[1][0] as string;
-    expect(countQuery).toMatch(/status\s+NOT\s+IN\s*\(\s*'removed'\s*,\s*'left'\s*,\s*'no_show'\s*\)/i);
+    const registeredQuery = mockQuery.mock.calls[1][0] as string;
+    // Status filter
+    expect(registeredQuery).toMatch(/status\s+NOT\s+IN\s*\(\s*'removed'\s*,\s*'left'\s*,\s*'no_show'\s*\)/i);
+    // T1-4: also filters loadtest/test accounts via email pattern
+    expect(registeredQuery).toMatch(/email\s+NOT\s+LIKE\s+'loadtest_%@rsn-test\.invalid'/i);
+  });
+
+  it('reports ghostFiltered=true on the new participantCounts shape', async () => {
+    mockGetSessionById.mockResolvedValue(makeSession());
+    mockQuery
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+    const snapshot = await buildSessionStateSnapshot(SESSION_ID, null);
+    expect(snapshot!.participantCounts.ghostFiltered).toBe(true);
+  });
+
+  it('participantCounts has connected/registered/active/hostConnected/ghostFiltered fields', async () => {
+    mockGetSessionById.mockResolvedValue(makeSession());
+    mockQuery
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 })
+      .mockResolvedValueOnce({ rows: [], rowCount: 0 });
+
+    const snapshot = await buildSessionStateSnapshot(SESSION_ID, null);
+    expect(snapshot!.participantCounts).toEqual({
+      connected: expect.any(Number),
+      registered: expect.any(Number),
+      active: expect.any(Number),
+      hostConnected: expect.any(Boolean),
+      ghostFiltered: true,
+    });
   });
 
   it('reads numberOfRounds from session config (string-encoded fallback)', async () => {

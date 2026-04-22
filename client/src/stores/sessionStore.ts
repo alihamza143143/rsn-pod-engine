@@ -187,7 +187,14 @@ export interface SessionStateSnapshot {
   cohosts: string[];
   connectedParticipants: Array<{ userId: string; displayName: string }>;
   hostInLobby: boolean;
-  participantCounts: { connected: number; registered: number };
+  /** T1-4 — three canonical participant counts (host excluded from headline). */
+  participantCounts: {
+    connected: number;
+    registered: number;
+    active: number;
+    hostConnected: boolean;
+    ghostFiltered: boolean;
+  };
   timerVisibility: string;
 }
 
