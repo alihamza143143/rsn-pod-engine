@@ -199,7 +199,16 @@ const VideoStage = memo(function VideoStage() {
               column, height = width × 9/16). On short windows max-h-full
               caps the height and width shrinks proportionally to maintain
               the aspect ratio — no distortion, no overflow. */}
-          <div className={`hidden md:grid h-full gap-4 ${isTrio ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-2'}`}>
+          {/* T2-3 (Issue 13.3) — responsive grid for 2/3/4 participants.
+              Old grid: hardcoded 2 cols (pair) or 2/3 cols (trio). Wasted
+              space at small-desktop widths for pair (2x2 = 4 cells for 2
+              people) and underserved tablet (768-1024px) for trio.
+              New grid:
+                pair (you + 1)  → grid-cols-1 lg:grid-cols-2  (full-width
+                                  tiles on small desktops, side-by-side on lg)
+                trio (you + 2+) → grid-cols-2 (md+) → 3 cols on lg
+              Tablet now gets a sensible 2-column layout for trios. */}
+          <div className={`hidden md:grid h-full gap-4 ${isTrio ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 lg:grid-cols-2'}`}>
             {remoteTracks.map((rt, i) => (
               <div key={rt.participant.sid} className="h-full flex items-center justify-center cursor-pointer" onClick={() => setPinnedSid(rt.participant.sid)}>
                 <div className="w-full" style={{ aspectRatio: '16 / 9', maxHeight: '100%' }}>
@@ -332,7 +341,12 @@ const MediaControls = memo(function MediaControls() {
     try {
       const mod = await loadBgProcessors();
       if (!mod) { console.error('Background processors not available'); return; }
-      const camPub = Array.from(localParticipant.trackPublications.values()).find(p => p.source === 'camera');
+      // T2-6 (Issue 15) — fix Track.Source enum mismatch. Pre-fix:
+      // `p.source === 'camera'` compared the Track.Source enum value to a
+      // raw string, which never matched, so camPub was always undefined
+      // and the blur silently no-op'd. Now uses Track.Source.Camera enum
+      // properly (Track is already imported from 'livekit-client').
+      const camPub = Array.from(localParticipant.trackPublications.values()).find(p => p.source === Track.Source.Camera);
       const camTrack = camPub?.track;
       if (!camTrack) return;
 
@@ -347,7 +361,9 @@ const MediaControls = memo(function MediaControls() {
       await (camTrack as any).stopProcessor?.();
 
       if (mode === 'background-blur') {
-        const processor = mod.BackgroundBlur(10);
+        // T2-6: bumped strength 10 → 25 for visible effect (10 was so light
+        // users perceived no blur even when wired correctly).
+        const processor = mod.BackgroundBlur(25);
         await (camTrack as any).setProcessor(processor);
         processorRef.current = processor;
       } else if (mode === 'virtual-background' && imagePath) {
@@ -473,6 +489,17 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
   const retryCountRef = useRef(0);
   const { sessionId } = useParams();
 
+  // T2-5 (Issue 14.2) — fetch session title so the badge above the video
+  // can show event context. Pre-fix: badge said "Breakout Room · Round X/Y"
+  // with no event name, leaving users unsure which event they're in.
+  const [sessionTitle, setSessionTitle] = useState<string>('');
+  useEffect(() => {
+    if (!sessionId) return;
+    api.get(`/sessions/${sessionId}`)
+      .then(res => setSessionTitle(res?.data?.data?.title || ''))
+      .catch(() => { /* non-fatal — badge falls back to "Breakout Room" */ });
+  }, [sessionId]);
+
   // Backup token fetch if not provided inline
   useEffect(() => {
     if (!liveKitToken && sessionId) {
@@ -586,7 +613,14 @@ export default function VideoRoom({ isHost = false }: { isHost?: boolean }) {
         {/* Timer bar — responsive: stacks on mobile */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-[#292a2d] rounded-xl px-3 py-2 sm:px-4 sm:py-3">
           <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <span className="text-xs sm:text-sm text-white font-medium">Breakout Room</span>
+            {/* T2-5 (Issue 14.2) — session title prepended so users see
+                event context, not just "Breakout Room" label. */}
+            {sessionTitle && (
+              <span className="text-xs sm:text-sm text-white font-medium truncate max-w-[180px] sm:max-w-none" title={sessionTitle}>
+                {sessionTitle}
+              </span>
+            )}
+            <span className="text-xs sm:text-sm text-gray-300 font-medium">{sessionTitle ? '·' : ''} Breakout Room</span>
             {currentRound > 0 && (
               <span className="text-xs sm:text-sm text-gray-400">Round {currentRound}/{totalRounds}</span>
             )}

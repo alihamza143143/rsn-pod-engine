@@ -5636,3 +5636,71 @@ Plus Tier 0 (4 items + hotfix) before this. All on staging.
 
 T2 batch — 6 UI polish items (parallel-shippable in one commit).
 
+
+---
+
+## 2026-04-23 — T2 batch: 6 UI polish items (Issues 13, 14, 15)
+
+**Timestamp (local):** 2026-04-23
+**Task ID:** T2-1 through T2-6 — final Tier 2 of the 22nd April plan
+**Status:** Completed
+
+### What changed
+
+Six small, high-impact UI/video fixes shipped as a single batch (parallel-shippable, no cross-dependencies).
+
+| ID | Fix | Issue |
+|---|---|---|
+| **T2-1** | Lobby tile uses `object-contain` (matches breakout). Wrapped in `.rsn-tile-contain` for vendor CSS specificity override. | 13.1 — main camera too zoomed |
+| **T2-2** | Mirror un-undo CSS scoped to `data-lk-local="false"` only. Local self-view keeps native mirroring (matches preview). | 13.2 — preview vs published mirror mismatch |
+| **T2-3** | Pair grid changed from `grid-cols-2` (wasted at small-desktop) to `grid-cols-1 lg:grid-cols-2`. Trio gets `md:grid-cols-2` tablet layout. | 13.3 — dead zones in 2/3/4 layouts |
+| **T2-4** | Rating stars unselected color `text-gray-600 → text-white/60`. Visible on dark `#292a2d` background now. | 14.1 — invisible stars |
+| **T2-5** | Persistent session-title badge in VideoRoom. Fetches title via `api.get(/sessions/:id)` on mount; renders alongside "Breakout Room" + round info. | 14.2 — event context lost |
+| **T2-6** | Background blur fixed: `Track.Source.Camera` enum (was string `'camera'` = always undefined → silent no-op). Strength bumped 10 → 25 for visible effect. | 15 — blur didn't work |
+
+### Files touched
+
+- `client/src/features/live/Lobby.tsx` — T2-1 + T2-6
+- `client/src/index.css` — T2-2 (CSS scoping)
+- `client/src/features/live/VideoRoom.tsx` — T2-3 + T2-5 + T2-6
+- `client/src/features/live/RatingPrompt.tsx` — T2-4
+- `server/src/__tests__/services/t2-ui-polish-batch.test.ts` (new) — 12 tests pinning every change
+
+### Tests
+
+- 651/651 server tests pass (was 639 — +12 new). 0 broken.
+- Server build clean. Client typecheck clean.
+
+### Behavior preservation
+
+- Pinned tiles (PIP) still use `object-cover` — only un-pinned tiles default to `object-contain`.
+- Local self-view: still mirrored (was already, but T2-2 ensures the override doesn't break it).
+- Pair desktop UX: was `2x2 = 4 cells for 2 people`, now `1 col stacked or 2 cols on lg` — strictly better space usage.
+- Existing rating star functionality unchanged — only color of unselected state.
+- Rest of Breakout Room badge unchanged; T2-5 prepends session title.
+- Background blur: was already attempted in code but silently failed; now actually works (would have looked the same to users either way until they noticed it didn't work).
+
+### Why architectural, not patched
+
+- All six fixes follow the project's existing patterns (object-fit class scoping, responsive Tailwind breakpoints, LiveKit Track.Source enum).
+- T2-2 mirror scoping uses LiveKit's documented `data-lk-local` attribute — no fragile string-matching against inline styles.
+- T2-5 session title fetch reuses existing `api.get(/sessions/:id)` endpoint — no new server-side work.
+- T2-6 blur fix is the canonical Track.Source enum usage matching what the rest of the file already uses (Lobby.tsx:49 already had `Track.Source.Camera` correctly elsewhere).
+
+### TIER 2 COMPLETE — entire 22nd April plan SHIPPED on staging
+
+| Tier | Items | Commits | New tests |
+|---|---|---|---|
+| **Tier 0** | T0-1, T0-3, T0-2, T0-4 + HOTFIX | 5 commits | +75 |
+| **Tier 1** | T1-1, T1-2, T1-3, T1-4, T1-5, T1-6 | 6 commits | +57 |
+| **Tier 2** | T2-1..T2-6 (this batch) | 1 commit | +12 |
+| **Total** | **15 architectural items** | **12 commits** | **+144 new tests** |
+
+651/651 server tests passing. Server + client TS builds clean.
+
+### What's next
+
+- Push staging → main as a single batch (per user direction "together no rush")
+- Run `check whole` after main deploy completes
+- Deliver final report: every issue from the 22nd April review mapped to its fix commit + behavior-preservation contract met
+

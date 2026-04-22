@@ -74,7 +74,11 @@ function PartnerRatingForm({ partnerName, toUserId, matchId, onSubmitted, onSkip
             className="transition-transform hover:scale-110 active:scale-95"
           >
             <Star
-              className={`h-12 w-12 ${n <= rating ? 'text-amber-400 fill-amber-400' : 'text-gray-600 hover:text-gray-500'}`}
+              // T2-4 (Issue 14.1) — unselected stars were text-gray-600 on
+              // the dark bg-[#292a2d] background, making them nearly
+              // invisible (the "wrong color" the review reported).
+              // text-white/60 gives a proper outline that's visible on dark.
+              className={`h-12 w-12 ${n <= rating ? 'text-amber-400 fill-amber-400' : 'text-white/60 hover:text-white/80'}`}
             />
           </button>
         ))}

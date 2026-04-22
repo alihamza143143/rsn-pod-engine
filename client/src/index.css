@@ -130,10 +130,17 @@
   }
 }
 
-/* Un-mirror all LiveKit video tracks — override inline scaleX(-1) */
-.lk-video-track video,
-.lk-participant-media-video video,
-[data-lk-source="camera"] video,
-video[style*="scaleX"] {
+/* T2-2 (Issue 13.2) — un-mirror only REMOTE LiveKit video tracks.
+   Pre-T2-2 this rule was a sledgehammer that nuked transform:scaleX on
+   ALL videos, including the local self-view that participants expect to
+   be mirrored (so they see themselves like a mirror, not as a stranger
+   would). The unscoped override caused a "preview mirrored vs published
+   not mirrored" mismatch reported in the 22nd April review.
+
+   Scope: only data-lk-local="false" (remote participants) get the
+   un-mirror. Local self-view keeps LiveKit's native mirroring. */
+[data-lk-participant-media-video][data-lk-local="false"],
+.lk-participant-media-video[data-lk-local="false"] video,
+[data-lk-source="camera"][data-lk-local="false"] video {
   transform: none !important;
 }

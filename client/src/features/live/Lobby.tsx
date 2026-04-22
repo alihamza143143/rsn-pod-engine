@@ -112,7 +112,17 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
         onClick={onClick}
       >
         {hasVideo && isTrackReference(trackRef) ? (
-          <VideoTrack trackRef={trackRef} className={`h-full w-full ${isPinned ? 'object-contain' : 'object-cover'}`} />
+          // T2-1 (Issue 13.1) — main-room camera too zoomed bug. Lobby
+          // unconditionally used object-cover which crops a portrait phone
+          // camera to fill a 16:9 landscape tile, exaggerating the face
+          // (this was the "main room camera too zoomed" the review reported).
+          // Now matches VideoRoom's behaviour: object-contain by default
+          // for the full frame, object-cover only when explicitly pinned
+          // (PIP-style). Wrapper class .rsn-tile-contain enforces the
+          // override against LiveKit's vendor stylesheet specificity.
+          <div className={`h-full w-full ${isPinned ? '' : 'rsn-tile-contain'}`}>
+            <VideoTrack trackRef={trackRef} className={`h-full w-full ${isPinned ? 'object-cover' : 'object-contain'}`} />
+          </div>
         ) : (
           <div className="flex flex-col items-center gap-2">
             <div className={`${isPinned ? 'h-20 w-20' : 'h-14 w-14'} rounded-full bg-[#5f6368] flex items-center justify-center text-white font-semibold text-xl`}>
@@ -401,12 +411,14 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
                   try {
                     const mod = await loadBgProcessors();
                     if (!mod) { console.error('Background processors not available'); return; }
-                    const camPub = Array.from(localParticipant.trackPublications.values()).find(p => p.source === 'camera');
+                    // T2-6 (Issue 15) — Track.Source enum (was string 'camera' = always undefined → silent no-op)
+                    const camPub = Array.from(localParticipant.trackPublications.values()).find(p => p.source === Track.Source.Camera);
                     const camTrack = camPub?.track;
                     if (!camTrack) return;
                     await (camTrack as any).stopProcessor?.();
                     if (preset.mode === 'disabled') { setBgMode('disabled'); }
-                    else if (preset.mode === 'blur') { await (camTrack as any).setProcessor(mod.BackgroundBlur(10)); setBgMode('blur'); }
+                    // T2-6 — bumped blur strength 10 → 25 for visible effect
+                    else if (preset.mode === 'blur') { await (camTrack as any).setProcessor(mod.BackgroundBlur(25)); setBgMode('blur'); }
                     else if (preset.img) { await (camTrack as any).setProcessor(mod.VirtualBackground(preset.img.replace('w=200', 'w=1280'))); setBgMode(preset.mode); }
                   } catch (err) { console.error('BG effect failed:', err); }
                   setShowBgPanel(false);
