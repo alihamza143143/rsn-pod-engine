@@ -250,42 +250,33 @@ export async function handleJoinSession(
       const count = await sessionService.getParticipantCount(data.sessionId);
       io.to(sessionRoom(data.sessionId)).emit('participant:count', { count });
 
-      // Send session state to the JOINING socket: only socket-connected participants, session status, host presence
+      // T0-3: send the authoritative session-state snapshot. Same helper
+      // backs the GET /api/sessions/:id/state REST endpoint, so the two
+      // paths can never silently drift apart. Snapshot includes connected
+      // participants, host presence, session status/round, timer/pause
+      // state, pendingRound, co-hosts, and counts.
       try {
-        // Get only socket-connected participants from this session room
-        const socketsInRoom = await io.in(sessionRoom(data.sessionId)).fetchSockets();
-        const connectedParticipants = socketsInRoom
-          .map(s => ({
-            userId: (s.data as any)?.userId,
-            displayName: (s.data as any)?.displayName || 'User',
-          }))
-          .filter(p => p.userId);
-
-        // Check if host is among connected participants
-        const hostInLobby = socketsInRoom.some(s => (s.data as any)?.userId === session.hostUserId);
-
-        // Get session config for totalRounds
-        const config = typeof session.config === 'string'
-          ? JSON.parse(session.config as unknown as string)
-          : session.config || {};
-
-        // Fetch co-hosts for this session
-        const cohostResult = await query<{ user_id: string }>(
-          `SELECT user_id FROM session_cohosts WHERE session_id = $1`,
-          [session.id]
-        );
-        const cohosts = cohostResult.rows.map(r => r.user_id);
-
-        socket.emit('session:state', {
-          participants: connectedParticipants,
-          sessionStatus: activeSession?.status || session.status,
-          hostInLobby,
-          hostUserId: session.hostUserId,
-          currentRound: activeSession?.currentRound || 0,
-          totalRounds: config.numberOfRounds || 5,
-          timerVisibility: config.timerVisibility || 'last_10s',
-          cohosts,
-        });
+        const { buildSessionStateSnapshot } = await import('../../session/session-state-snapshot.service');
+        const snapshot = await buildSessionStateSnapshot(data.sessionId, io);
+        if (snapshot) {
+          socket.emit('session:state', {
+            // Original socket-only field names preserved for client back-compat
+            participants: snapshot.connectedParticipants,
+            sessionStatus: snapshot.sessionStatus,
+            hostInLobby: snapshot.hostInLobby,
+            hostUserId: snapshot.hostUserId,
+            currentRound: snapshot.currentRound,
+            totalRounds: snapshot.totalRounds,
+            timerVisibility: snapshot.timerVisibility,
+            cohosts: snapshot.cohosts,
+            // T0-3: NEW fields the snapshot adds for resync precision
+            isPaused: snapshot.isPaused,
+            timerEndsAt: snapshot.timerEndsAt,
+            pausedTimeRemainingMs: snapshot.pausedTimeRemainingMs,
+            pendingRoundNumber: snapshot.pendingRoundNumber,
+            participantCounts: snapshot.participantCounts,
+          });
+        }
       } catch (stateErr) {
         logger.warn({ err: stateErr }, 'Failed to send initial session state');
       }

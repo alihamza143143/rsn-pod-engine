@@ -5051,3 +5051,53 @@ A central validator was created as a service (not inlined into each handler). Ev
 
 T0-3 — authoritative `GET /api/sessions/:id/state` REST endpoint (per the plan's recommended order: T0-1 → T0-3 → T0-2 → T0-4).
 
+
+---
+
+## 2026-04-22 — T0-3: Authoritative GET /api/sessions/:id/state REST endpoint (Issue 4)
+
+**Timestamp (local):** 2026-04-22
+**Task ID:** T0-3
+**Status:** Completed
+
+### What changed
+
+Architectural fix for Issue 4 (Event State Sync). Previously the system was broadcast-only — clients that reconnected mid-transition or joined late silently missed `session:status_changed` events and stayed out of sync until manual refresh. Different users would see different rounds.
+
+Built a single source of truth for "what's the current state of this session?" used by BOTH the new REST endpoint and the existing `session:state` socket emit (so they can never drift apart).
+
+### Files touched
+
+- `server/src/services/session/session-state-snapshot.service.ts` (new) — `buildSessionStateSnapshot(sessionId, io)` returns `SessionStateSnapshot` with sessionStatus, currentRound, totalRounds, isPaused, timerEndsAt, pausedTimeRemainingMs, pendingRoundNumber, hostUserId, cohosts, connectedParticipants, hostInLobby, participantCounts. Reads activeSessions overlay first, falls back to DB.
+- `server/src/index.ts` — `app.set('io', io)` so route handlers can access the Socket.IO server via `req.app.get('io')` (canonical Express pattern, no module-level state, no circular imports).
+- `server/src/routes/sessions.ts` — new `GET /:id/state` endpoint, gated by `authenticate + canViewSession`.
+- `server/src/services/orchestration/handlers/participant-flow.ts` — refactored existing `socket.emit('session:state', ...)` to use the new helper. Adds new fields (isPaused, timerEndsAt, pausedTimeRemainingMs, pendingRoundNumber, participantCounts) without removing any old fields (back-compat preserved).
+- `client/src/stores/sessionStore.ts` — new `applyFullState(snapshot)` action + `SessionStateSnapshot` type. Atomically sets sessionStatus, currentRound, totalRounds, isPaused, timerEndsAt (recomputed clock-skew-immune), participants, cohosts, hostUserId, hostInLobby, timerVisibility.
+- `client/src/hooks/useSessionSocket.ts` — calls `GET /api/sessions/:id/state` on mount (250ms after auth settles) AND on every successful reconnect, dispatches result via `applyFullState`.
+- `server/src/__tests__/services/session/session-state-snapshot.test.ts` (new) — 14 tests: 10 for snapshot helper (DB fallback, activeSession overlay, paused-state, socket presence, ghost filtering, config string-encoded fallback, null-io path) + 4 wiring tests (REST route registration, auth gating, io access, app.set).
+
+### Tests
+
+- 546/546 server tests pass (was 532 — +14 new). 0 broken.
+- Server TypeScript build: clean.
+- Client TypeScript typecheck: clean.
+
+### Behavior preservation
+
+- Existing `session:state` socket emit keeps all original fields. New fields are additive.
+- All existing socket events (status_changed, round_started, etc) continue unchanged. New REST endpoint is the safety net, not a replacement.
+- Snapshot fetch failure is non-fatal — socket events still flow.
+- canViewSession gating (admin/host/participant/pod-member) reused — same access rules as `GET /:id`.
+
+### Why architectural, not patched
+
+- Single helper backs both REST + socket — drift impossible.
+- `req.app.get('io')` instead of module-level singleton — no circular imports, testable.
+- `applyFullState` is atomic — no partial-update tearing.
+- Timer recomputed from `endsAt` client-side — clock-skew immune (matches the Bug 8.5 architecture).
+- Snapshot type mirrored on both sides as a TypeScript interface — compile-time contract.
+
+### Next immediate action
+
+T0-2 — breakout state machine + `presence:room_joined` explicit signal.
+

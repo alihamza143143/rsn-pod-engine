@@ -8,9 +8,11 @@ import { auditMiddleware } from '../middleware/audit';
 import * as sessionService from '../services/session/session.service';
 import * as podService from '../services/pod/pod.service';
 import { canViewSession } from '../services/session/session-access';
+import { buildSessionStateSnapshot } from '../services/session/session-state-snapshot.service';
 import { ApiResponse, SessionStatus, UserRole, hasRoleAtLeast } from '@rsn/shared';
-import { ForbiddenError } from '../middleware/errors';
+import { ForbiddenError, NotFoundError } from '../middleware/errors';
 import { query } from '../db';
+import type { Server as SocketServer } from 'socket.io';
 
 const router = Router();
 
@@ -98,6 +100,43 @@ router.get(
         success: true,
         data: { ...session, participantCount },
       };
+      res.json(response);
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ─── GET /sessions/:id/state ───────────────────────────────────────────────
+//
+// T0-3 — Authoritative session-state snapshot. Clients call this on mount,
+// on socket reconnect, and as a 30-s drift-detection fallback. Replaces the
+// "broadcast-only" model where late joiners or reconnecters silently miss
+// state transitions and need to refresh the page.
+//
+// Response shape lives in `session-state-snapshot.service.ts` and is shared
+// with the existing `socket.emit('session:state', ...)` path so the two
+// can never drift apart.
+//
+// Access is gated by canViewSession (admin/host/participant/pod-member).
+
+router.get(
+  '/:id/state',
+  authenticate,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const canView = await canViewSession(req.user!.userId, req.params.id, req.user!.role);
+      if (!canView) {
+        throw new ForbiddenError('You must be registered or a pod member to view this event.');
+      }
+
+      const io = req.app.get('io') as SocketServer | null;
+      const snapshot = await buildSessionStateSnapshot(req.params.id, io);
+      if (!snapshot) {
+        throw new NotFoundError('Session not found');
+      }
+
+      const response: ApiResponse = { success: true, data: snapshot };
       res.json(response);
     } catch (err) {
       next(err);

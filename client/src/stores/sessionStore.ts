@@ -164,7 +164,31 @@ interface SessionLiveState {
   setTileReaction: (userId: string, emoji: string, displayName: string) => void;
   clearTileReaction: (userId: string) => void;
 
+  // T0-3 — atomic state-snapshot application. Used by useSessionSocket on
+  // mount and reconnect to bring the store in line with the server's
+  // authoritative state in one shot. Prevents the partial-update tearing
+  // that broadcast-based recovery used to produce.
+  applyFullState: (snapshot: SessionStateSnapshot) => void;
+
   reset: () => void;
+}
+
+/** Mirror of server's session-state-snapshot.service.ts SessionStateSnapshot. */
+export interface SessionStateSnapshot {
+  sessionId: string;
+  sessionStatus: SessionStatus;
+  currentRound: number;
+  totalRounds: number;
+  isPaused: boolean;
+  timerEndsAt: string | null;
+  pausedTimeRemainingMs: number | null;
+  pendingRoundNumber: number | null;
+  hostUserId: string | null;
+  cohosts: string[];
+  connectedParticipants: Array<{ userId: string; displayName: string }>;
+  hostInLobby: boolean;
+  participantCounts: { connected: number; registered: number };
+  timerVisibility: string;
 }
 
 export const useSessionStore = create<SessionLiveState>((set) => ({
@@ -311,6 +335,35 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
     const next = { ...s.tileReactions };
     delete next[userId];
     return { tileReactions: next };
+  }),
+  // T0-3 — apply server's authoritative session-state snapshot atomically.
+  // Recomputes timer locally from the server's `endsAt` (clock-skew immune).
+  // Does NOT touch fields the snapshot doesn't carry (currentMatch, broadcasts,
+  // chat, etc.) — those have their own update paths.
+  applyFullState: (snapshot) => set(() => {
+    const endsAt = snapshot.timerEndsAt ? new Date(snapshot.timerEndsAt) : null;
+    const timerSeconds = endsAt
+      ? Math.max(0, Math.ceil((endsAt.getTime() - Date.now()) / 1000))
+      : snapshot.pausedTimeRemainingMs
+      ? Math.max(0, Math.ceil(snapshot.pausedTimeRemainingMs / 1000))
+      : 0;
+
+    return {
+      sessionStatus: snapshot.sessionStatus,
+      currentRound: snapshot.currentRound,
+      totalRounds: snapshot.totalRounds,
+      isPaused: snapshot.isPaused,
+      timerEndsAt: endsAt,
+      timerSeconds,
+      hostUserId: snapshot.hostUserId,
+      hostInLobby: snapshot.hostInLobby,
+      participants: snapshot.connectedParticipants.map(p => ({
+        userId: p.userId,
+        displayName: p.displayName,
+      })),
+      cohosts: new Set(snapshot.cohosts),
+      timerVisibility: (snapshot.timerVisibility as any) || 'last_10s',
+    };
   }),
   updateRoomStatus: (matchId, status, participants) => set((s) => {
     if (!s.roundDashboard) return {};

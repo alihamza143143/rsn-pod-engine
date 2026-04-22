@@ -615,6 +615,30 @@ export default function useSessionSocket(sessionId: string) {
       }, 5000);
     });
 
+    // T0-3 — authoritative state resync via REST. Called on mount and on
+    // every successful reconnect. Replaces the broadcast-only model where
+    // a client that missed `session:status_changed` (e.g. reconnected
+    // mid-transition) stayed out of sync until the next manual refresh.
+    // Snapshot is dispatched atomically via `applyFullState`, so the round
+    // / timer / participants / cohosts all flip together (no UI tearing).
+    const fetchSessionStateSnapshot = async (): Promise<void> => {
+      try {
+        const res = await api.get(`/sessions/${sessionId}/state`);
+        if (res?.data?.success && res.data.data) {
+          store.applyFullState(res.data.data);
+        }
+      } catch (err) {
+        // Snapshot fetch failure is non-fatal — socket events still flow.
+        // Drop a debug log so we can spot patterns in Sentry breadcrumbs.
+        // eslint-disable-next-line no-console
+        console.debug('[useSessionSocket] state snapshot fetch failed:', err);
+      }
+    };
+    // Fire once on mount (after small delay to let auth settle).
+    const initialSnapshotTimer = setTimeout(() => {
+      fetchSessionStateSnapshot();
+    }, 250);
+
     // ── Reconnection ──
     const onReconnect = () => {
       store.setReconnecting(false);
@@ -624,6 +648,9 @@ export default function useSessionSocket(sessionId: string) {
       // causes a race condition with VideoRoom's backup fetch + 30s timeout.
       // Server will send fresh match:assigned on session:join if needed.
       socket.emit('session:join', { sessionId });
+      // T0-3 — refetch authoritative state on every reconnect to recover
+      // anything we might have missed during the disconnect window.
+      fetchSessionStateSnapshot();
     };
 
     const onReconnectAttempt = () => {
@@ -646,6 +673,7 @@ export default function useSessionSocket(sessionId: string) {
       clearRatingFallback();
       clearByeTimeout();
       clearInterval(heartbeatInterval);
+      clearTimeout(initialSnapshotTimer);
 
       // Remove ALL socket event listeners we attached
       for (const ev of SOCKET_EVENTS) socket.off(ev);

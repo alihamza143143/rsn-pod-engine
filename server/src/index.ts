@@ -166,6 +166,11 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 // Trust first proxy (for rate limiting behind reverse proxy)
 app.set('trust proxy', 1);
 
+// Expose Socket.IO server to route handlers via app.get('io').
+// Standard Express pattern; no module-level state, no circular imports.
+// Used by T0-3 GET /api/sessions/:id/state to compute live socket presence.
+app.set('io', io);
+
 // Global rate limiter — applies to /api/* only.
 // Tier-1 A6: /socket.io/* is deliberately excluded. Long-polling fallback
 // emits ~6 HTTP requests/min per client, which with 20+ users behind a
