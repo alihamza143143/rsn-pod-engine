@@ -21,7 +21,31 @@ interface SessionForm {
   maxParticipants: number;
   timerVisibility: string;
   matchingTemplateId: string;
+  // Phase 4 (29 April 2026 spec) — three matching policies, default
+  // 'within_event'. See shared/src/types/session.ts MatchingPolicy.
+  matchingPolicy: 'platform_wide' | 'within_event' | 'none';
 }
+
+const MATCHING_POLICIES = [
+  {
+    value: 'platform_wide' as const,
+    label: 'Platform-wide no rematch',
+    description: 'Strictest. If two people have ever met before anywhere on RSN, they will never be matched again.',
+    hint: 'Best for large-scale discovery events.',
+  },
+  {
+    value: 'within_event' as const,
+    label: 'Within this event only',
+    description: "If two people already met in THIS event, they won't be re-paired in this event. They can meet again in future events.",
+    hint: 'Recommended default — balanced.',
+  },
+  {
+    value: 'none' as const,
+    label: 'No restriction',
+    description: 'People can be matched again, even if they met before. Useful for smaller groups, curated sessions, or when repeated conversations are valuable.',
+    hint: 'Best for small groups or repeat-attendance pods.',
+  },
+];
 
 const EVENT_TYPES = [
   { value: 'speed_networking', label: 'Speed Networking', description: 'Timed 1-on-1 rounds with automatic matching' },
@@ -74,6 +98,7 @@ export default function CreateSessionPage() {
       maxParticipants: 500,
       timerVisibility: 'always_visible',
       matchingTemplateId: '',
+      matchingPolicy: 'within_event',
     },
   });
 
@@ -104,6 +129,7 @@ export default function CreateSessionPage() {
           roundDurationSeconds: data.roundDurationSeconds,
           maxParticipants: data.maxParticipants,
           timerVisibility: data.timerVisibility,
+          matchingPolicy: data.matchingPolicy,
           ...(data.matchingTemplateId && { matchingTemplateId: data.matchingTemplateId }),
         },
       };
@@ -216,6 +242,32 @@ export default function CreateSessionPage() {
                 ))}
               </select>
               <p className="text-xs text-gray-400 mt-1">How participants are matched — affects scoring weights</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-600 mb-2">Matching Policy</label>
+              <p className="text-xs text-gray-500 mb-3">
+                Control whether people who&apos;ve met before can be paired again.
+              </p>
+              <div className="space-y-2">
+                {MATCHING_POLICIES.map(p => (
+                  <label
+                    key={p.value}
+                    className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 bg-gray-50 cursor-pointer hover:border-gray-300 transition-colors"
+                  >
+                    <input
+                      type="radio"
+                      value={p.value}
+                      {...register('matchingPolicy')}
+                      className="mt-0.5 accent-[#1a1a2e]"
+                    />
+                    <div className="flex-1">
+                      <div className="text-sm font-medium text-[#1a1a2e]">{p.label}</div>
+                      <div className="text-xs text-gray-600 mt-0.5">{p.description}</div>
+                      <div className="text-xs text-gray-400 mt-1 italic">{p.hint}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
             </div>
           </div>
         </Card>

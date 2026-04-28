@@ -48,14 +48,16 @@ export async function generateSessionSchedule(
 
   const participants = participantsResult.rows;
 
-  // T1-6 (Issue 11) — pass sessionId so encounters from THIS session don't
-  // pollute scoring. Read pod's crossEventMemory flag (default true). When
-  // false, the helper returns empty → every pair is treated as a first meeting.
+  // Phase 4 (29 April 2026 spec) — matching policy chosen at event creation.
+  // Replaces the legacy binary `crossEventMemory` flag with a tri-state
+  // policy. Default 'within_event' = no rematch within this event but
+  // people CAN meet again in future events. Pod-level legacy flag still
+  // honored as a fallback for sessions created before the policy field.
   const userIds = participants.map((p) => p.userId);
-  const crossEventMemory = sessionConfig.crossEventMemory !== false;
+  const matchingPolicy = resolveMatchingPolicy(sessionConfig);
   const encounterHistory = await getEncounterHistoryForUsers(userIds, {
     sessionId,
-    crossEventMemory,
+    matchingPolicy,
   });
 
   // Get any pre-existing round assignments
@@ -142,28 +144,35 @@ export async function generateSingleRound(
     );
   }
 
-  // T1-6 (Issue 11) — same scoping as generateSessionSchedule above:
-  // exclude this session's own encounters from the cross-event memory.
+  // Phase 4 — same matching-policy resolution as generateSessionSchedule.
   const userIds = participantsResult.rows.map((p) => p.userId);
-  const crossEventMemory = sessionConfig.crossEventMemory !== false;
+  const matchingPolicy = resolveMatchingPolicy(sessionConfig);
   const encounterHistory = await getEncounterHistoryForUsers(userIds, {
     sessionId,
-    crossEventMemory,
+    matchingPolicy,
   });
 
-  // Get excluded pairs (completed/in-progress matches in OTHER rounds — not the current round being regenerated)
-  // Manual breakout rooms (is_manual=TRUE) are architecturally independent from
-  // algorithm rounds — they MUST NOT poison the algorithm's "already matched" set.
-  const excludedResult = await query<{ participant_a_id: string; participant_b_id: string }>(
-    `SELECT participant_a_id, participant_b_id FROM matches
-     WHERE session_id = $1 AND round_number != $2
-       AND status NOT IN ('cancelled', 'no_show')
-       AND is_manual = FALSE`,
-    [sessionId, roundNumber]
-  );
-  const excludedPairs = new Set(
-    excludedResult.rows.map((r) => pairKey(r.participant_a_id, r.participant_b_id))
-  );
+  // Within-event exclusion (excludedPairs) — pairs that already met in
+  // OTHER rounds of THIS session shouldn't be re-paired. Manual breakout
+  // rooms (is_manual=TRUE) are architecturally independent from algorithm
+  // rounds and MUST NOT poison the algorithm's "already matched" set.
+  //
+  // Phase 4 — under matchingPolicy='none', this exclusion is disabled so
+  // people CAN be re-paired even within the same event. Under 'within_event'
+  // (default) and 'platform_wide' it stays on.
+  const excludedPairs = new Set<string>();
+  if (matchingPolicy !== 'none') {
+    const excludedResult = await query<{ participant_a_id: string; participant_b_id: string }>(
+      `SELECT participant_a_id, participant_b_id FROM matches
+       WHERE session_id = $1 AND round_number != $2
+         AND status NOT IN ('cancelled', 'no_show')
+         AND is_manual = FALSE`,
+      [sessionId, roundNumber]
+    );
+    for (const r of excludedResult.rows) {
+      excludedPairs.add(pairKey(r.participant_a_id, r.participant_b_id));
+    }
+  }
 
   // Build hard constraints: inviter-invitee avoidance
   const inviterInviteeResult = await query<{ inviter_id: string; accepted_by_user_id: string }>(
@@ -453,32 +462,76 @@ export async function updateMatchStatus(
 
 // ─── Internal Helpers ───────────────────────────────────────────────────────
 
+import type { MatchingPolicy } from '@rsn/shared';
+
 /**
- * Fetch cross-event encounter history for a set of users.
+ * Phase 4 (29 April 2026 spec) — resolve the matching policy for a session
+ * config. Defaults to 'within_event' (the new spec default) when the field
+ * is missing. Backwards-compatible with the legacy `crossEventMemory` flag:
+ * if matchingPolicy is unset and crossEventMemory was explicitly false, we
+ * treat that as 'none' (the user-visible behaviour stays identical).
+ */
+export function resolveMatchingPolicy(sessionConfig: any): MatchingPolicy {
+  if (sessionConfig?.matchingPolicy === 'platform_wide'
+      || sessionConfig?.matchingPolicy === 'within_event'
+      || sessionConfig?.matchingPolicy === 'none') {
+    return sessionConfig.matchingPolicy;
+  }
+  // Legacy fallback: pre-Phase-4 sessions used a binary crossEventMemory
+  // boolean. crossEventMemory=true → platform_wide (strictest, was the
+  // implicit pre-Phase-4 default). crossEventMemory=false → none.
+  if (sessionConfig?.crossEventMemory === false) return 'none';
+  if (sessionConfig?.crossEventMemory === true) return 'platform_wide';
+  // Default for new sessions without either field set.
+  return 'within_event';
+}
+
+/**
+ * Fetch encounter history for a set of users, scoped by matching policy.
  *
- * T1-6 (Issue 11) — `sessionId` is now optional but recommended. When
- * provided, encounters whose `last_session_id` matches it are filtered
- * out so the matching engine doesn't penalise pairs as "already met"
- * for meetings that happened in this *same* session (within-session
- * uniqueness is already enforced by the engine's `usedPairs` Set —
- * including those pairs in the cross-event score would double-count
- * them and surface "already met N times" incorrectly during round 2+).
+ * Phase 4 — `matchingPolicy` (29 April 2026 spec) is the source of truth:
  *
- * `crossEventMemory=false` (pod-config) suppresses ALL prior-event
- * memory — useful for repeat-attendance pods where directors want the
- * algorithm to re-pair people who've already met before. Default true
- * (current behaviour preserved).
+ *   'platform_wide' — return all encounters EXCEPT those from this same
+ *     session (within-session uniqueness is enforced by the engine's
+ *     usedPairs set, so re-including this session's encounters would
+ *     double-count and falsely surface "already met N times" in round 2+).
+ *     This is the strictest policy: never re-pair if they've ever met
+ *     anywhere on RSN.
+ *   'within_event' — return EMPTY. Within-event uniqueness is handled
+ *     separately via the excludedPairs query against this session's
+ *     `matches` table. People CAN be re-matched in future events.
+ *   'none' — return EMPTY. No encounter exclusion at all. People can be
+ *     paired again even if they've met before.
+ *
+ * Legacy fallback (pre-Phase-4 callers may still pass `crossEventMemory`):
+ * `crossEventMemory: false` → treated as `matchingPolicy: 'none'`.
+ *
+ * `sessionId` is recommended whenever available so this-session encounters
+ * are filtered out of platform-wide history (avoids the double-count above).
  */
 async function getEncounterHistoryForUsers(
   userIds: string[],
-  options: { sessionId?: string; crossEventMemory?: boolean } = {},
+  options: {
+    sessionId?: string;
+    crossEventMemory?: boolean;
+    matchingPolicy?: MatchingPolicy;
+  } = {},
 ): Promise<EncounterHistoryEntry[]> {
   if (userIds.length === 0) return [];
 
-  // Pod opted OUT of cross-event memory → return empty so the engine treats
-  // every pair as a first meeting.
-  if (options.crossEventMemory === false) return [];
+  // Resolve the effective policy. matchingPolicy wins over crossEventMemory.
+  const policy: MatchingPolicy = options.matchingPolicy
+    ?? (options.crossEventMemory === false ? 'none'
+        : options.crossEventMemory === true ? 'platform_wide'
+        : 'within_event');
 
+  // Within-event and none policies don't consult cross-event encounter
+  // history — return empty. Within-event uniqueness is enforced by the
+  // excludedPairs query in generateSingleRound; no encounter_history needed.
+  if (policy === 'within_event' || policy === 'none') return [];
+
+  // platform_wide — query encounter_history, excluding rows tagged with
+  // this same session_id (those pairs are already in excludedPairs).
   const params: unknown[] = [userIds];
   let extraWhere = '';
   if (options.sessionId) {

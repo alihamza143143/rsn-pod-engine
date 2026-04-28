@@ -5860,3 +5860,37 @@ Six small, high-impact UI/video fixes shipped as a single batch (parallel-shippa
 - handleHostCreateBreakout (standalone manual breakout) unchanged — its Step 1 reassign behavior is intentional (host explicitly chose those participants).
 
 **Out of scope for Phase 2:** strict transition-map enforcement in `updateParticipantStatus` (currently advisory) — flagged in plan but skipped this phase, the audit found existing orchestration code relies on the advisory mode for valid edge cases. Will revisit if a state-integrity bug materializes.
+
+---
+
+## 2026-04-29 — Phase 4 of platform-spec-9-fixes plan: matching policy 3-option chooser (Q4)
+
+**Spec (Stefan's clarification):** matching rules should be decided at the event level, not hardcoded for the whole platform. Three options at event creation, default 'within_event' (no rematch within this event but people CAN meet again in future events).
+
+**Files changed:**
+
+- **`shared/src/types/session.ts`** — added `MatchingPolicy` union type (`'platform_wide' | 'within_event' | 'none'`). Added optional `matchingPolicy?` field to `SessionConfig`. Set `DEFAULT_SESSION_CONFIG.matchingPolicy = 'within_event'` (Stefan's stated default).
+
+- **`server/src/services/matching/matching.service.ts`** — added `resolveMatchingPolicy(sessionConfig)` exported helper that returns the effective policy with full legacy fallback (legacy `crossEventMemory: false` → `'none'`, `crossEventMemory: true` → `'platform_wide'`, neither → `'within_event'` default). Refactored `getEncounterHistoryForUsers` to accept optional `matchingPolicy`. The helper now returns empty for `'within_event'` and `'none'`, and queries `encounter_history` only for `'platform_wide'`. Both `generateSessionSchedule` and `generateSingleRound` now route `sessionConfig` through `resolveMatchingPolicy` and pass the policy to the helper. `generateSingleRound`'s `excludedPairs` query (within-event memory) is now skipped under `'none'` so people CAN be re-paired within the same event when the host wants that.
+
+- **`client/src/features/sessions/CreateSessionPage.tsx`** — added `matchingPolicy` field to `SessionForm` interface. Added `MATCHING_POLICIES` constant array with three labelled options + descriptions (the exact wording Stefan gave). Form `defaultValues.matchingPolicy = 'within_event'`. Mutation body now includes `matchingPolicy` in the session config. New radio-button selector card on the form between "Matching Template" and "Capacity" — three radio rows, each showing the option label, description, and a small italic hint about when to pick it.
+
+**Tests:** new `phase4-matching-policy.test.ts` (16 tests) pins:
+- `MatchingPolicy` type + `SessionConfig.matchingPolicy?` + default `within_event`.
+- `resolveMatchingPolicy` helper exists and handles legacy fallbacks correctly.
+- `getEncounterHistoryForUsers` accepts the new option and returns empty for `within_event`/`none`.
+- `generateSingleRound` skips `excludedPairs` under `'none'`.
+- Both schedulers use `resolveMatchingPolicy`.
+- Client `SessionForm` declares the field, form default is `within_event`, mutation body includes it, all three options rendered as radio inputs.
+
+Updated existing `t1-6-encounter-scope.test.ts` to reflect the new (backwards-compatible) API surface — preserves T1-6's original intent (sessionId scoping + legacy `crossEventMemory` honored via `resolveMatchingPolicy`), updated assertions to match the new policy-based code path. 715/715 server tests pass (699 baseline + 16 new). Server + client + shared builds clean.
+
+**Behavior preservation:**
+- Sessions without `matchingPolicy` set fall back to `within_event` (the new default), which is functionally close to the previous default behavior — within-session uniqueness preserved, cross-event memory off by default. The previous default was effectively `'platform_wide'` (cross-event memory ON by default) so the user-visible change is: future events where the host doesn't pick a policy will allow more re-matches than before. The host's explicit choice via the new radio is the source of truth.
+- Legacy `crossEventMemory: true` configs still produce platform-wide behavior via `resolveMatchingPolicy`.
+- Legacy `crossEventMemory: false` configs still produce no-restriction behavior.
+- All existing matching engine internals (engine's `usedPairs` Set, `excludedPairs` query) preserved.
+
+**Out of scope:**
+- Pod-level cross-event memory (Stefan said "expand later").
+- Removing the legacy `crossEventMemory` flag from session configs (kept for backwards compat indefinitely; new sessions don't write it).

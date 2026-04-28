@@ -31,6 +31,28 @@ export enum SegmentType {
 
 export type TimerVisibility = 'hidden' | 'always_visible' | 'last_10s' | 'last_30s' | 'last_60s' | 'last_120s';
 
+/**
+ * Phase 4 (29 April 2026 spec) — matching policy chosen at event creation.
+ *
+ * Per Stefan's clarification: there's no single hard-coded rule for the
+ * whole platform. Different events have different purposes, so the event
+ * creator picks how strict the matching engine should be.
+ *
+ *   'platform_wide' — strictest. If two people have ever met before
+ *                     anywhere on RSN, they will never be matched again.
+ *                     Good for large-scale discovery events.
+ *   'within_event'  — balanced default. Pairs that already met in THIS
+ *                     event won't be re-paired within this event. They
+ *                     can meet again in future events.
+ *   'none'          — no restriction. Anyone can be paired again, even
+ *                     if they met before. Useful for smaller groups,
+ *                     curated sessions, or repeat-conversation events.
+ *
+ * Encounter history is still tracked GLOBALLY across the platform —
+ * the policy only governs how the matching engine USES that history.
+ */
+export type MatchingPolicy = 'platform_wide' | 'within_event' | 'none';
+
 export interface SessionConfig {
   numberOfRounds: number;
   roundDurationSeconds: number;
@@ -41,6 +63,12 @@ export interface SessionConfig {
   noShowTimeoutSeconds: number;
   maxParticipants: number;
   timerVisibility: TimerVisibility;
+  /**
+   * Phase 4 — see MatchingPolicy for the three options. Optional for
+   * backwards compatibility with existing sessions; if absent the engine
+   * treats the session as `'within_event'` (the new default).
+   */
+  matchingPolicy?: MatchingPolicy;
 }
 
 export const DEFAULT_SESSION_CONFIG: SessionConfig = {
@@ -53,6 +81,7 @@ export const DEFAULT_SESSION_CONFIG: SessionConfig = {
   noShowTimeoutSeconds: 60,          // 60 seconds
   maxParticipants: 500,
   timerVisibility: 'last_10s' as TimerVisibility,
+  matchingPolicy: 'within_event',
 };
 
 export interface Session {

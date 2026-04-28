@@ -13,6 +13,11 @@
 //   - Optional `crossEventMemory` parameter — when false, returns empty
 //     list (every pair treated as a first meeting). Pod owners can opt
 //     out for repeat-attendance pods. Default true.
+//
+// Phase 4 (29 April 2026 spec) — superseded by `matchingPolicy` (three
+// options: platform_wide / within_event / none). The `crossEventMemory`
+// flag still works for backwards compatibility via resolveMatchingPolicy
+// — these tests now pin both API surfaces.
 
 import * as nodeFs from 'fs';
 import * as nodePath from 'path';
@@ -28,15 +33,21 @@ describe('T1-6 — getEncounterHistoryForUsers scope + flag', () => {
   const src = readSource();
 
   describe('signature widened to accept options', () => {
-    it('signature is (userIds, options?: { sessionId?, crossEventMemory? })', () => {
-      expect(src).toMatch(/async function getEncounterHistoryForUsers\(\s*userIds:\s*string\[\],\s*options:\s*\{\s*sessionId\?:\s*string;\s*crossEventMemory\?:\s*boolean\s*\}\s*=\s*\{\}/);
+    it('signature accepts userIds + options (sessionId, crossEventMemory, matchingPolicy)', () => {
+      // Phase 4: signature now also accepts matchingPolicy. The shape stays
+      // backwards-compatible with T1-6's original (sessionId, crossEventMemory).
+      expect(src).toMatch(/async function getEncounterHistoryForUsers\(\s*userIds:\s*string\[\],\s*options:\s*\{[\s\S]+?sessionId\?:\s*string;[\s\S]+?crossEventMemory\?:\s*boolean;[\s\S]+?matchingPolicy\?:\s*MatchingPolicy;?[\s\S]*?\}\s*=\s*\{\}/);
     });
   });
 
-  describe('crossEventMemory=false short-circuits to empty', () => {
-    it('returns [] without querying when flag is false', () => {
-      expect(src).toMatch(/options\.crossEventMemory\s*===\s*false/);
-      expect(src).toMatch(/return \[\]/);
+  describe('crossEventMemory=false routes through resolveMatchingPolicy → none → empty', () => {
+    it('the legacy crossEventMemory=false flag still produces empty results', () => {
+      // Phase 4: the helper resolves the effective policy from either
+      // matchingPolicy OR crossEventMemory (legacy fallback). Both
+      // 'within_event' and 'none' return empty.
+      expect(src).toMatch(/policy\s*===\s*['"]within_event['"]\s*\|\|\s*policy\s*===\s*['"]none['"][\s\S]*?return \[\]/);
+      // The legacy flag is still honored:
+      expect(src).toMatch(/crossEventMemory\s*===\s*false[\s\S]*?['"]none['"]/);
     });
   });
 
@@ -57,32 +68,33 @@ describe('T1-6 — getEncounterHistoryForUsers scope + flag', () => {
     });
   });
 
-  describe('callers pass sessionId + crossEventMemory', () => {
-    it('generateSessionSchedule passes options', () => {
+  describe('callers route sessionConfig through resolveMatchingPolicy (Phase 4)', () => {
+    it('generateSessionSchedule passes matchingPolicy to the helper', () => {
       const fnStart = src.indexOf('export async function generateSessionSchedule');
       const fnEnd = src.indexOf('\nexport ', fnStart + 1);
       const fn = src.slice(fnStart, fnEnd);
-      expect(fn).toMatch(/getEncounterHistoryForUsers\(userIds,\s*\{\s*sessionId,\s*crossEventMemory,?\s*\}\)/);
-      expect(fn).toMatch(/sessionConfig\.crossEventMemory\s*!==\s*false/);
+      // Phase 4: callers compute policy via resolveMatchingPolicy and pass it
+      // to the helper. The legacy crossEventMemory flag is still honored
+      // inside resolveMatchingPolicy for backwards compat.
+      expect(fn).toMatch(/resolveMatchingPolicy\(sessionConfig\)/);
+      expect(fn).toMatch(/getEncounterHistoryForUsers\(userIds,\s*\{[\s\S]+?matchingPolicy[\s\S]*?\}\)/);
     });
 
-    it('generateSingleRound passes options', () => {
+    it('generateSingleRound passes matchingPolicy to the helper', () => {
       const fnStart = src.indexOf('export async function generateSingleRound');
       const fnEnd = src.indexOf('\nexport ', fnStart + 1);
       const fn = src.slice(fnStart, fnEnd);
-      expect(fn).toMatch(/getEncounterHistoryForUsers\(userIds,\s*\{\s*sessionId,\s*crossEventMemory,?\s*\}\)/);
-      expect(fn).toMatch(/sessionConfig\.crossEventMemory\s*!==\s*false/);
+      expect(fn).toMatch(/resolveMatchingPolicy\(sessionConfig\)/);
+      expect(fn).toMatch(/getEncounterHistoryForUsers\(userIds,\s*\{[\s\S]+?matchingPolicy[\s\S]*?\}\)/);
     });
   });
 
   describe('default behavior preserved (no options = old behavior)', () => {
-    it('default crossEventMemory undefined → not strictly false → uses cross-event memory', () => {
-      // The check is `!== false` so undefined is treated as ENABLED — preserves
-      // existing behavior for any caller that doesn't pass the option.
-      const fnStart = src.indexOf('async function getEncounterHistoryForUsers');
-      const fnEnd = src.indexOf('\n}\n', fnStart);
-      const fn = src.slice(fnStart, fnEnd);
-      expect(fn).toMatch(/crossEventMemory\s*===\s*false/);
+    it('legacy crossEventMemory check still present in helper for backwards compat', () => {
+      // resolveMatchingPolicy maps crossEventMemory: false → policy='none'
+      // (which then short-circuits to empty in getEncounterHistoryForUsers).
+      // We pin that the legacy flag is still honored.
+      expect(src).toMatch(/crossEventMemory\s*===\s*false/);
     });
   });
 });
