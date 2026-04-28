@@ -5966,3 +5966,48 @@ Updated existing `t1-6-encounter-scope.test.ts` to reflect the new (backwards-co
 **Out of scope for Phase 6:**
 - Per-row breakdown of "met N times" within the connections list — already shown implicitly via the connections array (each row = one meeting). Stefan's spec was satisfied by the distinct count + the unrated forms with context labels (Phase 5).
 - Cohort comparison stats (across multiple events).
+
+---
+
+## 2026-04-29 — All 6 phases deployed + check whole final verification
+
+**Status:** All 6 phases of `docs/superpowers/plans/2026-04-29-platform-spec-9-fixes.md` shipped to staging + main + Render production. Final commit `7edc9bd` LIVE on Render (deploy `dep-d7ohfs9f9bms73e26tpg`).
+
+**Final check whole — 29 April 2026 (post-Phase-6 deploy):**
+
+| System | Status | Detail |
+|---|---|---|
+| Sentry server | green | rsn-api unresolved = 0 |
+| Sentry client | yellow | 8 unresolved, all stale (latest 2026-04-28, no new issues since deploy) |
+| GitHub CI main | green | last 3 = success (7edc9bd, 34483e7, e120074) |
+| /health | green | 200, db connected, latency 2ms (cached) |
+| Render service | green | plan=standard, 1 instance, suspended=no, frankfurt |
+| Render deploy | green | dep-d7ohfs9f9bms73e26tpg LIVE on commit 7edc9bd |
+| Render logs today | green | zero severe errors (lvl>=50) |
+| Vercel client | green | HTTP 200 (1.3s) |
+| Git sync | green | local + origin staging + local + origin main all at 7edc9bd |
+| DB | green | users=37, join_requests=17, sessions=0, pods=0, invites=0 (post-cleanup state preserved) |
+| Redis | green | PONG, dbsize=0 |
+
+**Total tests:** 739 passing across 59 suites. 76 new tests across the 6 phases (663 baseline → 739).
+
+**Total commits in plan:** 6 (one per phase) + this final entry.
+- 2c6c3e0 — Phase 1 (UI foundations)
+- 8f690c1 — Phase 2 (one-user-one-room hard block)
+- 6369ce5 — Phase 3 (trio leave keeps active)
+- e120074 — Phase 4 (matching policy chooser)
+- 34483e7 — Phase 5 (missed-rating fallback)
+- 7edc9bd — Phase 6 (stats parity)
+
+**Coverage summary by spec issue (Q1-Q9):**
+- Q1 State Integrity → Phase 2: hard-block + sessionWideActiveCheck validator
+- Q2 Registration + Join Flow → Phase 1: SPA navigation + silent-error sweep
+- Q3 Event Access & Visibility → Phase 1: same fix as Q2 (no UI changes)
+- Q4 Already-Met / Matching Policy → Phase 4: 3-option chooser at event creation
+- Q5 Breakout Room Edge Cases → Phase 3: trio leave keeps remaining users in conversation; distinct people-met handled in Phase 6
+- Q6 Event Control (End Round vs End Event) → Phase 5: missed-rating fallback at recap (8-10s popup deferred)
+- Q7 Feedback System → Phase 5: per-user missed-rating forms with context labels
+- Q8 Stats & Reporting → Phase 6: distinct count, label alignment UI/email, host matches-created/successful split
+- Q9 UI State & Feedback → Phase 1: "user: user" placeholder fix + silent-catch sweep + loading/error states
+
+**Behavior preservation:** every existing user-visible feature confirmed unchanged. No DB migrations. Legacy `crossEventMemory` flag still honored via `resolveMatchingPolicy`. All socket event names + REST routes preserved. Backwards-compatible field additions only.
