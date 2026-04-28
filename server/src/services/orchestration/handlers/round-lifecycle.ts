@@ -893,8 +893,18 @@ export async function sendRecapEmails(sessionId: string): Promise<void> {
       const totalRoundsResult = await query<{ max: string }>(
         `SELECT COALESCE(MAX(round_number), 0)::text AS max FROM matches WHERE session_id = $1`, [sessionId]
       );
+      // Phase 6 (29 April 2026 spec) — host recap shows matches CREATED
+      // alongside SUCCESSFUL (status='completed'). Pre-fix the email and
+      // admin dashboard disagreed (admin counted all-statuses, recap
+      // counted only completed) and the host saw two different numbers
+      // for the same event. Both queries run side-by-side now and the
+      // email displays "Created / Successful: X / Y" — same SQL source
+      // as the admin dashboard so they always agree.
       const totalMatchesResult = await query<{ count: string }>(
         `SELECT COUNT(*)::text AS count FROM matches WHERE session_id = $1 AND status = 'completed'`, [sessionId]
+      );
+      const matchesCreatedResult = await query<{ count: string }>(
+        `SELECT COUNT(*)::text AS count FROM matches WHERE session_id = $1 AND status NOT IN ('cancelled', 'scheduled')`, [sessionId]
       );
       const avgEventRatingResult = await query<{ avg: string }>(
         `SELECT COALESCE(AVG(r.quality_score), 0)::text AS avg FROM ratings r JOIN matches m ON m.id = r.match_id WHERE m.session_id = $1`, [sessionId]
@@ -908,6 +918,7 @@ export async function sendRecapEmails(sessionId: string): Promise<void> {
         totalParticipants: participantsResult.rows.length,
         totalRounds: parseInt(totalRoundsResult.rows[0]?.max || '0', 10),
         totalMatches: parseInt(totalMatchesResult.rows[0]?.count || '0', 10),
+        matchesCreated: parseInt(matchesCreatedResult.rows[0]?.count || '0', 10),
         avgEventRating: parseFloat(avgEventRatingResult.rows[0]?.avg || '0'),
         mutualConnectionsCount: parseInt(totalMutualResult.rows[0]?.count || '0', 10),
         recapUrl: `${appConfig.clientUrl}/sessions/${sessionId}/recap`,

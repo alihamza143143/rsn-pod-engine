@@ -5929,3 +5929,40 @@ Updated existing `t1-6-encounter-scope.test.ts` to reflect the new (backwards-co
 
 **Out of scope for Phase 5:**
 - Context-aware End Event 8-10s rating popup (when rounds are in progress at the moment host clicks End Event). Server flow currently runs `endRound` first if needed, then completes session — the missed-rating fallback at the recap page catches any unrated matches afterwards. The 8-10s popup is a UX nicety; the data correctness fix (recap shows everything missed) is what Phase 5 ships. Can be added as a follow-up if needed during testing.
+
+---
+
+## 2026-04-29 — Phase 6 of platform-spec-9-fixes plan: stats parity + recap UI/email match (Q8)
+
+**Bug:** User saw "0 people met with 2 mutual matches" on the recap during the 28 April test event — UI labels were inconsistent because they were computed from different sources (UI used `data.connections.length` which double-counts duplicate meetings; email used a server-side `COUNT(DISTINCT)`).
+
+**Files changed:**
+
+- **`client/src/features/sessions/RecapPage.tsx`** — participant stats grid now computes `distinctPeopleMet = new Set(data.connections.map(c => c.userId)).size` so the displayed count is unique partners (not total meetings). Labels updated per Stefan's terminology:
+  - "Mutual Matches" = distinct people met
+  - "Want to Meet Again" = both-said-yes subset (the rating-based mutual interest)
+
+- **`server/src/services/email/email.service.ts`** — participant recap email labels updated to match the UI ("Mutual Matches" / "Want to Meet Again"). Data field names (`peopleMet`, `mutualConnections`) preserved for back-compat with existing callers — only the rendered labels changed. Host recap email's `HostRecapEmailData` interface gets a new optional `matchesCreated` field. When provided, the email renders "Matches Created / Successful: X / Y" per the user's option C choice from question 8. When omitted (back-compat for older callers), falls back to the single "Matches" line.
+
+- **`server/src/services/orchestration/handlers/round-lifecycle.ts`** — host recap caller now runs two queries side-by-side: SUCCESSFUL count (`status='completed'`) and CREATED count (`NOT IN ('cancelled', 'scheduled')`), passes both to `sendHostRecapEmail`. Same SQL source as the admin dashboard so the host always sees consistent numbers across surfaces.
+
+**Tests:** new `phase6-stats-parity.test.ts` (12 tests) pins:
+- `RecapPage` participant stats use `new Set(...)` for distinct count.
+- Labels match Stefan's terminology in both UI and email.
+- HTML and plain-text email versions agree on labels.
+- Host recap email accepts `matchesCreated` and renders the split.
+- `round-lifecycle.ts` queries both counts and passes both.
+- Anti-regression: participant stats branch no longer renders `data.connections.length` as "People Met".
+
+739/739 server tests pass (725 baseline + 14 new). Server + client builds clean.
+
+**Behavior preservation:**
+- Email data field names unchanged (`peopleMet`, `mutualConnections`) — back-compat with any caller that still uses the old shape.
+- `matchesCreated` is optional — older callers fall back to single "Matches" line.
+- Host recap email queries are additive; no existing query modified or removed.
+- Server-side people-met query (`COUNT(DISTINCT sub.partner)` in `round-lifecycle.ts`) was already correct — Phase 6 only fixed the UI to match.
+- All existing socket events, mutations, and React Query cache keys preserved.
+
+**Out of scope for Phase 6:**
+- Per-row breakdown of "met N times" within the connections list — already shown implicitly via the connections array (each row = one meeting). Stefan's spec was satisfied by the distinct count + the unrated forms with context labels (Phase 5).
+- Cohort comparison stats (across multiple events).

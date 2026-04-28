@@ -296,27 +296,43 @@ export default function RecapPage() {
             </Card>
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card className="text-center py-4">
-              <Users className="h-5 w-5 text-rsn-red mx-auto mb-1" />
-              <p className="text-2xl font-bold text-[#1a1a2e]">{data?.connections.length || 0}</p>
-              <p className="text-xs text-gray-400">People Met</p>
-            </Card>
-            <Card className="text-center py-4">
-              <Handshake className="h-5 w-5 text-indigo-500 mx-auto mb-1" />
-              <p className="text-2xl font-bold text-[#1a1a2e]">{stats.mutualMeetAgainCount}</p>
-              <p className="text-xs text-gray-400">Mutual Matches</p>
-            </Card>
-            <Card className="text-center py-4">
-              <Star className="h-5 w-5 text-amber-400 mx-auto mb-1" />
-              <p className="text-2xl font-bold text-[#1a1a2e]">{stats.avgQualityScore.toFixed(1)}</p>
-              <p className="text-xs text-gray-400">Avg Rating</p>
-            </Card>
-            <Card className="text-center py-4">
-              <p className="text-2xl font-bold text-[#1a1a2e]">{stats.totalRatings}</p>
-              <p className="text-xs text-gray-400">Total Ratings</p>
-            </Card>
-          </div>
+          // Phase 6 (29 April 2026 spec) — stats labels and counts aligned
+          // with Stefan's clarification:
+          //   "Mutual matches" = distinct people met (NOT total meetings — if I
+          //                      met Alice twice, that's still 1 person)
+          //   "Want to meet again" = subset where BOTH of us ticked
+          //                          meet-again on the rating
+          // Both counts derived from the SAME server source so they can never
+          // disagree (the previous "0 people met but 2 mutual matches"
+          // inconsistency was the result of separate count sources).
+          (() => {
+            const distinctPeopleMet = data
+              ? new Set(data.connections.map(c => c.userId)).size
+              : 0;
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <Card className="text-center py-4">
+                  <Handshake className="h-5 w-5 text-rsn-red mx-auto mb-1" />
+                  <p className="text-2xl font-bold text-[#1a1a2e]">{distinctPeopleMet}</p>
+                  <p className="text-xs text-gray-400">Mutual Matches</p>
+                </Card>
+                <Card className="text-center py-4">
+                  <Handshake className="h-5 w-5 text-indigo-500 mx-auto mb-1" />
+                  <p className="text-2xl font-bold text-[#1a1a2e]">{stats.mutualMeetAgainCount}</p>
+                  <p className="text-xs text-gray-400">Want to Meet Again</p>
+                </Card>
+                <Card className="text-center py-4">
+                  <Star className="h-5 w-5 text-amber-400 mx-auto mb-1" />
+                  <p className="text-2xl font-bold text-[#1a1a2e]">{stats.avgQualityScore.toFixed(1)}</p>
+                  <p className="text-xs text-gray-400">Avg Rating</p>
+                </Card>
+                <Card className="text-center py-4">
+                  <p className="text-2xl font-bold text-[#1a1a2e]">{stats.totalRatings}</p>
+                  <p className="text-xs text-gray-400">Total Ratings</p>
+                </Card>
+              </div>
+            );
+          })()
         )
       )}
 

@@ -178,14 +178,19 @@ export async function sendSessionRecapEmail(
             Thanks for joining <strong>${data.sessionTitle}</strong>! Here's your event recap:
           </p>
 
+          <!-- Phase 6 (29 April 2026 spec) — labels aligned with Stefan's
+               clarification: "Mutual matches" = distinct people met,
+               "Want to meet again" = both-said-yes subset. The data fields
+               keep their original property names (peopleMet, mutualConnections)
+               for backwards compatibility; only the rendered labels changed. -->
           <div style="display:flex;gap:12px;margin:0 0 24px 0;">
             <div style="flex:1;text-align:center;background:rgba(222,50,46,0.08);border-radius:10px;padding:16px 8px;">
               <p style="color:#DE322E;font-size:24px;font-weight:700;margin:0;">${data.peopleMet}</p>
-              <p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">People Met</p>
+              <p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">Mutual Matches</p>
             </div>
             <div style="flex:1;text-align:center;background:rgba(16,185,129,0.1);border-radius:10px;padding:16px 8px;">
               <p style="color:#10b981;font-size:24px;font-weight:700;margin:0;">${data.mutualConnections}</p>
-              <p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">Mutual Matches</p>
+              <p style="color:#6b7280;font-size:12px;margin:4px 0 0 0;">Want to Meet Again</p>
             </div>
             <div style="flex:1;text-align:center;background:rgba(245,158,11,0.1);border-radius:10px;padding:16px 8px;">
               <p style="color:#f59e0b;font-size:24px;font-weight:700;margin:0;">${data.avgRating.toFixed(1)}</p>
@@ -210,7 +215,7 @@ export async function sendSessionRecapEmail(
   `;
 
   if (config.resendApiKey) {
-    const text = `Hey ${displayName},\n\nThanks for joining ${data.sessionTitle}! Here's your event recap:\n\nPeople Met: ${data.peopleMet}\nMutual Matches: ${data.mutualConnections}\nAvg Rating: ${data.avgRating.toFixed(1)}\n\nView Full Recap: ${data.recapUrl}\n\nRSN — Connect with Reason`;
+    const text = `Hey ${displayName},\n\nThanks for joining ${data.sessionTitle}! Here's your event recap:\n\nMutual Matches: ${data.peopleMet}\nWant to Meet Again: ${data.mutualConnections}\nAvg Rating: ${data.avgRating.toFixed(1)}\n\nView Full Recap: ${data.recapUrl}\n\nRSN — Connect with Reason`;
     await sendEmail({ to, subject, html, text });
     return;
   }
@@ -224,7 +229,16 @@ interface HostRecapEmailData {
   sessionTitle: string;
   totalParticipants: number;
   totalRounds: number;
+  /**
+   * Phase 6 (29 April 2026 spec) — `totalMatches` is now the SUCCESSFUL
+   * (status='completed') match count. Optional `matchesCreated` carries
+   * the all-statuses tally so the host recap can show "Matches created:
+   * X / Successful: Y" per the user's option C. When `matchesCreated`
+   * is omitted, the email falls back to a single "Matches" number for
+   * back-compat with older callers.
+   */
   totalMatches: number;
+  matchesCreated?: number;
   avgEventRating: number;
   mutualConnectionsCount: number;
   recapUrl: string;
@@ -269,8 +283,8 @@ export async function sendHostRecapEmail(
               </td>
               <td style="width:8px;"></td>
               <td style="text-align:center;background:rgba(222,50,46,0.08);border-radius:10px;padding:16px 8px;width:33%;">
-                <p style="color:#DE322E;font-size:24px;font-weight:700;margin:0;">${data.totalMatches}</p>
-                <p style="color:#6b7280;font-size:11px;margin:4px 0 0 0;">Matches</p>
+                <p style="color:#DE322E;font-size:24px;font-weight:700;margin:0;">${data.matchesCreated != null ? `${data.matchesCreated} / ${data.totalMatches}` : data.totalMatches}</p>
+                <p style="color:#6b7280;font-size:11px;margin:4px 0 0 0;">${data.matchesCreated != null ? 'Matches Created / Successful' : 'Matches'}</p>
               </td>
             </tr>
           </table>
@@ -306,7 +320,10 @@ export async function sendHostRecapEmail(
   `;
 
   if (config.resendApiKey) {
-    const text = `Hey ${displayName},\n\nHere's the full recap for ${data.sessionTitle}:\n\nParticipants: ${data.totalParticipants}\nRounds: ${data.totalRounds}\nMatches: ${data.totalMatches}\nAvg Rating: ${data.avgEventRating > 0 ? data.avgEventRating.toFixed(1) : 'N/A'}\nMutual Connections: ${data.mutualConnectionsCount}\n\nView Full Recap: ${data.recapUrl}\n\nRSN — Connect with Reason`;
+    const matchesLine = data.matchesCreated != null
+      ? `Matches Created / Successful: ${data.matchesCreated} / ${data.totalMatches}`
+      : `Matches: ${data.totalMatches}`;
+    const text = `Hey ${displayName},\n\nHere's the full recap for ${data.sessionTitle}:\n\nParticipants: ${data.totalParticipants}\nRounds: ${data.totalRounds}\n${matchesLine}\nAvg Rating: ${data.avgEventRating > 0 ? data.avgEventRating.toFixed(1) : 'N/A'}\nMutual Connections: ${data.mutualConnectionsCount}\n\nView Full Recap: ${data.recapUrl}\n\nRSN — Connect with Reason`;
     await sendEmail({ to, subject, html, text });
     return;
   }
