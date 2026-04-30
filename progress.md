@@ -6166,3 +6166,25 @@ The same fix pattern applied to `handleReactionSend` for floating reactions (sam
 - Existing notifications + bell badge unchanged (DM notifications use same `notification:new` event)
 - Existing email service unchanged (DM email is a NEW function, not a modification)
 - Socket auth + connection flow unchanged (DM handlers reuse existing `socket.data.userId`)
+
+---
+
+## 2026-05-01 — Phase E of chat-fix-and-dm-system plan: DM UI (1:1)
+
+**Scope:** the user-visible piece. Messages page with conversation list + thread view, profile-page Message button, top-nav link with the new MessageSquare icon. Bell badge already supports DM notifications via the existing `notification:new` event reuse from Phase D.
+
+**Files added:**
+- `client/src/features/messages/MessagesPage.tsx` — two-pane layout: conversation list on the left, active thread on the right, mobile responsive (single-pane on mobile, list collapses when a thread is open). Real-time subscriptions for `dm:message`, `dm:conversation_updated`, `dm:read_receipt` invalidate React Query caches so the UI updates without polling. Mark-as-read fires on opening a conversation. Composer cap at 4000 chars with Enter-to-send + Shift+Enter for newline. Auto-scroll to bottom on new messages.
+
+**Files changed:**
+- `shared/src/types/events.ts` — added typed socket events: server-to-client `dm:message`, `dm:conversation_updated`, `dm:read_receipt`; client-to-server `dm:send`, `dm:read`. So the typed Socket on the client can use them without `as any` casts.
+- `client/src/App.tsx` — imports MessagesPage and adds two routes: `/messages` and `/messages/:conversationId`. Both render MessagesPage which reads the param to decide which thread to open.
+- `client/src/components/layout/AppLayout.tsx` — adds a Messages nav link with the MessageSquare icon (positioned between People and Admin).
+- `client/src/features/profile/PublicProfilePage.tsx` — Message button. Encounter-gated: if `dm/can-message/:userId` returns `allowed=true`, shows an active Message button; if `reason='no_encounter'`, shows a disabled "Message — meet first" hint. Hidden entirely if either side has blocked. Tapping Message either opens the existing conversation or prompts for the first message and creates a new one.
+
+**Tests:** 821/821 server tests pass (Phase D baseline). Server + shared + client builds all clean.
+
+**Behavior preservation:**
+- Bell icon unchanged in code; it already handles DM notifications via the existing `notification:new` event (Phase D's server-side handler emits to the bell) and the existing `getDestination(n)` function uses `n.link` to navigate, so clicking a DM notification opens the right thread.
+- All other pages untouched.
+- Existing socket events untouched; only added new typed events.

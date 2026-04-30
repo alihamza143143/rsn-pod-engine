@@ -6,7 +6,7 @@ import { PageLoader } from '@/components/ui/Spinner';
 import {
   ArrowLeft, MapPin, Globe, Sparkles, Target, Heart,
   HelpCircle, Users, User, Award, Compass, Link2, Languages, Linkedin,
-  Ban, ShieldOff,
+  Ban, ShieldOff, MessageSquare,
 } from 'lucide-react';
 import api from '@/lib/api';
 import { useAuthStore } from '@/stores/authStore';
@@ -36,6 +36,16 @@ export default function PublicProfilePage() {
     enabled: !!userId && !isOwnProfile && !!currentUser?.id,
   });
   const isBlocked = blockStatus?.hasBlocked === true;
+
+  // Phase E (1 May 2026 spec) — DM gating. Message button only enabled if
+  // we share an encounter with this user AND neither has blocked the other.
+  const { data: dmGate } = useQuery({
+    queryKey: ['can-message', userId],
+    queryFn: () => api.get(`/dm/can-message/${userId}`).then(r => r.data.data),
+    enabled: !!userId && !isOwnProfile && !!currentUser?.id,
+  });
+  const canMessage = dmGate?.allowed === true;
+  const cantMessageReason = dmGate?.reason as string | undefined;
 
   const blockMutation = useMutation({
     mutationFn: () => api.post(`/users/${userId}/block`),
@@ -128,6 +138,46 @@ export default function PublicProfilePage() {
               </span>
             )}
           </div>
+
+          {/* Phase E — Message button. Hidden on own profile and when blocked. */}
+          {!isOwnProfile && currentUser?.id && !isBlocked && (
+            <div className="mt-4">
+              {canMessage ? (
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    // Send a zero-content "open conversation" by posting an
+                    // empty message? No — just navigate to /messages. The
+                    // first send creates the conversation server-side.
+                    // For better UX, find existing conversation if any.
+                    try {
+                      const list = await api.get('/dm/conversations').then(r => r.data.data as any[]);
+                      const existing = list.find(c => c.otherUserId === userId);
+                      if (existing) {
+                        navigate(`/messages/${existing.conversationId}`);
+                      } else {
+                        // Send an opener so the conversation is created.
+                        const content = prompt(`Send your first message to ${user.displayName || 'this user'}:`);
+                        if (content && content.trim()) {
+                          const res = await api.post('/dm/messages', { toUserId: userId, content: content.trim() });
+                          navigate(`/messages/${res.data.data.conversationId}`);
+                        }
+                      }
+                    } catch (err: any) {
+                      addToast(err?.response?.data?.error?.message || 'Failed to open conversation', 'error');
+                    }
+                  }}
+                  className="text-xs"
+                >
+                  <MessageSquare className="h-3.5 w-3.5 mr-1.5" /> Message
+                </Button>
+              ) : cantMessageReason === 'no_encounter' ? (
+                <Button size="sm" variant="ghost" disabled className="text-xs cursor-not-allowed" title="DMs unlock after you share a room in an event">
+                  <MessageSquare className="h-3.5 w-3.5 mr-1.5" /> Message — meet first
+                </Button>
+              ) : null}
+            </div>
+          )}
 
           {/* Phase B — Block / Unblock button. Hidden on own profile. */}
           {!isOwnProfile && currentUser?.id && (

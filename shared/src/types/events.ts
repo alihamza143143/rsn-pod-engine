@@ -97,6 +97,12 @@ export interface ServerToClientEvents {
   // Notifications (real-time push)
   'notification:new': (data: { id: string; type: string; title: string; body?: string; link?: string; isRead: boolean; createdAt: string; inviteStatus?: string; podId?: string | null; sessionId?: string | null }) => void;
 
+  // DM (Phase D of chat-fix-and-dm-system, 1 May 2026) — platform-level
+  // person-to-person messaging. Independent of any session/round/event.
+  'dm:message': (data: { id: string; conversationId: string; fromUserId: string; content: string; readAt: string | null; createdAt: string }) => void;
+  'dm:conversation_updated': (data: { conversationId: string; lastMessageAt: string; lastMessage: string; lastMessageFromUserId: string }) => void;
+  'dm:read_receipt': (data: { conversationId: string; readBy: string; readAt: string; markedCount: number }) => void;
+
   // Errors
   'error': (data: { code: string; message: string }) => void;
 }
@@ -155,4 +161,8 @@ export interface ClientToServerEvents {
   // Chat
   'chat:send': (data: { sessionId: string; message: string; scope: 'lobby' | 'room' }) => void;
   'chat:react': (data: { sessionId: string; messageId: string; emoji: string }) => void;
+
+  // DM (Phase D of chat-fix-and-dm-system, 1 May 2026)
+  'dm:send': (data: { toUserId: string; content: string }) => void;
+  'dm:read': (data: { conversationId: string }) => void;
 }

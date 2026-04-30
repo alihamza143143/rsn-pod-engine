@@ -18,6 +18,7 @@ import InviteAcceptPage from '@/features/invites/InviteAcceptPage';
 import LiveSessionPage from '@/features/live/LiveSessionPage';
 import HostDashboardPage from '@/features/host/HostDashboardPage';
 import RecapPage from '@/features/sessions/RecapPage';
+import MessagesPage from '@/features/messages/MessagesPage';
 import EncounterHistoryPage from '@/features/sessions/EncounterHistoryPage';
 import AdminDashboardPage from '@/features/admin/AdminDashboardPage';
 import AdminUsersPage from '@/features/admin/AdminUsersPage';
@@ -63,6 +64,8 @@ export default function App() {
         <Route path="/sessions/:sessionId" element={<SessionDetailPage />} />
         <Route path="/sessions/:sessionId/recap" element={<RecapPage />} />
         <Route path="/encounters" element={<EncounterHistoryPage />} />
+        <Route path="/messages" element={<MessagesPage />} />
+        <Route path="/messages/:conversationId" element={<MessagesPage />} />
         <Route path="/invites" element={<InvitesPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/billing" element={<BillingPage />} />

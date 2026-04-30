@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Users, Calendar, Mail, User, LogOut, Menu, X, Shield, Settings, HelpCircle, Heart } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, Mail, User, LogOut, Menu, X, Shield, Settings, HelpCircle, Heart, MessageSquare } from 'lucide-react';
 import { cn, isAdmin } from '@/lib/utils';
 import { useAuthStore } from '@/stores/authStore';
 import { useScrollReveal } from '@/hooks/useScrollReveal';
@@ -38,6 +38,7 @@ export default function AppLayout() {
     { to: '/invites', icon: Mail, label: 'Invite' },
     { to: '/sessions', icon: Calendar, label: 'Events' },
     { to: '/encounters', icon: Heart, label: 'People' },
+    { to: '/messages', icon: MessageSquare, label: 'Messages' },
     ...(isAdmin(user?.role) ? [
       { to: '/admin', icon: Shield, label: 'Admin' },
     ] : []),
