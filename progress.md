@@ -6076,3 +6076,57 @@ The same fix pattern applied to `handleReactionSend` for floating reactions (sam
 - All previous tests continue to pass
 
 **Migration safety:** Additive only (new table + new index). No data migration needed. Default empty table = no blocks = no behavior change for existing users.
+
+---
+
+## 2026-05-01 — Phase C of chat-fix-and-dm-system plan: DM data model + service + REST
+
+**Scope:** persistent 1:1 person-to-person messaging at the platform level. Independent of any session, room, or event. Encounter-gated and block-gated. Foundation for the bell badge, real-time delivery (Phase D), the Messages UI (Phase E), and later the poke layer (Phase G).
+
+**Migrations added:**
+- `043` already applied in Phase B
+- `044_dm_conversations.sql` — one row per user-pair, normalised via `CHECK(user_a_id < user_b_id)` + `UNIQUE(user_a_id, user_b_id)`. Per-user soft-delete via `user_a_deleted_at` / `user_b_deleted_at`. Indexes both directions for inbox queries.
+- `045_direct_messages.sql` — one row per message. CHECK enforces 1-4000 char content. Thread index on `(conversation_id, created_at DESC)`. Partial unread index `WHERE read_at IS NULL` for fast badge queries.
+- `046_notifications_dm_type.sql` — extends the `notifications.type` CHECK constraint to allow `'direct_message'` alongside `'event_invite'` and `'pod_invite'`.
+
+**Files added:**
+- `server/src/services/dm/dm.service.ts` — full DM service:
+  - `canMessage(a, b)` — block-gate first, encounter-gate second, returns `{allowed, reason?}`
+  - `sendMessage(from, to, content)` — re-checks auth server-side, transactional upsert of conversation + insert of message, clears sender's soft-delete on send
+  - `listConversations(userId, page)` — single-roundtrip query with LATERAL subqueries for last-message snippet + unread count + sender info; filters my-side soft-deletes
+  - `listMessages(conversationId, userId, page)` — auth-gated thread view, soft-delete = 404 from my side
+  - `markRead(conversationId, userId)` — only marks messages from the OTHER user (never self-marks), returns count + timestamp
+  - `deleteConversation(conversationId, userId)` — per-user soft-delete (sets `user_x_deleted_at`), idempotent, never DELETE FROM
+  - `getUnreadCount(userId)` — total unread for the bell badge
+
+- `server/src/routes/dm.ts` — REST surface:
+  - `GET /api/dm/conversations` (paginated)
+  - `GET /api/dm/conversations/:id/messages` (paginated)
+  - `POST /api/dm/messages` (zod-validated body, max 4000 chars)
+  - `POST /api/dm/conversations/:id/read`
+  - `DELETE /api/dm/conversations/:id`
+  - `GET /api/dm/can-message/:userId`
+  - `GET /api/dm/unread-count`
+
+- `server/src/__tests__/services/dm/phaseC-dm-service.test.ts` — 35 architectural tests pinning migrations, service surface, gates, soft-delete semantics, route registration
+
+**Files changed:**
+- `server/src/index.ts` — imports `dmRoutes` and mounts `/api/dm`
+
+**Tests:** 806/806 server tests pass (771 baseline + 35 new). Server build clean.
+
+**Architecture invariants pinned:**
+- Migration shape: pair normalisation, UNIQUE pair, per-user soft-delete columns, content length check, partial unread index
+- Service: block-gate before encounter-gate (cheaper rejection first), self-DM rejected, server re-checks auth, conversation upsert idempotent, sender's soft-delete cleared on send, listConversations excludes my-side deletions, markRead only touches other-user messages, deleteConversation never DELETEs rows
+- Routes: every endpoint auth-gated, body validation caps content at 4000 chars
+- App: `/api/dm` mounted alongside the other route prefixes
+
+**Behavior preservation:**
+- Existing notifications, ratings, invites, sessions all untouched
+- New routes are additive; no existing route changed
+- Migration 046 only widens an existing constraint; existing notification rows stay valid
+
+**Out of scope for Phase C:**
+- Real-time delivery via socket — Phase D
+- UI (Messages page, profile button, bell badge) — Phase E
+- Email notifications when offline — Phase D
