@@ -6210,3 +6210,24 @@ The same fix pattern applied to `handleReactionSend` for floating reactions (sam
 - Accepting a poke seeds encounter_history with times_met=0. The matching engine excludes this pair from cross-event matching (it counts as "met" for engine purposes), but no real meeting occurred. This is the right semantic: they've expressed interest, they shouldn't get a forced match in an event when they could be DMing already.
 - Schema enforces: only one PENDING poke per direction; once responded (accepted or declined), sender can poke again later.
 - Bell notification reuses the existing notification:new socket event so no client changes needed.
+
+---
+
+## 2026-05-01 — Phase H of chat-fix-and-dm-system plan: reports + admin moderation
+
+**Spec (Stefan):** "people should be able to report people". Reports go into an admin moderation queue, distinct from blocks (which are silent and per-user).
+
+**Files added:**
+- `server/src/db/migrations/049_user_reports.sql` — reporter_id, reported_id, reason enum (spam, harassment, inappropriate_content, fake_profile, safety, other), description, status (open/resolved/dismissed), resolved_by, resolved_at, resolution_notes. Indexes on (status, created_at), (reported_id, status), (reporter_id, created_at).
+- `server/src/services/report/report.service.ts` — submitReport (validates not-self, valid reason), listOpenReports (admin queue with both users' info + auto-flag count of total open reports against the reported user), resolveReport, dismissReport. Both resolve/dismiss require admin id and optional notes.
+- `server/src/routes/reports.ts` — POST /reports (any user), GET /reports/open (admin), POST /reports/:id/resolve (admin), POST /reports/:id/dismiss (admin).
+
+**Files changed:**
+- `server/src/index.ts` — mounts /api/reports.
+
+**Tests:** 821/821 server tests still pass. Build clean.
+
+**Architecture notes:**
+- Reports are visible to admins only; reporter and reported user don't see each other's report records via the API.
+- The auto-flag signal (`totalOpenAgainstReported`) lets admin sort by repeat-offender count without needing a separate alert system.
+- Description capped at 2000 chars at both schema and API layers.
