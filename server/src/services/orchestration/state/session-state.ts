@@ -37,6 +37,16 @@ export interface ActiveSession {
   // emitHostDashboard reports `isConnected: false` and the host can see
   // the room hasn't actually started.
   roomParticipants?: Map<string, { matchId: string; roomId: string; joinedAt: Date }>;
+  // Phase 1 (1 May spec) — participant state machine. Authoritative
+  // in-memory canonical state per user. Mutated only via
+  // services/orchestration/state/participant-state-machine.ts
+  // transitionParticipant(). DB session_participants.status is a projection
+  // for cross-process visibility, not the source of truth.
+  participantStates?: Map<string, {
+    state: string; // ParticipantState enum value
+    currentRoomId: string | null;
+    updatedAt: Date;
+  }>;
 }
 
 export interface ChatMessage {

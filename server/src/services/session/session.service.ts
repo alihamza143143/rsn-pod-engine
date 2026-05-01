@@ -469,13 +469,56 @@ const VALID_STATUS_TRANSITIONS: Record<string, string[] | null> = {
   [ParticipantStatus.NO_SHOW]: [ParticipantStatus.REGISTERED, ParticipantStatus.CHECKED_IN, ParticipantStatus.IN_LOBBY, ParticipantStatus.IN_ROUND, ParticipantStatus.DISCONNECTED],
 };
 
+/**
+ * Phase 1 (1 May spec) — participant state mutation.
+ *
+ * This function now DELEGATES to the participant state machine
+ * (services/orchestration/state/participant-state-machine.ts) when an
+ * ActiveSession exists for the given sessionId. The state machine is the
+ * architectural chokepoint: in-memory canonical state, transition table
+ * validation, atomic DB projection.
+ *
+ * If the session is NOT active (no in-memory ActiveSession entry — e.g.
+ * called from REST routes for a session that hasn't started, or for a
+ * completed session), falls back to the legacy direct DB UPDATE so callers
+ * outside the orchestration layer keep working.
+ */
 export async function updateParticipantStatus(
   sessionId: string,
   userId: string,
   status: ParticipantStatus,
   roomId?: string
 ): Promise<void> {
-  // Validate transition if rules exist for the target status
+  // Try state-machine delegation first. Imported lazily to avoid a circular
+  // dependency between session.service and orchestration.state modules.
+  try {
+    const { activeSessions } = await import('../orchestration/state/session-state');
+    if (activeSessions.has(sessionId)) {
+      const { transitionParticipant, liftFromDbStatus } = await import('../orchestration/state/participant-state-machine');
+      const lifted = liftFromDbStatus(status);
+      const result = await transitionParticipant(sessionId, userId, lifted, {
+        currentRoomId: roomId ?? null,
+      });
+      if (!result.ok && result.reason === 'ILLEGAL_TRANSITION') {
+        // The state machine refused the transition — log but fall back to
+        // legacy write so we don't break currently-working flows. As Phase 1
+        // matures and we trust the table, this fallback can be removed.
+        logger.warn(
+          { sessionId, userId, status, fromState: result.fromState },
+          'updateParticipantStatus: state machine rejected, falling back to legacy DB write',
+        );
+      } else {
+        // State machine handled it (succeeded or fell back internally).
+        return;
+      }
+    }
+  } catch (smErr) {
+    logger.warn({ smErr, sessionId, userId, status },
+      'updateParticipantStatus: state machine threw, falling back to legacy DB write');
+  }
+
+  // Legacy path — used when no ActiveSession exists OR when state machine
+  // refused/failed. Same behaviour as pre-Phase-1.
   const validFrom = VALID_STATUS_TRANSITIONS[status];
   if (validFrom !== null && validFrom !== undefined) {
     const currentResult = await query<{ status: string }>(
@@ -487,7 +530,6 @@ export async function updateParticipantStatus(
       if (!validFrom.includes(currentStatus as ParticipantStatus)) {
         logger.warn({ sessionId, userId, from: currentStatus, to: status },
           'Invalid participant status transition — allowing as fallback');
-        // Log but don't block — orchestration depends on these transitions
       }
     }
   }
