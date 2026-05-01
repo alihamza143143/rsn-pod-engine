@@ -12,6 +12,7 @@ import { query, transaction } from '../../../db';
 import {
   SessionStatus, ParticipantStatus,
   MatchStatus, UserRole,
+  resolveDisplayName, placeholderName,
 } from '@rsn/shared';
 import {
   ActiveSession, activeSessions, withSessionGuard,
@@ -792,21 +793,15 @@ export async function handleHostRemoveFromRoom(
       const remNameRes = await query<{ id: string; display_name: string | null; email: string | null }>(
         `SELECT id, display_name, email FROM users WHERE id = ANY($1)`, [remPartnerIds]
       );
-      const remFallback = (id: string, dn: string | null, em: string | null): string => {
-        const t = (dn || '').trim();
-        if (t) return t;
-        const ep = (em || '').split('@')[0].trim();
-        if (ep) return ep;
-        return `Partner ${id.slice(0, 6)}`;
-      };
-      const remNameMap = new Map(remNameRes.rows.map(r => [r.id, remFallback(r.id, r.display_name, r.email)]));
+      // Phase 5 (1 May spec) — single-source displayName helper.
+      const remNameMap = new Map(remNameRes.rows.map(r => [r.id, resolveDisplayName(r.id, r.display_name, r.email)]));
       const remPartnersWithNames = remPartnerIds.map(pid => ({
-        userId: pid, displayName: remNameMap.get(pid) || `Partner ${pid.slice(0, 6)}`,
+        userId: pid, displayName: remNameMap.get(pid) || placeholderName(pid),
       }));
       const removedNameRes = await query<{ display_name: string | null; email: string | null }>(
         `SELECT display_name, email FROM users WHERE id = $1`, [data.userId]
       );
-      const removedName = remFallback(
+      const removedName = resolveDisplayName(
         data.userId,
         removedNameRes.rows[0]?.display_name || null,
         removedNameRes.rows[0]?.email || null,

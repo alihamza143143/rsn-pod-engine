@@ -14,7 +14,7 @@
 import { Server as SocketServer, Socket } from 'socket.io';
 import logger from '../../../config/logger';
 import { query } from '../../../db';
-import { SessionStatus } from '@rsn/shared';
+import { SessionStatus, resolveDisplayName, placeholderName } from '@rsn/shared';
 import {
   activeSessions,
   sessionRoom, userRoom, persistSessionState,
@@ -498,14 +498,8 @@ export async function handleHostForceMatch(
         `SELECT id, display_name AS "displayName", email FROM users WHERE id = ANY($1)`,
         [validation.conflictingUserIds]
       );
-      const conflictName = (id: string, dn: string | null, em: string | null): string => {
-        const t = (dn || '').trim();
-        if (t) return t;
-        const ep = (em || '').split('@')[0].trim();
-        if (ep) return ep;
-        return `Participant ${id.slice(0, 6)}`;
-      };
-      const conflictNames = namesResult.rows.map(r => conflictName(r.id, r.displayName, r.email));
+      // Phase 5 (1 May spec) — single-source displayName helper.
+      const conflictNames = namesResult.rows.map(r => resolveDisplayName(r.id, r.displayName, r.email));
       const who = conflictNames.length > 0
         ? conflictNames.join(' and ')
         : `${validation.conflictingUserIds.length} participant(s)`;
@@ -635,14 +629,8 @@ export async function sendMatchPreview(
     `SELECT id, display_name AS "displayName", email FROM users WHERE id = ANY($1)`,
     [Array.from(allUserIds)]
   );
-  const fallbackName = (id: string, displayName: string | null, email: string | null): string => {
-    const trimmed = (displayName || '').trim();
-    if (trimmed) return trimmed;
-    const emailPrefix = (email || '').split('@')[0].trim();
-    if (emailPrefix) return emailPrefix;
-    return `Participant ${id.slice(0, 6)}`;
-  };
-  const nameMap = new Map(namesResult.rows.map(r => [r.id, fallbackName(r.id, r.displayName, r.email)]));
+  // Phase 5 (1 May spec) — single-source displayName helper.
+  const nameMap = new Map(namesResult.rows.map(r => [r.id, resolveDisplayName(r.id, r.displayName, r.email)]));
 
   // Fetch encounter history for all matched pairs to show "met before" info
   const userIdsArray = Array.from(allUserIds);
@@ -661,7 +649,7 @@ export async function sendMatchPreview(
 
   // Defensive fallback if a user appears in matches but somehow not in nameMap
   // (race between query and DB write — extremely rare, kept for safety).
-  const safeName = (uid: string): string => nameMap.get(uid) || `Participant ${uid.slice(0, 6)}`;
+  const safeName = (uid: string): string => nameMap.get(uid) || placeholderName(uid);
 
   const matchPreview = matches.map(m => {
     const pairKey = [m.participantAId, m.participantBId].sort().join(':');
@@ -703,7 +691,7 @@ export async function sendMatchPreview(
       [byeNamesNeeded]
     );
     for (const r of byeNamesResult.rows) {
-      nameMap.set(r.id, fallbackName(r.id, r.displayName, r.email));
+      nameMap.set(r.id, resolveDisplayName(r.id, r.displayName, r.email));
     }
   }
   const byeParticipants = byeUserIds.map(uid => ({
@@ -835,20 +823,14 @@ async function emitHostDashboardImmediate(io: SocketServer, sessionId: string): 
         `SELECT id, display_name AS "displayName", email FROM users WHERE id = ANY($1)`,
         [missingIds]
       );
-      const fallbackNameFor = (id: string, dn: string | null, em: string | null): string => {
-        const t = (dn || '').trim();
-        if (t) return t;
-        const ep = (em || '').split('@')[0].trim();
-        if (ep) return ep;
-        return `Participant ${id.slice(0, 6)}`;
-      };
-      for (const row of nameResult.rows) cache.set(row.id, fallbackNameFor(row.id, row.displayName, row.email));
+      // Phase 5 (1 May spec) — single-source displayName helper.
+      for (const row of nameResult.rows) cache.set(row.id, resolveDisplayName(row.id, row.displayName, row.email));
       // Negative-cache misses so we don't re-query a user we couldn't find at
       // all. Use a userId-derived label so they remain distinguishable.
-      for (const uid of missingIds) if (!cache.has(uid)) cache.set(uid, `Participant ${uid.slice(0, 6)}`);
+      for (const uid of missingIds) if (!cache.has(uid)) cache.set(uid, placeholderName(uid));
     }
     const nameMap = cache;
-    const safeName = (uid: string): string => nameMap.get(uid) || `Participant ${uid.slice(0, 6)}`;
+    const safeName = (uid: string): string => nameMap.get(uid) || placeholderName(uid);
 
     // Bug 18 (April 19) — per-room manual timer in dashboard payload.
     // Each manual room has its own RoomTimerState in the roomTimers Map

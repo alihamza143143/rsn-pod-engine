@@ -85,8 +85,9 @@ describe('Phase 1 — SPA navigation + name-fallback architecture', () => {
       expect(fnStart).toBeGreaterThan(-1);
       const fnEnd = src.indexOf('\n}\n', fnStart);
       const fn = src.slice(fnStart, fnEnd);
-      // The new fallback function is named fallbackName and consults email
-      expect(fn).toMatch(/fallbackName/);
+      // Phase 5 (1 May spec) — the inline fallback function is gone; replaced
+      // by the shared resolveDisplayName helper which still consults email.
+      expect(fn).toMatch(/resolveDisplayName/);
       expect(fn).toMatch(/email/);
       // No literal "|| 'User'" in the nameMap construction (the placeholder bug)
       expect(fn).not.toMatch(/r\.displayName\s*\|\|\s*['"]User['"]/);
@@ -109,10 +110,9 @@ describe('Phase 1 — SPA navigation + name-fallback architecture', () => {
 
     it('participant-flow.ts rating-prompt name lookup uses email-prefix fallback (no "Partner, Partner" trios)', () => {
       const src = readServer('services/orchestration/handlers/participant-flow.ts');
-      // The pre-fix code used `r.displayName || 'Partner'` which produced
-      // "Partner, Partner" in trio rating prompts when names were missing.
-      // Post-fix uses a fallbackName / fallbackPartnerName that consults email.
-      expect(src).toMatch(/fallbackPartnerName|fallbackName.*email/);
+      // Phase 5 (1 May spec): inline fallback functions removed; the shared
+      // resolveDisplayName helper consults email.
+      expect(src).toMatch(/resolveDisplayName/);
       // No bare `|| 'Partner'` literal in the nameMap construction
       expect(src).not.toMatch(/r\.displayName\s*\|\|\s*['"]Partner['"]/);
     });

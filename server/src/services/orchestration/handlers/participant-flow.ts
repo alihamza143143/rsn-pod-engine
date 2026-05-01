@@ -9,7 +9,7 @@
 import { Server as SocketServer, Socket } from 'socket.io';
 import logger from '../../../config/logger';
 import { query } from '../../../db';
-import { SessionStatus, ParticipantStatus, UserRole } from '@rsn/shared';
+import { SessionStatus, ParticipantStatus, UserRole, resolveDisplayName, placeholderName } from '@rsn/shared';
 import {
   ActiveSession, activeSessions, disconnectTimeouts, withSessionGuard,
   sessionRoom, userRoom, getUserIdFromSocket,
@@ -376,15 +376,9 @@ export async function handleJoinSession(
           const partnerNameResult = await query<{ id: string; displayName: string | null; email: string | null }>(
             `SELECT id, display_name AS "displayName", email FROM users WHERE id = ANY($1)`, [partnerIds]
           );
-          const fallbackPartnerName = (id: string, dn: string | null, em: string | null): string => {
-            const t = (dn || '').trim();
-            if (t) return t;
-            const ep = (em || '').split('@')[0].trim();
-            if (ep) return ep;
-            return `Partner ${id.slice(0, 6)}`;
-          };
-          const nameMap = new Map(partnerNameResult.rows.map(r => [r.id, fallbackPartnerName(r.id, r.displayName, r.email)]));
-          const partners = partnerIds.map(id => ({ userId: id, displayName: nameMap.get(id) || `Partner ${id.slice(0, 6)}` }));
+          // Phase 5 (1 May spec) — single-source displayName helper.
+          const nameMap = new Map(partnerNameResult.rows.map(r => [r.id, resolveDisplayName(r.id, r.displayName, r.email)]));
+          const partners = partnerIds.map(id => ({ userId: id, displayName: nameMap.get(id) || placeholderName(id) }));
 
           // Restore participant status to IN_ROUND
           await sessionService.updateParticipantStatus(
@@ -440,15 +434,9 @@ export async function handleJoinSession(
             const partnerNameResult = await query<{ id: string; displayName: string | null; email: string | null }>(
               `SELECT id, display_name AS "displayName", email FROM users WHERE id = ANY($1)`, [partnerIds]
             );
-            const fallbackName = (id: string, dn: string | null, em: string | null): string => {
-              const t = (dn || '').trim();
-              if (t) return t;
-              const ep = (em || '').split('@')[0].trim();
-              if (ep) return ep;
-              return `Partner ${id.slice(0, 6)}`;
-            };
-            const nameMap = new Map(partnerNameResult.rows.map(r => [r.id, fallbackName(r.id, r.displayName, r.email)]));
-            const partnersWithNames = partnerIds.map(id => ({ userId: id, displayName: nameMap.get(id) || `Partner ${id.slice(0, 6)}` }));
+            // Phase 5 (1 May spec) — single-source displayName helper.
+            const nameMap = new Map(partnerNameResult.rows.map(r => [r.id, resolveDisplayName(r.id, r.displayName, r.email)]));
+            const partnersWithNames = partnerIds.map(id => ({ userId: id, displayName: nameMap.get(id) || placeholderName(id) }));
 
             // Give a short window to rate (15s or remaining time, whichever is more)
             const remainingSeconds = activeSession.timerEndsAt

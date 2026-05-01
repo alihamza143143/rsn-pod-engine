@@ -97,7 +97,9 @@ describe('Tier-1 A1 — dashboard coalesce + name cache', () => {
       // produced "User × User" / "Not matched: User, User" in the host UI
       // when several users had missing names — to a userId-derived label
       // that's distinguishable per person.
-      expect(fn).toMatch(/if\s*\(!cache\.has\(uid\)\)\s*cache\.set\(uid,\s*`Participant \$\{uid\.slice\(0,\s*6\)\}`\)/);
+      // Phase 5 (1 May spec): the negative cache write uses placeholderName
+      // imported from @rsn/shared instead of an inline literal.
+      expect(fn).toMatch(/cache\.set\(uid,\s*placeholderName\(uid\)\)/);
     });
 
     it('positive-cache uses email-prefix fallback when display_name is missing', () => {
@@ -105,7 +107,8 @@ describe('Tier-1 A1 — dashboard coalesce + name cache', () => {
       // can produce a useful label (displayName → email-prefix → short userId)
       // instead of collapsing every nameless user to the literal "User".
       expect(fn).toMatch(/SELECT id,\s*display_name[^,]*,\s*email/);
-      expect(fn).toMatch(/fallbackNameFor/);
+      // Phase 5 (1 May spec): cache populated via shared resolveDisplayName.
+      expect(fn).toMatch(/resolveDisplayName/);
     });
   });
 
