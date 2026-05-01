@@ -377,6 +377,13 @@ export interface AcceptInviteResult {
   /** Where the client should navigate next (lobby for session invites, pod page for pod invites). */
   redirectTo: string;
   registeredFor: { sessionId?: string; podId?: string };
+  /**
+   * Phase 4 (1 May spec) — server-confirmed participant status. Client uses
+   * this to know the registration is fully committed before navigating, so
+   * the live page never lands with a stale "not registered" cache. Absent
+   * for pod-only invites.
+   */
+  participantStatus?: string;
 }
 
 async function applyInviteRegistration(
@@ -543,10 +550,20 @@ export async function acceptInvite(
   // bump, no further DB writes needed.
   if (isIdempotent) {
     logger.info({ code, userId, type: invite.type }, 'Invite re-acceptance — effects re-applied');
+    // Phase 4 (1 May spec) — read back participant status for idempotent path too.
+    let participantStatusIdempotent: string | undefined;
+    if (registered.sessionId) {
+      const sr = await query<{ status: string }>(
+        `SELECT status FROM session_participants WHERE session_id = $1 AND user_id = $2`,
+        [registered.sessionId, userId],
+      );
+      participantStatusIdempotent = sr.rows[0]?.status;
+    }
     return {
       invite,
       redirectTo: computeRedirectTo(invite, registered),
       registeredFor: registered,
+      participantStatus: participantStatusIdempotent,
     };
   }
 
@@ -595,10 +612,23 @@ export async function acceptInvite(
 
   logger.info({ code, userId, type: invite.type }, 'Invite accepted');
 
+  // Phase 4 (1 May spec) — read back participant status so client can
+  // confirm registration is fully committed before navigating to the live
+  // page. Eliminates the post-redirect 404 race Stefan reported.
+  let participantStatus: string | undefined;
+  if (registered.sessionId) {
+    const statusRes = await query<{ status: string }>(
+      `SELECT status FROM session_participants WHERE session_id = $1 AND user_id = $2`,
+      [registered.sessionId, userId],
+    );
+    participantStatus = statusRes.rows[0]?.status;
+  }
+
   return {
     invite: finalInvite,
     redirectTo: computeRedirectTo(invite, registered),
     registeredFor: registered,
+    participantStatus,
   };
 }
 

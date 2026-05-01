@@ -89,15 +89,28 @@ export default function InviteAcceptPage() {
       const destination = data?.redirectTo || fallbackDestination();
 
       addToast('Invite accepted!', 'success');
-      // Invalidate broadly so the dashboard's "My Events" / pod cards / session
-      // detail all reflect the new registration when we land. Pre-fix this used
-      // window.location.href as a "trust nothing, refresh everything" hammer
-      // — that defeated React state and felt like a website (white flash).
-      // Now: invalidate the relevant caches, let React Query refetch in the
-      // background, and use react-router navigate() for an SPA transition.
-      qc.invalidateQueries({ queryKey: ['session-participants'] });
+      // Phase 4 (1 May spec) — Stefan reported "Accept → 404 → magically
+      // works". Root cause: post-Phase-T0-4 the server transaction commits
+      // cleanly, but the client navigated before the live page's React Query
+      // caches refetched, so the live page rendered against a stale
+      // "you're not in this session" cache and the user saw 404 until they
+      // clicked again. Fix: AWAIT the critical refetches before navigating
+      // so the live page lands with fresh data. Server now returns
+      // participantStatus too; we trust it and only proceed if it's set
+      // (or this is a pod-only invite).
+      const sid = data?.registeredFor?.sessionId || invite?.sessionId;
+      const pStatus = data?.participantStatus;
+      if (sid && !pStatus) {
+        // Server didn't confirm participant — surface as soft error so user
+        // can retry rather than landing on a broken live page.
+        throw new Error('Registration not confirmed by server. Please retry.');
+      }
+      await Promise.all([
+        qc.refetchQueries({ queryKey: ['session-participants'] }),
+        qc.refetchQueries({ queryKey: ['session', sid] }),
+      ]);
+      // Best-effort background invalidation for everything else (no need to await).
       qc.invalidateQueries({ queryKey: ['session-detail'] });
-      qc.invalidateQueries({ queryKey: ['session', invite?.sessionId] });
       qc.invalidateQueries({ queryKey: ['my-sessions'] });
       qc.invalidateQueries({ queryKey: ['my-pods'] });
       qc.invalidateQueries({ queryKey: ['received-invites'] });
