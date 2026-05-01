@@ -16,6 +16,13 @@ import { NotFoundError } from '../../middleware/errors';
 
 // ─── Default Weights ────────────────────────────────────────────────────────
 
+// Matching Engine 1.0 spec, Section 11 — defaults.
+//   - intent-priority via sharedInterests + sharedReasons (cumulative 0.40)
+//   - new-connection priority via encounterFreshness 0.10
+//   - premium boosts capped so they never dominate (combined ≤ 0.30, less
+//     than sharedInterests+sharedReasons)
+//   - mutualMeetAgainBoost (Section 8 learning) wired but small (0.05)
+//     since within_event policy makes it irrelevant most of the time
 const DEFAULT_WEIGHTS: MatchingWeights = {
   sharedInterests: 0.25,
   sharedReasons: 0.25,
@@ -23,7 +30,47 @@ const DEFAULT_WEIGHTS: MatchingWeights = {
   companyDiversity: 0.15,
   languageMatch: 0.10,
   encounterFreshness: 0.10,
+  // Section 7 — premium tier signals.
+  mutualPremiumRequest: 0.20,
+  singlePremiumRequest: 0.10,
+  premiumBoost: 0.03,
+  // Section 8 — feedback learning lift (tiny by default, only matters when
+  // policy allows repeats).
+  mutualMeetAgainBoost: 0.05,
 };
+
+/**
+ * Matching Engine 1.0 spec, Section 7 — load all pending premium match
+ * requests for this event, returning a Map<requesterUserId, requestedUserIds[]>.
+ * Direction matters: A requesting B does NOT auto-imply B requesting A —
+ * the engine's mutual-detection looks up both directions explicitly.
+ */
+async function loadMatchRequestsForEvent(
+  sessionId: string,
+  participantUserIds: string[],
+): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  if (participantUserIds.length === 0) return out;
+  try {
+    const result = await query<{ requester_id: string; requested_id: string }>(
+      `SELECT requester_id, requested_id
+       FROM match_requests
+       WHERE event_id = $1 AND status = 'pending'
+         AND requester_id = ANY($2::uuid[])
+         AND requested_id = ANY($2::uuid[])`,
+      [sessionId, participantUserIds],
+    );
+    for (const row of result.rows) {
+      const list = out.get(row.requester_id) || [];
+      list.push(row.requested_id);
+      out.set(row.requester_id, list);
+    }
+  } catch (err) {
+    // Non-fatal — engine still works with no premium requests.
+    logger.warn({ err, sessionId }, 'Failed to load match_requests; engine runs without premium request signals');
+  }
+  return out;
+}
 
 // ─── Generate Full Schedule for Session ─────────────────────────────────────
 
@@ -36,11 +83,13 @@ export async function generateSessionSchedule(
     ? JSON.parse(session.config as unknown as string)
     : session.config;
 
-  // Get registered participants with profile data
+  // Get registered participants with profile data + Matching Engine 1.0
+  // spec Section 4 fields (premium flag, requested users).
   const participantsResult = await query<MatchingParticipant>(
     `SELECT u.id AS "userId", u.interests, u.reasons_to_connect AS "reasonsToConnect",
             u.industry, u.company, u.languages, u.timezone,
-            '{}'::jsonb AS attributes
+            '{}'::jsonb AS attributes,
+            COALESCE(u.is_premium, FALSE) AS "isPremium"
      FROM session_participants sp
      JOIN users u ON u.id = sp.user_id
      WHERE sp.session_id = $1 AND sp.status NOT IN ('removed', 'left', 'no_show')`,
@@ -48,6 +97,13 @@ export async function generateSessionSchedule(
   );
 
   const participants = participantsResult.rows;
+
+  // Section 7 — load premium match requests scoped to this event. Engine
+  // uses these to detect mutual requests (highest priority pairing).
+  const requests = await loadMatchRequestsForEvent(sessionId, participants.map(p => p.userId));
+  for (const p of participants) {
+    p.requestedUserIds = requests.get(p.userId) || [];
+  }
 
   // Phase 4 (29 April 2026 spec) — matching policy chosen at event creation.
   // Replaces the legacy binary `crossEventMemory` flag with a tri-state
@@ -116,7 +172,8 @@ export async function generateSingleRound(
     ? await query<MatchingParticipant>(
         `SELECT u.id AS "userId", u.interests, u.reasons_to_connect AS "reasonsToConnect",
                 u.industry, u.company, u.languages, u.timezone,
-                '{}'::jsonb AS attributes
+                '{}'::jsonb AS attributes,
+                COALESCE(u.is_premium, FALSE) AS "isPremium"
          FROM session_participants sp
          JOIN users u ON u.id = sp.user_id
          WHERE sp.session_id = $1 AND sp.status IN ('in_lobby', 'checked_in', 'registered')
@@ -131,7 +188,8 @@ export async function generateSingleRound(
     : await query<MatchingParticipant>(
         `SELECT u.id AS "userId", u.interests, u.reasons_to_connect AS "reasonsToConnect",
                 u.industry, u.company, u.languages, u.timezone,
-                '{}'::jsonb AS attributes
+                '{}'::jsonb AS attributes,
+                COALESCE(u.is_premium, FALSE) AS "isPremium"
          FROM session_participants sp
          JOIN users u ON u.id = sp.user_id
          WHERE sp.session_id = $1 AND sp.status IN ('in_lobby', 'checked_in', 'registered')
@@ -237,6 +295,13 @@ export async function generateSingleRound(
         companyDiversity: t.same_company_allowed ? 0 : 0.15,
         languageMatch: t.weight_location,
         encounterFreshness: t.weight_experience,
+        // Carry the Engine 1.0 spec defaults forward when a template is in
+        // use — template only configures the legacy six weights, premium +
+        // learning weights stay at engine defaults.
+        mutualPremiumRequest: DEFAULT_WEIGHTS.mutualPremiumRequest,
+        singlePremiumRequest: DEFAULT_WEIGHTS.singlePremiumRequest,
+        premiumBoost: DEFAULT_WEIGHTS.premiumBoost,
+        mutualMeetAgainBoost: DEFAULT_WEIGHTS.mutualMeetAgainBoost,
       };
       logger.info({ templateId: templateId || tplId, weights }, 'Using matching template weights');
     }
@@ -249,6 +314,16 @@ export async function generateSingleRound(
     avoidDuplicates: true,
     globalOptimize: false,
   };
+
+  // Matching Engine 1.0 spec, Section 7 — hydrate per-participant premium
+  // request lists for the engine's mutual-detection.
+  const requestsForRound = await loadMatchRequestsForEvent(
+    sessionId,
+    participantsResult.rows.map(p => p.userId),
+  );
+  for (const p of participantsResult.rows) {
+    p.requestedUserIds = requestsForRound.get(p.userId) || [];
+  }
 
   // Phase 3 (1 May spec) — engine lookup via registry.
   const engine = getMatchingEngine(sessionConfig.matchingAlgorithmId || DEFAULT_ENGINE_ID);
@@ -278,6 +353,20 @@ export async function generateSingleRound(
       encounterHistory,
       roundNumber
     );
+    // Matching Engine 1.0 spec, Section 10 — fallback path engaged.
+    // Mark every pair this round as fallbackUsed AND repeatInEvent so admin
+    // dashboards can see "this round had no choice but to repeat pairs".
+    for (const pair of round.pairs) {
+      pair.fallbackUsed = true;
+      // We just lifted the no-repeat constraint, so every pair MAY be a
+      // repeat — the only way to know is to re-check excludedPairs. The
+      // exclusion set is the cross-round registry of "already paired".
+      const isRepeat = excludedPairs.has(pairKey(pair.participantAId, pair.participantBId));
+      pair.repeatInEvent = isRepeat;
+      if (isRepeat) {
+        pair.matchReason = 'fallback_repeat';
+      }
+    }
   }
 
   // Persist this round's matches
@@ -559,12 +648,30 @@ async function getEncounterHistoryForUsers(
     params.push(options.sessionId);
   }
 
+  // Matching Engine 1.0 spec, Section 4 (Pair Relationship) + Section 8
+  // (Feedback Learning) — surface mutual_meet_again and a derived
+  // average rating for the pair so the engine's mutualMeetAgainBoost
+  // weight can lift previously-positive pairs.
   const result = await query<EncounterHistoryEntry>(
-    `SELECT user_a_id AS "userAId", user_b_id AS "userBId", times_met AS "timesMet",
-            last_met_at AS "lastMetAt"
-     FROM encounter_history
-     WHERE user_a_id = ANY($1) AND user_b_id = ANY($1)${extraWhere}`,
-    params
+    `SELECT
+       eh.user_a_id AS "userAId",
+       eh.user_b_id AS "userBId",
+       eh.times_met AS "timesMet",
+       eh.last_met_at AS "lastMetAt",
+       COALESCE(eh.mutual_meet_again, FALSE) AS "mutualMeetAgain",
+       (
+         SELECT AVG(r.quality_score)::float
+         FROM ratings r
+         JOIN matches m ON m.id = r.match_id
+         WHERE (
+           (m.participant_a_id = eh.user_a_id AND m.participant_b_id = eh.user_b_id)
+           OR
+           (m.participant_a_id = eh.user_b_id AND m.participant_b_id = eh.user_a_id)
+         )
+       ) AS "averageRating"
+     FROM encounter_history eh
+     WHERE eh.user_a_id = ANY($1) AND eh.user_b_id = ANY($1)${extraWhere}`,
+    params,
   );
   return result.rows;
 }
@@ -606,7 +713,11 @@ async function persistMatches(sessionId: string, rounds: RoundAssignment[]): Pro
         [sessionId, round.roundNumber]
       );
 
-      // Batch insert all matches for this round in one multi-row INSERT
+      // Batch insert all matches for this round in one multi-row INSERT.
+      // Matching Engine 1.0 spec, Section 13 — each row stores the engine's
+      // explicit logging fields (match_reason, fallback_used, repeat_in_event,
+      // premium_influenced) so admin surfaces and future learning loops have
+      // structured metadata, not just the reasonTags string array.
       if (round.pairs.length > 0) {
         const values: unknown[] = [];
         const placeholders: string[] = [];
@@ -615,15 +726,27 @@ async function persistMatches(sessionId: string, rounds: RoundAssignment[]): Pro
         for (const pair of round.pairs) {
           const pA = pair.participantAId < pair.participantBId ? pair.participantAId : pair.participantBId;
           const pB = pair.participantAId < pair.participantBId ? pair.participantBId : pair.participantAId;
-          placeholders.push(`($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4}, $${paramIdx + 5}, $${paramIdx + 6}, 'scheduled')`);
-          values.push(sessionId, round.roundNumber, pA, pB, pair.participantCId || null, pair.score, pair.reasonTags);
-          paramIdx += 7;
+          placeholders.push(
+            `($${paramIdx}, $${paramIdx + 1}, $${paramIdx + 2}, $${paramIdx + 3}, $${paramIdx + 4}, $${paramIdx + 5}, $${paramIdx + 6}, 'scheduled', $${paramIdx + 7}, $${paramIdx + 8}, $${paramIdx + 9}, $${paramIdx + 10})`,
+          );
+          values.push(
+            sessionId, round.roundNumber, pA, pB, pair.participantCId || null,
+            pair.score, pair.reasonTags,
+            pair.matchReason || null,
+            pair.fallbackUsed === true,
+            pair.repeatInEvent === true,
+            pair.premiumInfluenced === true,
+          );
+          paramIdx += 11;
         }
 
         await client.query(
-          `INSERT INTO matches (session_id, round_number, participant_a_id, participant_b_id, participant_c_id, score, reason_tags, status)
+          `INSERT INTO matches
+             (session_id, round_number, participant_a_id, participant_b_id, participant_c_id,
+              score, reason_tags, status,
+              match_reason, fallback_used, repeat_in_event, premium_influenced)
            VALUES ${placeholders.join(', ')}`,
-          values
+          values,
         );
       }
     }

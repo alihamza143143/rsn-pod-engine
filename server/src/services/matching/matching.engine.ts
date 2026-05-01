@@ -141,7 +141,10 @@ export class MatchingEngineV1 implements IMatchingEngine {
     encounterHistory: EncounterHistoryEntry[]
   ): { score: number; reasonTags: string[] } {
     const encounterMap = this.buildEncounterMap(encounterHistory);
-    return this.computePairScore(a, b, config.weights, encounterMap);
+    const r = this.computePairScore(a, b, config.weights, encounterMap);
+    // Public scorePair contract is { score, reasonTags } per IMatchingEngine
+    // — premiumInfluenced is consumed internally by generateSingleRound.
+    return { score: r.score, reasonTags: r.reasonTags };
   }
 
   // ─── Private Methods ─────────────────────────────────────────────────────
@@ -157,7 +160,12 @@ export class MatchingEngineV1 implements IMatchingEngine {
     const n = participants.length;
 
     // Build scored candidate matrix
-    const candidates: Array<{ aIdx: number; bIdx: number; score: number; reasonTags: string[] }> = [];
+    const candidates: Array<{
+      aIdx: number; bIdx: number;
+      score: number; reasonTags: string[];
+      premiumInfluenced: boolean;
+      isRepeatInEvent: boolean;
+    }> = [];
 
     for (let i = 0; i < n; i++) {
       for (let j = i + 1; j < n; j++) {
@@ -168,11 +176,17 @@ export class MatchingEngineV1 implements IMatchingEngine {
           continue;
         }
 
-        const { score, reasonTags } = this.computePairScore(
+        const r = this.computePairScore(
           participants[i], participants[j], config.weights, encounterMap
         );
 
-        candidates.push({ aIdx: i, bIdx: j, score, reasonTags });
+        candidates.push({
+          aIdx: i, bIdx: j,
+          score: r.score,
+          reasonTags: r.reasonTags,
+          premiumInfluenced: r.premiumInfluenced,
+          isRepeatInEvent: false, // first pass — no repeats; flipped only if fallback engages
+        });
       }
     }
 
@@ -188,11 +202,19 @@ export class MatchingEngineV1 implements IMatchingEngine {
         continue;
       }
 
+      // Matching Engine 1.0 spec, Section 13 — derive a single-tag reason
+      // for admin/debug surfaces from the multi-tag list.
+      const matchReason = candidate.reasonTags[0] || 'best_available';
+
       pairs.push({
         participantAId: participants[candidate.aIdx].userId,
         participantBId: participants[candidate.bIdx].userId,
         score: candidate.score,
         reasonTags: candidate.reasonTags,
+        matchReason,
+        fallbackUsed: false,
+        repeatInEvent: candidate.isRepeatInEvent,
+        premiumInfluenced: candidate.premiumInfluenced,
       });
 
       matched.add(candidate.aIdx);
@@ -241,6 +263,8 @@ export class MatchingEngineV1 implements IMatchingEngine {
         ...pairs[bestPairIdx],
         participantCId: leftover.userId,
         reasonTags: [...pairs[bestPairIdx].reasonTags, 'trio'],
+        // Trio creation is the spec's odd-count handling, not a fallback.
+        matchReason: pairs[bestPairIdx].matchReason || 'trio',
       };
     } else if (stillUnmatched.length > 1) {
       // Multiple unmatched — all unique pairs exhausted, everyone gets bye
@@ -291,12 +315,44 @@ export class MatchingEngineV1 implements IMatchingEngine {
   private computePairScore(
     a: MatchingParticipant,
     b: MatchingParticipant,
-    weights: Record<string, number>,
+    weights: Record<string, number | undefined>,
     encounterMap: Map<string, EncounterHistoryEntry>
-  ): { score: number; reasonTags: string[] } {
+  ): { score: number; reasonTags: string[]; premiumInfluenced: boolean } {
     let totalScore = 0;
     let totalWeight = 0;
     const reasonTags: string[] = [];
+    let premiumInfluenced = false;
+
+    // ── Matching Engine 1.0 spec, Section 7 — Premium boost layer ────
+    // Applied BEFORE the diversity/freshness signals so premium presence
+    // shows up in the reasonTags ranked first. Engine still caps total
+    // boost so "premium cannot dominate all matches": the boosts feed
+    // into the same weighted average; very high weights on these signals
+    // would skew everything but the default config caps them at the
+    // same magnitude as a single intent factor.
+    const aRequestedB = (a.requestedUserIds || []).includes(b.userId);
+    const bRequestedA = (b.requestedUserIds || []).includes(a.userId);
+    const eitherPremium = !!a.isPremium || !!b.isPremium;
+
+    if (aRequestedB && bRequestedA && weights.mutualPremiumRequest) {
+      // Highest-priority premium signal per spec.
+      totalScore += 1.0 * weights.mutualPremiumRequest;
+      totalWeight += weights.mutualPremiumRequest;
+      reasonTags.push('mutual_premium_request');
+      premiumInfluenced = true;
+    } else if ((aRequestedB || bRequestedA) && weights.singlePremiumRequest) {
+      // Strong but lower than mutual.
+      totalScore += 1.0 * weights.singlePremiumRequest;
+      totalWeight += weights.singlePremiumRequest;
+      reasonTags.push('premium_request');
+      premiumInfluenced = true;
+    } else if (eitherPremium && weights.premiumBoost) {
+      // Modest lift for any pair containing a premium user.
+      totalScore += 1.0 * weights.premiumBoost;
+      totalWeight += weights.premiumBoost;
+      reasonTags.push('premium_present');
+      premiumInfluenced = true;
+    }
 
     // 1. Shared interests score
     if (weights.sharedInterests) {
@@ -387,12 +443,34 @@ export class MatchingEngineV1 implements IMatchingEngine {
       totalWeight += weights.encounterFreshness;
     }
 
+    // ── Matching Engine 1.0 spec, Section 8 — Feedback learning ─────
+    // Pairs whose past meetings ended with both saying "meet again" get
+    // a small lift; this only matters when matchingPolicy allows repeats
+    // (otherwise the no-repeat hard constraint trumps any score). Pairs
+    // with low average rating are deprioritised symmetrically.
+    if (weights.mutualMeetAgainBoost) {
+      const key = pairKey(a.userId, b.userId);
+      const encounter = encounterMap.get(key);
+      if (encounter?.mutualMeetAgain) {
+        totalScore += 1.0 * weights.mutualMeetAgainBoost;
+        totalWeight += weights.mutualMeetAgainBoost;
+        reasonTags.push('mutual_meet_again');
+      } else if (encounter?.averageRating !== undefined && encounter.averageRating > 0) {
+        // Normalise 0-5 → 0-1.
+        const ratingScore = encounter.averageRating / 5;
+        totalScore += ratingScore * weights.mutualMeetAgainBoost;
+        totalWeight += weights.mutualMeetAgainBoost;
+        if (encounter.averageRating >= 4) reasonTags.push('positive_history');
+      }
+    }
+
     // Normalize to 0-1
     const normalizedScore = totalWeight > 0 ? totalScore / totalWeight : 0;
 
     return {
       score: Math.round(normalizedScore * 10000) / 10000,
       reasonTags,
+      premiumInfluenced,
     };
   }
 

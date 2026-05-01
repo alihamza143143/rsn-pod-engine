@@ -107,6 +107,12 @@ export interface MatchingParticipant {
   languages: string[];
   timezone: string | null;
   attributes: Record<string, string | number | boolean>;
+  // Matching Engine 1.0 spec, Section 4 + Section 7 — premium tier flag
+  // and the user's outstanding "I want to meet" requests for this event.
+  // requestedUserIds is the requester→requested direction; engine looks
+  // up reciprocal requests to detect mutual premium pairs.
+  isPremium?: boolean;
+  requestedUserIds?: string[];
 }
 
 export interface MatchingConfig {
@@ -124,7 +130,22 @@ export interface MatchingWeights {
   companyDiversity: number;
   languageMatch: number;
   encounterFreshness: number;
-  [key: string]: number;
+  // Matching Engine 1.0 spec, Section 7 — premium boost weights.
+  // mutualPremiumRequest fires when both users requested each other (highest
+  // priority per spec). singlePremiumRequest fires when only one direction
+  // exists. premiumBoost gives any pair containing a premium user a small
+  // global lift so premium presence is felt without dominating ("premium
+  // cannot dominate all matches" — engine caps the boost so other factors
+  // still decide most pairings).
+  mutualPremiumRequest?: number;
+  singlePremiumRequest?: number;
+  premiumBoost?: number;
+  // Section 8 — feedback learning. mutualMeetAgainBoost lifts the score
+  // of pairs whose past meetings ended with both saying "meet again".
+  // Only applied when matchingPolicy allows repeats (otherwise the
+  // no-repeat constraint trumps any score).
+  mutualMeetAgainBoost?: number;
+  [key: string]: number | undefined;
 }
 
 export interface HardConstraint {
@@ -149,6 +170,12 @@ export interface EncounterHistoryEntry {
   userBId: string;
   timesMet: number;
   lastMetAt: Date;
+  // Matching Engine 1.0 spec, Section 4 (Pair Relationship) + Section 8
+  // (Feedback) — learning signals. Engine consults these to deprioritise
+  // pairs that already had bad outcomes and to lift pairs that had mutual
+  // 'meet again' votes (when repeats are allowed by policy).
+  mutualMeetAgain?: boolean;
+  averageRating?: number; // 0-5 scale; null/undefined if no ratings yet
 }
 
 export interface RoundAssignment {
@@ -165,6 +192,14 @@ export interface MatchPair {
   participantCId?: string;  // 3-person room (trio)
   score: number;
   reasonTags: string[];
+  // Matching Engine 1.0 spec, Section 13 — explicit logging fields.
+  // matchReason is a single human-readable label for admin/debug surfaces
+  // (e.g. 'mutual_premium_request', 'shared_intent', 'fallback_repeat').
+  // The boolean flags drive admin filtering ("show me all fallback matches").
+  matchReason?: string;
+  fallbackUsed?: boolean;
+  repeatInEvent?: boolean;
+  premiumInfluenced?: boolean;
 }
 
 export interface MatchingOutput {
