@@ -552,7 +552,16 @@ export default function PodDetailPage() {
       {/* ── Full Edit Modal ──────────────────────────────────────────────── */}
       <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Edit Pod">
         <form
-          onSubmit={e => { e.preventDefault(); updateMutation.mutate(editForm); }}
+          onSubmit={e => {
+            e.preventDefault();
+            // Public (Open Join) — coerce allowMemberInvites=true on save so the
+            // server persists the locked-on toggle even if the user never
+            // touched the checkbox.
+            const payload = editForm.visibility === 'public'
+              ? { ...editForm, allowMemberInvites: true }
+              : editForm;
+            updateMutation.mutate(payload);
+          }}
           className="space-y-4"
         >
           <Input
@@ -647,15 +656,29 @@ export default function PodDetailPage() {
             </div>
           </div>
 
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={editForm.allowMemberInvites}
-              onChange={(e) => setEditForm(f => ({ ...f, allowMemberInvites: e.target.checked }))}
-              className="h-4 w-4 rounded border-gray-300 text-[#1a1a2e] focus:ring-[#1a1a2e]"
-            />
-            <span className="text-sm text-gray-600">Allow members to invite others</span>
-          </label>
+          {/* Public (Open Join) — locked ON since anyone can join freely anyway. */}
+          {(() => {
+            const isPublicOpenJoin = editForm.visibility === 'public';
+            return (
+              <label className={`flex items-center gap-3 ${isPublicOpenJoin ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
+                <input
+                  type="checkbox"
+                  checked={isPublicOpenJoin ? true : editForm.allowMemberInvites}
+                  onChange={(e) => { if (!isPublicOpenJoin) setEditForm(f => ({ ...f, allowMemberInvites: e.target.checked })); }}
+                  disabled={isPublicOpenJoin}
+                  className="h-4 w-4 rounded border-gray-300 text-[#1a1a2e] focus:ring-[#1a1a2e] disabled:opacity-60"
+                />
+                <span className="text-sm text-gray-600">
+                  Allow members to invite others
+                  {isPublicOpenJoin && (
+                    <span className="ml-2 text-xs text-gray-400">
+                      (always on for Public Open Join — anyone can join anyway)
+                    </span>
+                  )}
+                </span>
+              </label>
+            );
+          })()}
 
           <div className="flex justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setEditOpen(false)}>Cancel</Button>

@@ -72,10 +72,26 @@ export default function CreatePodModal({ open, onClose, initialValues }: Props) 
     }
   }, [open, initialValues, reset]);
 
+  // When visibility flips to Public (Open Join), force allowMemberInvites=true.
+  // Anyone can already join freely, so locking the toggle ON is consistent —
+  // a member sending an invite is just a shortcut to the same outcome.
+  // For other visibility levels (private / invite-only / public-with-approval),
+  // the gate matters and the toggle stays user-controlled.
+  const visibility = watch('visibility');
+  const isPublicOpenJoin = visibility === 'public';
+  useEffect(() => {
+    if (isPublicOpenJoin) {
+      setValue('allowMemberInvites', true);
+    }
+  }, [isPublicOpenJoin, setValue]);
+
   const mutation = useMutation({
     mutationFn: (data: PodForm) => api.post('/pods', {
       ...data,
       maxMembers: data.maxMembers === '' ? undefined : Number(data.maxMembers),
+      // Public (Open Join) — coerce allowMemberInvites=true on submit even
+      // if the user never toggled the checkbox.
+      allowMemberInvites: data.visibility === 'public' ? true : !!data.allowMemberInvites,
     }),
     onSuccess: (res) => {
       const newPodId = res.data?.data?.id;
@@ -158,14 +174,22 @@ export default function CreatePodModal({ open, onClose, initialValues }: Props) 
           />
         </div>
 
-        <label className="flex items-center gap-3 cursor-pointer">
+        <label className={`flex items-center gap-3 ${isPublicOpenJoin ? 'cursor-not-allowed' : 'cursor-pointer'}`}>
           <input
             type="checkbox"
-            checked={watch('allowMemberInvites') || false}
-            onChange={(e) => setValue('allowMemberInvites', e.target.checked)}
-            className="h-4 w-4 rounded border-gray-300 text-[#1a1a2e] focus:ring-[#1a1a2e]"
+            checked={isPublicOpenJoin ? true : (watch('allowMemberInvites') || false)}
+            onChange={(e) => { if (!isPublicOpenJoin) setValue('allowMemberInvites', e.target.checked); }}
+            disabled={isPublicOpenJoin}
+            className="h-4 w-4 rounded border-gray-300 text-[#1a1a2e] focus:ring-[#1a1a2e] disabled:opacity-60"
           />
-          <span className="text-sm text-gray-600">Allow members to invite others</span>
+          <span className="text-sm text-gray-600">
+            Allow members to invite others
+            {isPublicOpenJoin && (
+              <span className="ml-2 text-xs text-gray-400">
+                (always on for Public Open Join — anyone can join anyway)
+              </span>
+            )}
+          </span>
         </label>
 
         <div className="flex gap-3 justify-end pt-2">
