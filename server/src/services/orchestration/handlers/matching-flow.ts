@@ -787,6 +787,51 @@ export async function emitHostDashboard(io: SocketServer, sessionId: string): Pr
   // into the pending emit.
 }
 
+/**
+ * Phase 8 (1 May 2026 spec) — bypass the 1-second coalesce. Used when a
+ * host action just completed; the host's own click should refresh their
+ * dashboard with no perceptible delay. Other transitions (auto round-end,
+ * participant heartbeat) keep using the coalesced emitHostDashboard.
+ */
+export async function emitHostDashboardForce(io: SocketServer, sessionId: string): Promise<void> {
+  const state = dashboardEmitState.get(sessionId);
+  if (state) {
+    if (state.pendingTimer) {
+      clearTimeout(state.pendingTimer);
+      state.pendingTimer = null;
+    }
+    state.lastEmit = Date.now();
+    dashboardEmitState.set(sessionId, state);
+  }
+  return emitHostDashboardImmediate(io, sessionId);
+}
+
+/**
+ * Phase 8 (1 May spec) — emit a per-action confirmation to the host so the
+ * dashboard can render a transient toast + audit-strip entry. Stefan: 'Host
+ * controls — missing: clarity of effect, confirmation of action, visibility
+ * of system state.'
+ *
+ * Goes to the host's userRoom only (other participants don't need to see
+ * "host clicked X"). Pair with emitHostDashboardForce so the dashboard
+ * state and the toast land in the same render frame.
+ */
+export function emitHostActionConfirmed(
+  io: SocketServer,
+  sessionId: string,
+  hostUserId: string,
+  payload: { action: string; summary: string; target?: string | null },
+): void {
+  if (!io || !hostUserId) return;
+  io.to(userRoom(hostUserId)).emit('host:action_confirmed', {
+    sessionId,
+    action: payload.action,
+    summary: payload.summary,
+    target: payload.target ?? null,
+    timestamp: new Date().toISOString(),
+  });
+}
+
 async function emitHostDashboardImmediate(io: SocketServer, sessionId: string): Promise<void> {
   const activeSession = activeSessions.get(sessionId);
   if (!activeSession || !io) return;

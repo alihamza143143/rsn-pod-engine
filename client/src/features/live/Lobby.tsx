@@ -553,39 +553,38 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
           </div>
         ) : null
       ) : isScheduled ? (
-        <>
-          <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-white/10 text-gray-300 mx-auto">
-            <Sparkles className="h-6 w-6" />
-          </div>
-          <h2 className="text-xl font-bold text-[#1a1a2e]">Waiting Room</h2>
-          <p className="text-gray-400 text-sm">
+        // Phase 8 (1 May spec) — Stefan: 'too much space at top of main room
+        // before the participants show'. Pre-Phase-8 stacked icon + h2 +
+        // paragraph + count over ~150px before the video grid. Compact this
+        // to a single inline row so the participant grid takes most of the
+        // viewport. Same change applied to the Main-Room state below.
+        <div className="inline-flex items-center justify-center gap-3">
+          <Sparkles className="h-4 w-4 text-gray-400" />
+          <h2 className="text-base font-semibold text-[#1a1a2e]">Waiting Room</h2>
+          <span className="text-xs text-gray-400 hidden sm:inline">
             {isHost
-              ? 'Click Start Event below when everyone is ready'
+              ? '· Click Start Event below'
               : hostOnline
-                ? 'Host has joined — starting soon'
-                : 'Waiting for host to start'}
-          </p>
-        </>
+                ? '· Host joined — starting soon'
+                : '· Waiting for host'}
+          </span>
+        </div>
       ) : (
-        <>
-          <div className="inline-flex items-center justify-center h-12 w-12 rounded-full bg-white/10 text-gray-300 mx-auto">
-            <Sparkles className="h-6 w-6" />
-          </div>
-          <h2 className="text-xl font-bold text-[#1a1a2e]">Main Room</h2>
+        <div className="inline-flex items-center justify-center gap-3">
+          <Sparkles className="h-4 w-4 text-gray-400" />
+          <h2 className="text-base font-semibold text-[#1a1a2e]">Main Room</h2>
           {isHost && (
-            <p className="text-gray-400 text-sm">
-              Click Match People below when ready
-            </p>
+            <span className="text-xs text-gray-400 hidden sm:inline">· Click Match People below</span>
           )}
-        </>
+        </div>
       )}
-      <div className="flex items-center justify-center gap-2 text-gray-500 text-xs">
-        <Users className="h-3.5 w-3.5" />
+      <div className="flex items-center justify-center gap-1.5 text-gray-500 text-xs">
+        <Users className="h-3 w-3" />
         <span>
           {(() => {
             const hostInList = participants.some(p => p.userId === hostUserId);
             const count = participants.length - (hostInList ? 1 : 0);
-            return `${count} participant${count !== 1 ? 's' : ''}${hostOnline || hostInList ? ' + host' : ''} connected`;
+            return `${count} participant${count !== 1 ? 's' : ''}${hostOnline || hostInList ? ' + host' : ''}`;
           })()}
         </span>
       </div>
@@ -855,7 +854,11 @@ export default function Lobby({ isHost = false, sessionId }: { isHost?: boolean;
   // If we have a lobby token, render the video mosaic
   if (lobbyToken && lobbyUrl) {
     return (
-      <div className="flex-1 flex flex-col items-center p-6 gap-6 overflow-auto bg-white">
+      // Phase 8 (1 May spec) — tighter top-padding + gap so the video grid
+      // dominates the viewport. Stefan: 'banners take more than half the
+      // screen before the participant grid shows'. p-3 sm:p-6 gives mobile
+      // plenty of space for content; gap-3 sm:gap-6 keeps desktop airy.
+      <div className="flex-1 flex flex-col items-center p-3 sm:p-6 gap-3 sm:gap-4 overflow-auto bg-white">
         {showRoundDashboard && (
           <div className="w-full max-w-4xl">
             <HostRoundDashboard sessionId={sessionId!} />

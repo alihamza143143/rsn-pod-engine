@@ -150,9 +150,13 @@ describe('Dr Arch April 19 — Bug 8.5: Single source of truth for timer (server
 
   it('emitHostDashboard payload includes timerEndsAt for unified host display', () => {
     const src = readSource('../../../services/orchestration/handlers/matching-flow.ts');
-    const fnStart = src.indexOf('export async function emitHostDashboard');
+    // Phase 8 (1 May 2026) added two more emitHostDashboard* exports
+    // (Force + emitHostActionConfirmed) ahead of the actual emit
+    // function. Search for the implementation directly to skip the
+    // wrappers — it's the only function that ACTUALLY builds the
+    // payload.
+    const fnStart = src.indexOf('async function emitHostDashboardImmediate(');
     expect(fnStart).toBeGreaterThan(-1);
-    // Function is large; scan to end of file or next export.
     const fnEnd = src.indexOf('\nexport ', fnStart + 30);
     const fn = src.slice(fnStart, fnEnd > -1 ? fnEnd : src.length);
     // host:round_dashboard payload must include timerEndsAt so the host

@@ -423,6 +423,18 @@ export async function handleHostCreateBreakoutBulk(
     // active manual match exists. Self-stops once they all drain.
     ensureManualDashboardInterval(io, sessionId);
 
+    // Phase 8 (1 May spec) — host action receipt for bulk room create.
+    {
+      const { emitHostActionConfirmed } = await import('./matching-flow');
+      const hostUid = activeSession.hostUserId;
+      if (hostUid && createdMatchIds.length > 0) {
+        emitHostActionConfirmed(io, sessionId, hostUid, {
+          action: 'create_breakout_bulk',
+          summary: `Created ${createdMatchIds.length} breakout room${createdMatchIds.length === 1 ? '' : 's'}`,
+        });
+      }
+    }
+
     logger.info(
       { sessionId, roomCount: rooms.length, createdMatchIds, sharedDurationSeconds, timerVisibility },
       'Host created bulk breakout rooms',

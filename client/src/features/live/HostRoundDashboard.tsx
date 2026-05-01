@@ -42,6 +42,26 @@ export default function HostRoundDashboard({ sessionId }: Props) {
     return () => clearInterval(interval);
   }, []);
 
+  // Phase 8 (1 May spec) — host action receipts.
+  // Server emits host:action_confirmed after destructive/state-changing
+  // actions. We render a transient toast (3s) and keep the last 5 in an
+  // audit strip so the host can always see "what just happened".
+  const [actionLog, setActionLog] = useState<{ id: string; summary: string; ts: number }[]>([]);
+  useEffect(() => {
+    if (!socket) return;
+    const handler = (payload: { sessionId: string; action: string; summary: string; timestamp: string }) => {
+      if (payload.sessionId !== sessionId) return;
+      const id = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      setActionLog(prev => [{ id, summary: payload.summary, ts: Date.now() }, ...prev].slice(0, 5));
+      // Auto-fade after 3 seconds.
+      setTimeout(() => {
+        setActionLog(prev => prev.filter(e => e.id !== id));
+      }, 3000);
+    };
+    socket.on('host:action_confirmed' as any, handler);
+    return () => { socket.off('host:action_confirmed' as any, handler); };
+  }, [socket, sessionId]);
+
   const removeFromRoom = (matchId: string, userId: string) => {
     if (!confirm('Remove this participant from their current room? Their partner will be unmatched.')) return;
     socket?.emit('host:remove_from_room' as any, { sessionId, matchId, userId });
@@ -106,6 +126,23 @@ export default function HostRoundDashboard({ sessionId }: Props) {
 
   return (
     <div className="flex-1 overflow-y-auto p-4 bg-white">
+      {/* Phase 8 (1 May spec) — host action receipts.
+          Floating toast stack so the host knows their last action(s)
+          actually landed. 3-second auto-fade per entry. */}
+      {actionLog.length > 0 && (
+        <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-xs">
+          {actionLog.map(entry => (
+            <div
+              key={entry.id}
+              className="bg-white border border-emerald-200 shadow-lg rounded-lg px-3 py-2 text-sm text-[#1a1a2e] flex items-center gap-2 animate-fade-in"
+              role="status"
+            >
+              <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 flex-shrink-0" />
+              <span className="truncate">{entry.summary}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="max-w-5xl mx-auto space-y-4">
         {/* Header — only show the global round timer when an ALGORITHM round is
             actually active. Manual-only state hides the global timer entirely

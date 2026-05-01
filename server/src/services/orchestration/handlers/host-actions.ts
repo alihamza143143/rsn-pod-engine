@@ -498,6 +498,18 @@ export async function handleHostBroadcast(
       sentAt: new Date().toISOString(),
     });
 
+    // Phase 8 (1 May spec) — host action receipt.
+    {
+      const { emitHostActionConfirmed } = await import('./matching-flow');
+      const hostUid = activeSessions.get(data.sessionId)?.hostUserId;
+      if (hostUid) {
+        emitHostActionConfirmed(io, data.sessionId, hostUid, {
+          action: 'broadcast',
+          summary: 'Broadcast sent to all participants',
+        });
+      }
+    }
+
     logger.info({ sessionId: data.sessionId }, 'Host broadcast sent');
   } catch (err: any) {
     socket.emit('error', { code: 'BROADCAST_FAILED', message: err.message });
@@ -978,6 +990,27 @@ export async function handleHostRemoveFromRoom(
       await _emitHostDashboard(data.sessionId);
     }
 
+    // Phase 8 (1 May spec) — host action receipt.
+    {
+      const { emitHostActionConfirmed } = await import('./matching-flow');
+      const hostUid = activeSessions.get(data.sessionId)?.hostUserId;
+      if (hostUid) {
+        const removedRowRes = await query<{ display_name: string | null; email: string | null }>(
+          `SELECT display_name, email FROM users WHERE id = $1`, [data.userId],
+        );
+        const removedLabel = resolveDisplayName(
+          data.userId,
+          removedRowRes.rows[0]?.display_name ?? null,
+          removedRowRes.rows[0]?.email ?? null,
+        );
+        emitHostActionConfirmed(io, data.sessionId, hostUid, {
+          action: 'remove_from_room',
+          summary: `Removed ${removedLabel} from the breakout room`,
+          target: data.userId,
+        });
+      }
+    }
+
     // Bug 4 (April 18 Dr Arch): if the removal ended the last active match in
     // an algorithm round, we'd be stuck in ROUND_ACTIVE with 0 active matches.
     maybeAutoEndEmptyRound(data.sessionId);
@@ -1125,6 +1158,20 @@ export async function handleHostMoveToRoom(
       await _emitHostDashboard(sessionId);
     }
 
+    // Phase 8 (1 May spec) — host action receipt.
+    {
+      const { emitHostActionConfirmed } = await import('./matching-flow');
+      const hostUid = activeSession.hostUserId;
+      const movedName = nameMap.get(userId) || resolveDisplayName(userId, null, null);
+      if (hostUid) {
+        emitHostActionConfirmed(io, sessionId, hostUid, {
+          action: 'move_to_room',
+          summary: `Moved ${movedName} into another room`,
+          target: userId,
+        });
+      }
+    }
+
     // Bug 4 (April 18 Dr Arch): in the unlikely event the move/end pattern
     // leaves zero active matches in the round, auto-end so we don't lock up.
     maybeAutoEndEmptyRound(sessionId);
@@ -1198,6 +1245,15 @@ export async function handleHostExtendRound(
 
     persistSessionState(data.sessionId, activeSession);
 
+    // Phase 8 (1 May spec) — host action receipt.
+    {
+      const { emitHostActionConfirmed } = await import('./matching-flow');
+      emitHostActionConfirmed(io, data.sessionId, activeSession.hostUserId, {
+        action: 'extend_round',
+        summary: `Extended round by ${data.additionalSeconds || 120}s`,
+      });
+    }
+
     logger.info(
       { sessionId: data.sessionId, additionalSeconds: data.additionalSeconds, newRemaining: remaining },
       'Round extended by host'
@@ -1268,6 +1324,19 @@ export async function handleHostExtendBreakoutRoom(
 
     // Refresh host dashboard
     if (_emitHostDashboard) await _emitHostDashboard(sessionId).catch(() => {});
+
+    // Phase 8 (1 May spec) — host action receipt.
+    {
+      const { emitHostActionConfirmed } = await import('./matching-flow');
+      const hostUid = activeSession.hostUserId;
+      if (hostUid) {
+        emitHostActionConfirmed(io, sessionId, hostUid, {
+          action: 'extend_breakout_room',
+          summary: `Extended breakout room by ${additionalSeconds}s`,
+          target: matchId,
+        });
+      }
+    }
 
     logger.info(
       { sessionId, matchId, additionalSeconds, newEndsAt: newEndsAt.toISOString(), secondsRemaining },
