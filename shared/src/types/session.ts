@@ -69,6 +69,14 @@ export interface SessionConfig {
    * treats the session as `'within_event'` (the new default).
    */
   matchingPolicy?: MatchingPolicy;
+  /**
+   * Phase 3 (1 May spec) — pluggable matching engine. Each event picks
+   * which algorithm to use. Speed-networking events use
+   * 'speed_networking_v1' (the default Engine V1.0). Future event types
+   * (roundtable, mentorship, etc.) self-register their own engine in
+   * server matching.registry.ts and pick a different ID here.
+   */
+  matchingAlgorithmId?: string;
 }
 
 export const DEFAULT_SESSION_CONFIG: SessionConfig = {
@@ -82,6 +90,7 @@ export const DEFAULT_SESSION_CONFIG: SessionConfig = {
   maxParticipants: 500,
   timerVisibility: 'last_10s' as TimerVisibility,
   matchingPolicy: 'within_event',
+  matchingAlgorithmId: 'speed_networking_v1',
 };
 
 export interface Session {

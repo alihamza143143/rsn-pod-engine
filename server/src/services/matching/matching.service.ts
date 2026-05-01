@@ -8,7 +8,7 @@ import {
   MatchingParticipant, EncounterHistoryEntry, RoundAssignment,
   MatchStatus, Match,
 } from '@rsn/shared';
-import { matchingEngine } from './matching.engine';
+import { getMatchingEngine, DEFAULT_ENGINE_ID } from './matching.registry';
 import { pairKey } from './matching.interface';
 import * as sessionService from '../session/session.service';
 import * as blockService from '../block/block.service';
@@ -81,8 +81,14 @@ export async function generateSessionSchedule(
     previousRounds: existingRounds,
   };
 
+  // Phase 3 (1 May spec) — engine lookup via registry. Speed-networking
+  // events use 'speed_networking_v1' (the default Engine V1.0). Future
+  // event types pick a different sessionConfig.matchingAlgorithmId and
+  // their engine self-registers in matching.registry.ts.
+  const engine = getMatchingEngine(sessionConfig.matchingAlgorithmId || DEFAULT_ENGINE_ID);
+
   // Generate schedule
-  const output = await matchingEngine.generateSchedule(input);
+  const output = await engine.generateSchedule(input);
 
   // Persist matches to database
   await persistMatches(sessionId, output.rounds);
@@ -244,7 +250,10 @@ export async function generateSingleRound(
     globalOptimize: false,
   };
 
-  let round = matchingEngine.generateRound(
+  // Phase 3 (1 May spec) — engine lookup via registry.
+  const engine = getMatchingEngine(sessionConfig.matchingAlgorithmId || DEFAULT_ENGINE_ID);
+
+  let round = engine.generateRound(
     participantsResult.rows,
     config,
     excludedPairs,
@@ -262,7 +271,7 @@ export async function generateSingleRound(
       { sessionId, roundNumber, eligibleCount: participantsResult.rows.length, excludedCount: excludedPairs.size },
       'No fresh pairs available — retrying matching without exclusion (allowing repeats)'
     );
-    round = matchingEngine.generateRound(
+    round = engine.generateRound(
       participantsResult.rows,
       config,
       new Set(),  // empty exclusion — allow any pair
