@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Phase 6 (1 May 2026 spec) — kill iOS auto-zoom on input focus.
+   Mobile Safari zooms in when an input has font-size < 16px. Stefan
+   reported "Chat needs zooming" on mobile — this rule covers ALL
+   inputs/textareas/selects so the fix isn't piecemeal per-component.
+   Desktop (>=640px) keeps the legacy text-sm density via per-component
+   overrides; this rule only kicks in on mobile. */
+@media (max-width: 639px) {
+  input:not([type=checkbox]):not([type=radio]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
+
 /* Bug 6 + Bug 16 (April 19) — LiveKit's CSS ships
    .lk-participant-media-video { object-fit: cover } as a default. We
    need OBJECT-CONTAIN for the breakout/lobby tiles (so portrait phone

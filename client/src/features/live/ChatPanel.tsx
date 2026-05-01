@@ -81,7 +81,14 @@ export default function ChatPanel({ sessionId, onClose }: ChatPanelProps) {
   });
 
   return (
-    <div className="flex flex-col h-full bg-white border-l border-gray-200">
+    // Phase 6 (1 May spec) — mobile responsive container.
+    // <sm: bottom-aligned drawer with rounded top corners + drag handle visual.
+    // >=sm: side panel with left border (legacy desktop layout).
+    <div className="flex flex-col h-full bg-white sm:border-l border-gray-200 rounded-t-2xl sm:rounded-none shadow-[0_-4px_24px_rgba(0,0,0,0.08)] sm:shadow-none">
+      {/* Mobile drag-handle visual cue */}
+      <div className="sm:hidden flex justify-center pt-2 pb-1">
+        <div className="w-10 h-1 bg-gray-300 rounded-full" />
+      </div>
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
         <div className="flex items-center gap-2">
@@ -89,6 +96,9 @@ export default function ChatPanel({ sessionId, onClose }: ChatPanelProps) {
           <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">
             {scope === 'room' ? 'Room' : 'Everyone'}
           </span>
+          {scope === 'room' && (
+            <span className="hidden sm:inline text-[10px] text-gray-400">temporary — clears at round end</span>
+          )}
         </div>
         <button
           onClick={onClose}
@@ -168,7 +178,11 @@ function ChatInputWithEmoji({ inputRef, input, setInput, handleKeyDown, handleSe
           onKeyDown={handleKeyDown}
           placeholder={scope === 'room' ? 'Message your room...' : 'Message everyone...'}
           maxLength={500}
-          className="flex-1 px-3 py-2 text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 placeholder-gray-400"
+          // Phase 6 (1 May spec) — text-base (16px) on mobile kills iOS auto-zoom
+          // when the input gains focus. text-sm (14px) on >=sm keeps the desktop
+          // density intact. Stefan reported 'Chat needs zooming' on mobile — this
+          // is the root cause.
+          className="flex-1 px-3 py-2 text-base sm:text-sm text-gray-800 bg-gray-50 border border-gray-200 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 placeholder-gray-400"
         />
         <button onClick={handleSend} disabled={!input.trim()}
           className="p-2 rounded-full bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
