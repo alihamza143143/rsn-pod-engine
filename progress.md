@@ -6444,3 +6444,42 @@ Every documented feature from the pre-Phase-0 commit (`33e3f87`) keeps working. 
 - Premium UI: server-side only this commit. Users can't yet flip their premium flag or send match_requests from the UI — that's a follow-up admin/profile screen.
 - Admin moderation surface for fallback/premium matches (server-side fields ready; UI unwritten).
 - Continuous learning loop that adjusts weights from feedback over many events. Section 8 currently consults stored history via mutualMeetAgainBoost, but the weights themselves are static. A future iteration can train weights per-pod from outcome data.
+
+---
+
+## DM Chat Polish — Phase A — 2026-05-03
+
+**Status:** Completed (client only, server unchanged)
+**Trigger:** Stefan reported the new DM chat feels crap on mobile; desktop screenshot from user confirmed sparse / un-grouped visual layout (date repeated on every bubble, no avatars, no message clustering).
+
+### Files touched
+- `client/src/features/messages/MessagesPage.tsx`
+
+### What changed
+- **iOS auto-zoom kill** — composer textarea is `text-base sm:text-sm` (≥16px on mobile); same fix the in-event ChatPanel got in 08ca6df, now backported to DM page.
+- **Safe-area padding** — composer container respects `env(safe-area-inset-bottom)` so the iPhone home indicator no longer overlaps the input.
+- **44pt mobile send button** — `!w-11 !h-11 sm:!w-9 sm:!h-9` so the touch target meets Apple HIG; smaller on desktop where mouse precision is finer.
+- **Auto-scroll on focus** — pinning to the latest message when keyboard opens (250 ms after-focus, accounts for iOS keyboard transition).
+- **Day separators** — "Today" / "Yesterday" / weekday-name (last 7 days) / dated label (older), rendered as a centered chip between message clusters whenever the day changes.
+- **Sender + 60 s clusters** — consecutive messages from the same sender within 60 s collapse into one cluster: avatar + name shown once, timestamp shown once at the bottom of the cluster, tighter `mt-0.5` between bubbles in the same cluster vs. `mt-3` between clusters.
+- **Avatars on incoming clusters** — first cluster from the other person shows their avatar (`size="sm"`); already in the inbox sidebar, was missing from the thread itself.
+- **Tail bubble corner** — last bubble of each cluster gets `rounded-br-sm` (mine) or `rounded-bl-sm` (theirs) for the tail-style hint that iMessage / WhatsApp use.
+- **Per-message dates removed** — bubbles no longer carry "01/05/2026" each; cluster footer shows time only ("3:45 PM") plus "· seen" on the last outgoing bubble.
+
+### Helpers added
+- `sameLocalDay(a, b)` — calendar-day equality
+- `dayHeaderLabel(d)` — "Today" / "Yesterday" / weekday-name / formatted date
+- `timeOnly(d)` — "3:45 PM" formatter
+- `clusterMessages(messages)` — groups same-sender within 60 s
+- `CLUSTER_GAP_MS = 60_000`
+
+### Verification
+- `npx tsc --noEmit` — clean
+- `npm run build` — clean (12.25 s, 2735 modules transformed)
+- No server changes; Phase A is UI-only and forward-architecture-compatible.
+
+### What is NOT in this phase
+- Emoji picker (Phase B)
+- Message reactions (Phase C — needs migration 056 + new endpoints)
+- In-event ChatPanel (already polished, out of scope)
+- Group / pod chat UI

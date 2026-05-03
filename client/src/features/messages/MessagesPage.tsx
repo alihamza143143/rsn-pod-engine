@@ -7,7 +7,7 @@
 // dm:conversation_updated. Updates React Query cache so the inbox sort
 // + thread view update without polling.
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Send, Trash2, MessageSquare } from 'lucide-react';
@@ -47,6 +47,53 @@ function formatRelative(iso: string | null): string {
   if (diff < 3600_000) return `${Math.floor(diff / 60_000)}m ago`;
   if (diff < 86400_000) return `${Math.floor(diff / 3600_000)}h ago`;
   return d.toLocaleDateString();
+}
+
+// Phase A polish — date separators ("Today" / "Yesterday" / "Mon May 1") between day boundaries.
+function sameLocalDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function dayHeaderLabel(d: Date): string {
+  const now = new Date();
+  if (sameLocalDay(d, now)) return 'Today';
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (sameLocalDay(d, yesterday)) return 'Yesterday';
+  const daysAgo = Math.floor((now.getTime() - d.getTime()) / 86_400_000);
+  if (daysAgo < 7) return d.toLocaleDateString([], { weekday: 'long' });
+  if (d.getFullYear() === now.getFullYear()) {
+    return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+  return d.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function timeOnly(d: Date): string {
+  return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+// Phase A polish — group consecutive messages from the same sender within 60s
+// so we only show name/avatar/timestamp once per cluster (iMessage / WhatsApp pattern).
+const CLUSTER_GAP_MS = 60_000;
+
+interface MessageCluster {
+  senderId: string;
+  messages: DmMessage[];
+}
+
+function clusterMessages(messages: DmMessage[]): MessageCluster[] {
+  const clusters: MessageCluster[] = [];
+  for (const msg of messages) {
+    const last = clusters[clusters.length - 1];
+    const lastMsg = last?.messages[last.messages.length - 1];
+    const gap = lastMsg ? new Date(msg.createdAt).getTime() - new Date(lastMsg.createdAt).getTime() : Infinity;
+    if (last && last.senderId === msg.fromUserId && gap < CLUSTER_GAP_MS) {
+      last.messages.push(msg);
+    } else {
+      clusters.push({ senderId: msg.fromUserId, messages: [msg] });
+    }
+  }
+  return clusters;
 }
 
 export default function MessagesPage() {
@@ -232,36 +279,101 @@ export default function MessagesPage() {
               </button>
             </div>
 
-            {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+            {/* Messages — clustered by sender + day */}
+            <div className="flex-1 overflow-y-auto px-4 py-3">
               {messagesData === undefined ? (
                 <div className="flex items-center justify-center py-8"><Spinner /></div>
               ) : messagesData.length === 0 ? (
                 <div className="text-center py-8 text-sm text-gray-500">No messages yet — say hi!</div>
               ) : (
-                // Server returns messages newest first; render oldest first in UI.
-                [...messagesData].reverse().map(m => {
-                  const fromMe = m.fromUserId === myUserId;
-                  return (
-                    <div key={m.id} className={`flex ${fromMe ? 'justify-end' : 'justify-start'}`}>
-                      <div className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${fromMe ? 'bg-rsn-red text-white rounded-br-sm' : 'bg-gray-100 text-[#1a1a2e] rounded-bl-sm'}`}>
-                        <p className="whitespace-pre-wrap break-words">{m.content}</p>
-                        <p className={`text-[10px] mt-1 ${fromMe ? 'text-white/70' : 'text-gray-400'}`}>
-                          {formatRelative(m.createdAt)}{fromMe && m.readAt ? ' · seen' : ''}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })
+                (() => {
+                  // Server returns newest-first; we render oldest-first.
+                  const oldest = [...messagesData].reverse();
+                  const clusters = clusterMessages(oldest);
+                  const elements: ReactNode[] = [];
+                  let prevClusterDate: Date | null = null;
+
+                  clusters.forEach((cluster, ci) => {
+                    const firstDate = new Date(cluster.messages[0].createdAt);
+                    const lastMsg = cluster.messages[cluster.messages.length - 1];
+                    const lastDate = new Date(lastMsg.createdAt);
+
+                    // Day separator when the cluster crosses a day boundary
+                    if (!prevClusterDate || !sameLocalDay(firstDate, prevClusterDate)) {
+                      elements.push(
+                        <div key={`day-${cluster.messages[0].id}`} className="flex items-center justify-center py-3">
+                          <span className="text-[11px] font-medium text-gray-500 bg-gray-100 px-2.5 py-0.5 rounded-full">
+                            {dayHeaderLabel(firstDate)}
+                          </span>
+                        </div>,
+                      );
+                    }
+
+                    const fromMe = cluster.senderId === myUserId;
+
+                    elements.push(
+                      <div
+                        key={cluster.messages[0].id}
+                        className={`flex items-end gap-2 ${fromMe ? 'justify-end' : 'justify-start'} ${ci > 0 ? 'mt-3' : ''}`}
+                      >
+                        {!fromMe && (
+                          <div className="flex-shrink-0">
+                            <Avatar
+                              src={activeConv.otherAvatarUrl || undefined}
+                              name={activeConv.otherDisplayName || 'User'}
+                              size="sm"
+                            />
+                          </div>
+                        )}
+                        <div className={`flex flex-col max-w-[75%] sm:max-w-[60%] ${fromMe ? 'items-end' : 'items-start'}`}>
+                          {cluster.messages.map((m, idx) => {
+                            const isLast = idx === cluster.messages.length - 1;
+                            return (
+                              <div
+                                key={m.id}
+                                data-message-id={m.id}
+                                className={`px-3.5 py-2 text-sm break-words whitespace-pre-wrap ${
+                                  fromMe
+                                    ? `bg-rsn-red text-white rounded-2xl ${isLast ? 'rounded-br-sm' : ''}`
+                                    : `bg-gray-100 text-[#1a1a2e] rounded-2xl ${isLast ? 'rounded-bl-sm' : ''}`
+                                } ${idx > 0 ? 'mt-0.5' : ''}`}
+                              >
+                                {m.content}
+                              </div>
+                            );
+                          })}
+                          <p className="text-[10px] text-gray-400 mt-1 px-1">
+                            {timeOnly(lastDate)}
+                            {fromMe && lastMsg.readAt ? ' · seen' : ''}
+                          </p>
+                        </div>
+                      </div>,
+                    );
+
+                    prevClusterDate = lastDate;
+                  });
+
+                  return elements;
+                })()
               )}
               <div ref={threadEndRef} />
             </div>
 
-            {/* Composer */}
-            <div className="px-3 py-2 border-t border-gray-200 flex items-end gap-2">
+            {/* Composer — Phase A polish: 16px input on mobile (kills iOS auto-zoom),
+                safe-area padding so iPhone home indicator doesn't cover it,
+                44pt send button on mobile (Apple HIG touch target). */}
+            <div
+              className="px-3 py-2 border-t border-gray-200 flex items-end gap-2"
+              style={{ paddingBottom: 'max(env(safe-area-inset-bottom, 0px), 0.5rem)' }}
+            >
               <textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
+                onFocus={() => {
+                  // Phase A polish — when keyboard opens on mobile the thread
+                  // can scroll out from under it; pin to the latest message.
+                  setTimeout(() => threadEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 250);
+                }}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
@@ -270,7 +382,7 @@ export default function MessagesPage() {
                 }}
                 rows={1}
                 placeholder="Type a message..."
-                className="flex-1 resize-none px-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-rsn-red max-h-32"
+                className="flex-1 resize-none px-3 py-2 text-base sm:text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-rsn-red max-h-32"
                 maxLength={4000}
               />
               <Button
@@ -278,7 +390,8 @@ export default function MessagesPage() {
                 onClick={() => sendMutation.mutate(draft.trim())}
                 disabled={!draft.trim() || sendMutation.isPending}
                 isLoading={sendMutation.isPending}
-                className="!px-3"
+                className="!w-11 !h-11 sm:!w-9 sm:!h-9 !p-0 flex-shrink-0"
+                aria-label="Send message"
               >
                 <Send className="h-4 w-4" />
               </Button>
