@@ -197,6 +197,35 @@ export async function handleHostStart(
       currentRound: 0,
     });
 
+    // Phase 2.5A (5 May spec) — pre-event session planning.
+    // Stefan's matching spec §5: "Generate the full session plan upfront. Do
+    // not match session by session." We call generateSessionSchedule once at
+    // event start; it runs the engine across all rounds at once and persists
+    // every match at status='scheduled'. The round-transition path (2.5B)
+    // then promotes pre-planned matches to active without re-running the
+    // engine. Failure here is non-fatal: if planning fails we log it, the
+    // legacy per-round path still works, and Sentry will surface the issue.
+    try {
+      const planOutput = await matchingService.generateSessionSchedule(data.sessionId);
+      const totalPairs = planOutput.rounds.reduce((sum, r) => sum + r.pairs.length, 0);
+      logger.info(
+        { sessionId: data.sessionId, rounds: planOutput.rounds.length, totalPairs, durationMs: planOutput.durationMs },
+        'Pre-event plan generated (Phase 2.5A)',
+      );
+      io.to(sessionRoom(data.sessionId)).emit('host:event_plan_generated', {
+        sessionId: data.sessionId,
+        roundCount: planOutput.rounds.length,
+        totalPairs,
+      });
+    } catch (planErr: any) {
+      logger.warn(
+        { err: planErr, sessionId: data.sessionId },
+        'Pre-event plan generation failed — falling back to legacy session-by-session matching',
+      );
+      // Don't block event start — host can still trigger per-round matching
+      // via the existing host:generate_matches button (legacy fallback).
+    }
+
     // Host-controlled lobby: no auto-timer. Host must click "Start Round" manually.
     logger.info({ sessionId: data.sessionId }, 'Session started → LOBBY_OPEN (host-controlled)');
   } catch (err: any) {

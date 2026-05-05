@@ -205,36 +205,63 @@ export class MatchingEngineV1 implements IMatchingEngine {
     // Sort by score descending (greedy with global awareness via usedPairs)
     candidates.sort((a, b) => b.score - a.score);
 
-    // Greedy maximum weight matching
+    // Phase 2.5E (5 May spec §10 + §14) — for typical event sizes (≤30
+    // participants), use the exact backtracking matcher as the PRIMARY
+    // path instead of greedy. Backtracking always finds a complete
+    // matching when one exists, scoring-descending, so quality is
+    // preserved while the "greedy paints itself into a corner" failure
+    // mode disappears entirely. Above 30 participants, fall through to
+    // greedy (which is fast at scale) + the Phase-1 Path 2 fallback.
     const matched = new Set<number>();
-    const pairs: MatchPair[] = [];
+    let pairs: MatchPair[] = [];
 
-    for (const candidate of candidates) {
-      if (matched.has(candidate.aIdx) || matched.has(candidate.bIdx)) {
-        continue;
+    if (n <= 30 && n >= 2 && n % 2 === 0) {
+      const backtrackedComplete = this.findCompleteMatching(
+        participants, candidates, usedPairs, hardExclusions,
+      );
+      if (backtrackedComplete) {
+        for (const p of backtrackedComplete) {
+          pairs.push(p);
+          const aIdx = participants.findIndex(x => x.userId === p.participantAId);
+          const bIdx = participants.findIndex(x => x.userId === p.participantBId);
+          if (aIdx >= 0) matched.add(aIdx);
+          if (bIdx >= 0) matched.add(bIdx);
+        }
+        // Cap to floor(n/2) — backtracking can't exceed this anyway.
       }
+    }
 
-      // Matching Engine 1.0 spec, Section 13 — derive a single-tag reason
-      // for admin/debug surfaces from the multi-tag list.
-      const matchReason = candidate.reasonTags[0] || 'best_available';
+    // Greedy fallback path: triggers for n > 30, odd n (1 leftover handled
+    // by the trio path below), or backtracking-failed (no complete matching
+    // exists in the candidate graph). Existing behaviour preserved.
+    if (pairs.length === 0) {
+      for (const candidate of candidates) {
+        if (matched.has(candidate.aIdx) || matched.has(candidate.bIdx)) {
+          continue;
+        }
 
-      pairs.push({
-        participantAId: participants[candidate.aIdx].userId,
-        participantBId: participants[candidate.bIdx].userId,
-        score: candidate.score,
-        reasonTags: candidate.reasonTags,
-        matchReason,
-        fallbackUsed: false,
-        repeatInEvent: candidate.isRepeatInEvent,
-        premiumInfluenced: candidate.premiumInfluenced,
-      });
+        // Matching Engine 1.0 spec, Section 13 — derive a single-tag reason
+        // for admin/debug surfaces from the multi-tag list.
+        const matchReason = candidate.reasonTags[0] || 'best_available';
 
-      matched.add(candidate.aIdx);
-      matched.add(candidate.bIdx);
+        pairs.push({
+          participantAId: participants[candidate.aIdx].userId,
+          participantBId: participants[candidate.bIdx].userId,
+          score: candidate.score,
+          reasonTags: candidate.reasonTags,
+          matchReason,
+          fallbackUsed: false,
+          repeatInEvent: candidate.isRepeatInEvent,
+          premiumInfluenced: candidate.premiumInfluenced,
+        });
 
-      // Stop when we have enough pairs
-      if (pairs.length >= Math.floor(n / 2)) {
-        break;
+        matched.add(candidate.aIdx);
+        matched.add(candidate.bIdx);
+
+        // Stop when we have enough pairs
+        if (pairs.length >= Math.floor(n / 2)) {
+          break;
+        }
       }
     }
 

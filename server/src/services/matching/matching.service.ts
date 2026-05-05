@@ -679,6 +679,90 @@ async function getEncounterHistoryForUsers(
   return result.rows;
 }
 
+/**
+ * Phase 2.5D (5 May spec compliance) — future-only repair.
+ *
+ * Stefan's matching spec §9: "Never change a live session. Only update
+ * future sessions." When a participant joins late or leaves mid-event,
+ * we must regenerate ONLY the rounds that haven't started yet, leaving
+ * completed and active rounds untouched.
+ *
+ * Behaviour:
+ *   1. Validates fromRound is a future round (no scheduled-only rows for
+ *      it would be in 'active' / 'completed' state — those are immutable).
+ *   2. Deletes pre-planned matches at status='scheduled' for rounds >= fromRound.
+ *   3. Regenerates each future round in order via generateSingleRound, which
+ *      queries "matches in OTHER rounds" for the no-repeat constraint —
+ *      so iteration N picks pairs that don't repeat completed rounds OR
+ *      already-regenerated future rounds N-1, N-2, ...
+ *   4. Returns the count of rounds regenerated + any errors per round.
+ *
+ * Throttling is the caller's responsibility (see participant-flow.ts join
+ * path, which throttles to one repair per 5s per session).
+ */
+export async function repairFutureRounds(
+  sessionId: string,
+  fromRoundNumber: number,
+  reason: 'late_joiner' | 'left' | 'host_request',
+): Promise<{ regeneratedRounds: number[]; errors: Array<{ roundNumber: number; error: string }> }> {
+  const session = await sessionService.getSessionById(sessionId);
+  const sessionConfig = typeof session.config === 'string'
+    ? JSON.parse(session.config as unknown as string)
+    : session.config;
+  const totalRounds: number = sessionConfig.numberOfRounds || 5;
+
+  if (fromRoundNumber > totalRounds) {
+    logger.info({ sessionId, fromRoundNumber, totalRounds, reason },
+      'repairFutureRounds: fromRound exceeds totalRounds — nothing to repair');
+    return { regeneratedRounds: [], errors: [] };
+  }
+
+  // Wipe all 'scheduled' matches for fromRound and beyond. Active/completed
+  // rounds are immutable per spec §9 and are NOT touched.
+  await query(
+    `DELETE FROM matches
+       WHERE session_id = $1 AND round_number >= $2 AND status = 'scheduled'`,
+    [sessionId, fromRoundNumber],
+  );
+
+  // Regenerate each future round in order. Each call's excludedPairs picks
+  // up the previously-completed rounds AND any rounds already regenerated
+  // in this loop (so cross-round no-repeat is preserved).
+  const allHostIds: string[] = [];
+  if (session.hostUserId) allHostIds.push(session.hostUserId);
+  // Co-hosts — fetch from session_participants where role = 'co_host' if any
+  try {
+    const cohostsRes = await query<{ user_id: string }>(
+      `SELECT user_id FROM session_participants WHERE session_id = $1 AND role = 'co_host'`,
+      [sessionId],
+    );
+    for (const r of cohostsRes.rows) allHostIds.push(r.user_id);
+  } catch {
+    // Co-host column may not exist on older sessions — fall through with host only.
+  }
+
+  const regeneratedRounds: number[] = [];
+  const errors: Array<{ roundNumber: number; error: string }> = [];
+
+  for (let r = fromRoundNumber; r <= totalRounds; r++) {
+    try {
+      await generateSingleRound(sessionId, r, allHostIds);
+      regeneratedRounds.push(r);
+    } catch (err: any) {
+      logger.warn({ err, sessionId, roundNumber: r, reason },
+        'repairFutureRounds: generateSingleRound failed for round — continuing');
+      errors.push({ roundNumber: r, error: err?.message || String(err) });
+    }
+  }
+
+  logger.info(
+    { sessionId, fromRoundNumber, totalRounds, regeneratedRounds: regeneratedRounds.length, errors: errors.length, reason },
+    'Phase 2.5D — future rounds repaired',
+  );
+
+  return { regeneratedRounds, errors };
+}
+
 async function getExistingRounds(sessionId: string): Promise<RoundAssignment[]> {
   const matches = await getMatchesBySession(sessionId);
   const roundMap = new Map<number, RoundAssignment>();

@@ -6708,3 +6708,83 @@ These are queued in the master plan and ship in subsequent phases, each with its
 - Pre-event session planning (Phase 2.5)
 - Future-only repair (Phase 2.7)
 - Fallback ladder (Phase 2.8)
+
+---
+
+## Matching Spec Compliance — Phase 2.5 — 2026-05-06
+
+**Status:** Completed (server-only — no client changes, no DB migration)
+**Plan:** `docs/superpowers/plans/2026-05-06-phase-2-5-pre-event-planning.md`
+**Why:** Matching Spec §3 + §5 + §9. The spec mandates *"Generate the full session plan upfront. Do not match session by session."* and *"Never change a live session. Only update future sessions."* Pre-2.5, RSN matched session-by-session at host trigger. Phase 2.5 ships upfront global planning + future-only repair + backtracking-as-primary, three architectural shifts in one phase.
+
+### What changed for the host (UX described, no UI work yet)
+
+1. **Click "Start Event"** — engine runs once, generates the entire 5-round plan upfront. Toast: "Plan ready, N rounds, M pairs."
+2. **Click "Generate Matches" (renamed conceptually to "Show round N preview")** — pulls the pre-planned matches for the current round; no engine re-run.
+3. **Press "Re-match"** — regenerates the current round only. Future pre-planned rounds stay intact (auto-respected via the existing cross-round `excludedPairs` query).
+4. **Late-joiner mid-event** — auto-fires `repairFutureRounds(currentRound + 1, 'late_joiner')`. Throttled to one repair per 5 s per session. Past + active rounds untouched, future rounds regenerated to include the new participant. Toast: "Plan updated for rounds X-Y."
+5. **Leaver mid-event** — same shape with `reason='left'`.
+6. **Backtracking is now PRIMARY** for events with ≤30 participants — finds a complete matching whenever one exists. Greedy stays as fallback for n > 30 (faster at scale) or when backtracking can't find a complete arrangement.
+
+### Sub-phases
+
+**2.5A — `handleHostStart` calls `generateSessionSchedule`**
+- Right after `activeSessions.set(...)`, the engine plans every round at once and persists every match at status='scheduled'.
+- Plan failures are non-fatal — try/catch logs and lets the legacy session-by-session path stay alive for back-compat.
+- Emits `host:event_plan_generated` socket event with `roundCount` + `totalPairs`.
+
+**2.5B — Pre-plan surfaces as preview, no engine re-run**
+- `handleHostGenerateMatches` checks for existing scheduled matches FIRST. If a pre-plan exists, it sets `pendingRoundNumber` and sends the preview without touching the DELETE or `generateSingleRound`.
+- Legacy on-the-fly path stays as fallback for in-flight events that started before 2.5A.
+
+**2.5C — Re-match scope (no code change required)**
+- `handleHostRegenerateMatches` already DELETEs current round + calls `generateSingleRound` (Phase 1).
+- The existing `excludedPairs` query in `generateSingleRound` (matches in `round_number != currentRound` excluding cancelled/no_show) automatically covers pre-planned future rounds as constraints. Re-match preserves them by construction.
+
+**2.5D — `repairFutureRounds` + late-joiner / leaver wiring**
+- New `matchingService.repairFutureRounds(sessionId, fromRoundNumber, reason)` — DELETEs scheduled matches for round >= fromRound, then loops `generateSingleRound` for each future round in order (each iteration's no-repeat constraint picks up the previous iteration's results).
+- `participant-flow.ts` has new `maybeRepairFutureRounds(io, sessionId, reason)` helper with a 5-second throttle per session — fired after `registerParticipant` succeeds (late-joiner) and after `LEFT` transition (leaver). Skipped when host leaves (different lifecycle).
+- New `host:event_plan_repaired` socket event broadcast to the session room with the regenerated round numbers.
+
+**2.5E — Backtracking as PRIMARY for n ≤ 30**
+- `MatchingEngineV1.generateSingleRound`: for n ≤ 30 + even count, attempts `findCompleteMatching` (the depth-first backtracking shipped in Phase 1) first. If it returns a complete matching, USE IT — pairs come from there.
+- If backtracking returns null (no complete matching exists in the candidate graph, e.g., all unique pairs already used) OR n > 30 OR n is odd, the existing greedy + Path 2 fallback path runs.
+- Net behaviour: for typical event sizes, "each user gets one match per session" (Spec §14) is now provably guaranteed.
+
+**2.5F — Acceptance pins**
+- `phase-2-5-pre-event-planning.test.ts` adds 16 architectural pins covering 2.5A–2.5E plus end-to-end engine acceptance:
+  - 6 participants × 3 rounds → 9 unique pairs, 0 byes
+  - 6 participants × 5 rounds (full round-robin K_6) → 15 unique pairs, 0 byes — every possible pair meets exactly once
+
+### Files
+
+**Modified**
+- `server/src/services/orchestration/handlers/host-actions.ts` (2.5A — wire generateSessionSchedule into handleHostStart)
+- `server/src/services/orchestration/handlers/matching-flow.ts` (2.5B — surface pre-plan as preview)
+- `server/src/services/orchestration/handlers/participant-flow.ts` (2.5D — maybeRepairFutureRounds + join/leave triggers)
+- `server/src/services/matching/matching.service.ts` (2.5D — new `repairFutureRounds` export)
+- `server/src/services/matching/matching.engine.ts` (2.5E — backtracking-as-primary for n ≤ 30)
+- `shared/src/types/events.ts` (new socket events `host:event_plan_generated`, `host:event_plan_repaired`)
+
+**New**
+- `server/src/__tests__/services/matching/phase-2-5-pre-event-planning.test.ts` (16 architectural + acceptance pins)
+- `docs/superpowers/plans/2026-05-06-phase-2-5-pre-event-planning.md`
+
+### Verification
+
+- `npx tsc --noEmit` (server, shared, client) — clean
+- `npx jest` — **1018 / 1018 tests pass across 77 suites** (was 1002; +16 Phase 2.5)
+- 5-round K_6 acceptance test passes — engine produces a full 1-factorisation (15 unique pairs across 5 rounds, every person meets every other exactly once)
+- 3-round K_6 acceptance test passes — 9 unique pairs, 0 byes (the case Stefan reported as broken on 5 May)
+- All 157 existing matching tests still green — no regressions
+- CI staging: pending push
+- CI main: pending push
+- Render: pending deploy
+- Sentry post-deploy: will watch for any spike in matching errors
+
+### What is NOT in this phase
+
+- Client UI for `host:event_plan_generated` / `host:event_plan_repaired` toasts — server emits the events; the host UI rendering layer comes in Phase 3 (host dashboard work)
+- Manual override of pre-planning per pod template (Phase 5.5 polish)
+- Fallback ladder (Phase 2.8 — spec §10 "platform repeats → pod repeats → recent → event")
+- Real learning loop (Phase 5.5 — spec §8)

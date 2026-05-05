@@ -45,6 +45,25 @@ export interface ServerToClientEvents {
     byeParticipants: { userId: string; displayName: string }[];
   }) => void;
 
+  // Phase 2.5A (5 May spec compliance) — fired when the host clicks Start
+  // Event and the engine successfully generates the full multi-round plan
+  // upfront. UI uses this to show "Plan ready — N rounds, M pairs" feedback.
+  'host:event_plan_generated': (data: {
+    sessionId: string;
+    roundCount: number;
+    totalPairs: number;
+  }) => void;
+
+  // Phase 2.5D (5 May spec §9) — fired when future rounds are auto-repaired
+  // after a participant joined late or left mid-event. Host UI uses this to
+  // show "Plan updated for rounds X-Y" toast + reflect the new pairings in
+  // any visible upcoming-rounds view.
+  'host:event_plan_repaired': (data: {
+    sessionId: string;
+    reason: 'late_joiner' | 'left' | 'host_request';
+    regeneratedRounds: number[];
+  }) => void;
+
   // Host round dashboard (breakout room monitoring)
   'host:round_dashboard': (data: {
     roundNumber: number;

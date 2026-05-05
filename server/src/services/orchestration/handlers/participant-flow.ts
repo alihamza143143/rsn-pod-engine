@@ -24,6 +24,47 @@ import { findIsolatedParticipants } from '../../matching/isolated-participants';
 // Phase 2B (5 May spec) — chokepoint helpers for presence + state writes.
 import { transitionParticipant, setPresence, ParticipantState } from '../state/participant-state-machine';
 
+// Phase 2.5D (5 May spec) — future-only repair throttle keys per session.
+// One repair per 5 seconds per session prevents storms when many users
+// join in quick succession (we only need ONE recompute that includes them all).
+const _futureRepairThrottle = new Map<string, number>();
+const FUTURE_REPAIR_THROTTLE_MS = 5_000;
+
+async function maybeRepairFutureRounds(
+  io: SocketServer,
+  sessionId: string,
+  reason: 'late_joiner' | 'left',
+): Promise<void> {
+  const activeSession = activeSessions.get(sessionId);
+  if (!activeSession) return;
+  // Only repair if the event has actually started rounds (currentRound >= 1).
+  // Pre-event joiners get covered by the regular pre-plan since the plan
+  // hasn't been generated yet.
+  if (activeSession.currentRound < 1) return;
+
+  const now = Date.now();
+  const last = _futureRepairThrottle.get(sessionId) || 0;
+  if (now - last < FUTURE_REPAIR_THROTTLE_MS) {
+    logger.debug({ sessionId, reason }, 'maybeRepairFutureRounds: throttled');
+    return;
+  }
+  _futureRepairThrottle.set(sessionId, now);
+
+  try {
+    const fromRound = activeSession.currentRound + 1;
+    const result = await matchingService.repairFutureRounds(sessionId, fromRound, reason);
+    if (result.regeneratedRounds.length > 0) {
+      io.to(sessionRoom(sessionId)).emit('host:event_plan_repaired', {
+        sessionId,
+        reason,
+        regeneratedRounds: result.regeneratedRounds,
+      });
+    }
+  } catch (err) {
+    logger.warn({ err, sessionId, reason }, 'maybeRepairFutureRounds: repair failed');
+  }
+}
+
 // ─── Cross-module references (wired in Task 7) ────────────────────────────
 // TODO: Import these from matching-flow.ts once it's created
 // For now, declare as module-level variables that can be injected
@@ -183,10 +224,21 @@ export async function handleJoinSession(
       // The host is also a participant in speed networking — they network too.
       // Pass user role so admin/super_admin can bypass pod visibility restrictions.
       const userRole = (socket.data as any)?.role as UserRole | undefined;
+      let didRegister = false;
       try {
         await sessionService.registerParticipant(data.sessionId, userId, userRole);
+        didRegister = true;
       } catch {
         // Already registered or session not open — that's fine
+      }
+
+      // Phase 2.5D (5 May spec) — late-joiner future-only repair.
+      // If a NEW participant joined mid-event (event already past round 1),
+      // regenerate the pre-planned future rounds to include them. Throttled
+      // to one repair per 5s per session so a flurry of joiners triggers
+      // only one recompute that covers them all.
+      if (didRegister && session.hostUserId !== userId) {
+        void maybeRepairFutureRounds(io, data.sessionId, 'late_joiner');
       }
 
       // Update participant status based on current session state
@@ -510,6 +562,11 @@ export async function handleLeaveSession(
       await sessionService.updateParticipantStatus(
         data.sessionId, userId, ParticipantStatus.LEFT
       );
+      // Phase 2.5D — leaver future-only repair. Skip if the host left
+      // (their leaving is a different lifecycle path).
+      if (!isHost) {
+        void maybeRepairFutureRounds(io, data.sessionId, 'left');
+      }
     }
 
     io.to(sessionRoom(data.sessionId)).emit('participant:left', { userId, isHost });

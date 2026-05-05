@@ -130,7 +130,27 @@ export async function handleHostGenerateMatches(
       ? 1
       : activeSession.currentRound + 1;
 
-    // Clean up any stale matches for this round (previous generate/cancel cycles)
+    // Phase 2.5B (5 May spec compliance) — if a pre-event plan exists for
+    // this round (scheduled status, generated at event start by 2.5A's
+    // generateSessionSchedule call), surface those matches as the preview
+    // instead of running the engine again. The "Generate Matches" button
+    // becomes "Show round N preview" (Option B): clicking it pulls the
+    // pre-planned matches; pressing Re-match regenerates only this round.
+    const existingPlanned = await matchingService.getMatchesByRound(data.sessionId, nextRound);
+    const hasPrePlan = existingPlanned.some(m => m.status === 'scheduled');
+    if (hasPrePlan) {
+      logger.info(
+        { sessionId: data.sessionId, roundNumber: nextRound, count: existingPlanned.filter(m => m.status === 'scheduled').length },
+        'Phase 2.5B — surfacing pre-planned matches as preview (no engine re-run)',
+      );
+      activeSession.pendingRoundNumber = nextRound;
+      await sendMatchPreview(io, socket, data.sessionId, nextRound, activeSession.hostUserId);
+      return;
+    }
+
+    // Legacy path — fires for sessions that started before pre-planning was
+    // wired in 2.5A, or when the pre-plan failed at event start. Generates
+    // matches on-the-fly for this round only.
     await query(
       `DELETE FROM matches WHERE session_id = $1 AND round_number = $2 AND status IN ('scheduled', 'cancelled')`,
       [data.sessionId, nextRound]
@@ -178,7 +198,7 @@ export async function handleHostGenerateMatches(
       await sendMatchPreview(io, socket, data.sessionId, nextRound, activeSession.hostUserId);
 
       logger.info({ sessionId: data.sessionId, roundNumber: nextRound },
-        'Match preview generated for host');
+        'Match preview generated for host (legacy on-the-fly path)');
     } catch (err: any) {
       if (err.message?.includes('timeout')) {
         logger.error({ sessionId: data.sessionId }, 'Matching engine timed out after 60s');
