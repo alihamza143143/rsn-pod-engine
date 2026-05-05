@@ -1278,6 +1278,20 @@ export async function handleDisconnect(
                   return;
                 }
 
+                // Phase 2.7 (5 May spec §9, 6 May per Ali's call) — confirmed
+                // gone after 15 s with no reconnect. Transition to LEFT and
+                // trigger repair_future_rounds so the user is removed from
+                // upcoming pre-planned rounds. Best-effort: failures are
+                // logged and the reassignment attempt below still runs so
+                // the partner gets a new pair / bye for THIS round.
+                try {
+                  await transitionParticipant(sessionId, userId, ParticipantState.LEFT);
+                } catch (transErr) {
+                  logger.warn({ err: transErr, sessionId, userId },
+                    'Phase 2.7: state-machine LEFT transition failed in disconnect timeout (continuing with reassignment)');
+                }
+                void maybeRepairFutureRounds(io, sessionId, 'left');
+
                 // Determine terminal status based on actual conversation state:
                 //   >30s OR ratings submitted → completed (real conversation)
                 //   otherwise → cancelled (no_show reserved for never-connected)
@@ -1448,13 +1462,23 @@ const STALE_HEARTBEAT_MS = 90_000; // 6 missed heartbeats at 15s interval — ge
 const STALE_CHECK_INTERVAL_MS = 30_000;
 
 export function startHeartbeatStaleDetection(io: SocketServer): void {
-  setInterval(() => {
+  setInterval(async () => {
     const now = Date.now();
     for (const [sessionId, session] of activeSessions) {
       for (const [userId, presence] of session.presenceMap) {
         if (now - presence.lastHeartbeat.getTime() > STALE_HEARTBEAT_MS) {
           logger.warn({ userId, sessionId }, 'Stale heartbeat — triggering disconnect flow');
           setPresence(sessionId, userId, null);
+          // Phase 2.7 — stale-heartbeat path also transitions to LEFT and
+          // triggers future-rounds repair so the user is consistently
+          // removed from the system, not stranded in DISCONNECTED state.
+          try {
+            await transitionParticipant(sessionId, userId, ParticipantState.LEFT);
+          } catch (err) {
+            logger.warn({ err, sessionId, userId },
+              'Phase 2.7: stale-heartbeat LEFT transition failed (continuing)');
+          }
+          void maybeRepairFutureRounds(io, sessionId, 'left');
           io.to(sessionRoom(sessionId)).emit('participant:left', { userId });
         }
       }

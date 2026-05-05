@@ -82,9 +82,19 @@ describe('Phase 3 — matching engine registry seam', () => {
     });
 
     it('generateSingleRound looks up engine via registry', () => {
-      const fnStart = src.indexOf('let round = ');
-      const slice = src.slice(Math.max(0, fnStart - 800), fnStart + 200);
-      expect(slice).toMatch(/getMatchingEngine\(/);
+      // Phase 2.8 added a fallback ladder loop between the engine lookup and
+      // the engine.generateRound call, so the literal "let round = ..."
+      // pattern is gone. The pin: inside generateSingleRound, the registry
+      // lookup `getMatchingEngine(` must appear BEFORE every `engine.generateRound(`
+      // call. We slice the function body and check ordering directly.
+      const fnStart = src.indexOf('export async function generateSingleRound(');
+      const fnEnd = src.indexOf('\n}\n', fnStart);
+      const fn = src.slice(fnStart, fnEnd);
+      const lookupIdx = fn.indexOf('getMatchingEngine(');
+      const generateIdx = fn.indexOf('engine.generateRound(');
+      expect(lookupIdx).toBeGreaterThan(-1);
+      expect(generateIdx).toBeGreaterThan(-1);
+      expect(lookupIdx).toBeLessThan(generateIdx);
     });
 
     it('reads sessionConfig.matchingAlgorithmId for the lookup', () => {

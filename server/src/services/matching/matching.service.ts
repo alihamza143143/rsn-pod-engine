@@ -329,47 +329,100 @@ export async function generateSingleRound(
   // Phase 3 (1 May spec) — engine lookup via registry.
   const engine = getMatchingEngine(sessionConfig.matchingAlgorithmId || DEFAULT_ENGINE_ID);
 
-  let round = engine.generateRound(
-    participantsResult.rows,
-    config,
-    excludedPairs,
-    encounterHistory,
-    roundNumber,
-    { regenerate: options?.regenerate === true },
-  );
+  // Phase 2.8 (5 May spec §10) — fallback ladder.
+  //
+  // Spec §10 mandates a 4-level escalation when the strict no-repeat
+  // constraint can't produce a complete matching:
+  //
+  //   L0 — strict (default). Cross-event encounters get the
+  //        encounterFreshness signal as a soft penalty. Within-event
+  //        repeats are HARD excluded.
+  //   L1 — encounterFreshness penalty halved. Cross-event repeats are
+  //        more acceptable.
+  //   L2 — encounterFreshness penalty zero. Cross-event repeats neutral.
+  //   L3 — half of within-event excludedPairs relaxed (deterministic
+  //        pick — alphabetical-keyed lower half). Allows targeted
+  //        within-event repeats only when forced.
+  //   L4 — drop within-event exclusion entirely. All pairs allowed
+  //        (current single-step fallback behavior).
+  //
+  // Iteration stops at the first level that produces a complete matching
+  // (every eligible participant placed in a pair or trio). Each pair
+  // records the level it landed at via match_reason for audit trail.
+  const eligibleEvenCount = participantsResult.rows.length - (participantsResult.rows.length % 2);
+  const sortedExcludedKeys = Array.from(excludedPairs).sort();
+  const halfExcludedPairs = new Set(sortedExcludedKeys.slice(Math.floor(sortedExcludedKeys.length / 2)));
 
-  // SOFT exclusion: if the strict no-repeat constraint left us with zero pairs
-  // (e.g. small group where every possible pair has already been matched),
-  // retry without the excludedPairs set. Repeats are acceptable when the
-  // alternative is "round with 0 matches" — host's intent is "match the
-  // people in main room", not "force unique pairings or fail".
-  if (round.pairs.length === 0 && participantsResult.rows.length >= 2 && excludedPairs.size > 0) {
-    logger.warn(
-      { sessionId, roundNumber, eligibleCount: participantsResult.rows.length, excludedCount: excludedPairs.size },
-      'No fresh pairs available — retrying matching without exclusion (allowing repeats)'
-    );
+  let round: RoundAssignment | null = null;
+  let landedAtLevel = 0;
+
+  for (let level = 0; level <= 4; level++) {
+    const levelExcluded = level >= 4 ? new Set<string>()
+                        : level >= 3 ? halfExcludedPairs
+                        : excludedPairs;
+    const freshnessScale = level >= 2 ? 0
+                         : level >= 1 ? 0.5
+                         : 1;
+    const levelConfig: MatchingConfig = {
+      ...config,
+      weights: {
+        ...config.weights,
+        encounterFreshness: (config.weights.encounterFreshness ?? 0.10) * freshnessScale,
+      },
+    };
+
     round = engine.generateRound(
       participantsResult.rows,
-      config,
-      new Set(),  // empty exclusion — allow any pair
+      levelConfig,
+      levelExcluded,
       encounterHistory,
       roundNumber,
       { regenerate: options?.regenerate === true },
     );
-    // Matching Engine 1.0 spec, Section 10 — fallback path engaged.
-    // Mark every pair this round as fallbackUsed AND repeatInEvent so admin
-    // dashboards can see "this round had no choice but to repeat pairs".
+
+    const matchedIds = new Set<string>();
+    for (const p of round.pairs) {
+      matchedIds.add(p.participantAId);
+      matchedIds.add(p.participantBId);
+      if (p.participantCId) matchedIds.add(p.participantCId);
+    }
+    landedAtLevel = level;
+
+    // Complete: every eligible participant (rounded down to even) is placed.
+    // Above-even-count leftover gets handled by the engine's trio path.
+    if (matchedIds.size >= eligibleEvenCount) break;
+
+    if (level === 4) {
+      logger.warn(
+        { sessionId, roundNumber, level, matched: matchedIds.size, eligibleEvenCount },
+        'Fallback ladder exhausted at L4 — accepting incomplete matching',
+      );
+    }
+  }
+
+  // Tag pairs with the level they landed at for audit (Spec §13).
+  if (landedAtLevel > 0 && round) {
+    const reasonByLevel: Record<number, string> = {
+      1: 'fallback_l1_freshness_softened',
+      2: 'fallback_l2_freshness_neutral',
+      3: 'fallback_l3_partial_event_repeats',
+      4: 'fallback_l4_event_repeats',
+    };
     for (const pair of round.pairs) {
       pair.fallbackUsed = true;
-      // We just lifted the no-repeat constraint, so every pair MAY be a
-      // repeat — the only way to know is to re-check excludedPairs. The
-      // exclusion set is the cross-round registry of "already paired".
       const isRepeat = excludedPairs.has(pairKey(pair.participantAId, pair.participantBId));
       pair.repeatInEvent = isRepeat;
-      if (isRepeat) {
-        pair.matchReason = 'fallback_repeat';
-      }
+      pair.matchReason = reasonByLevel[landedAtLevel] || pair.matchReason || 'fallback';
     }
+    logger.info(
+      { sessionId, roundNumber, fallbackLevel: landedAtLevel, pairCount: round.pairs.length },
+      'Phase 2.8 — round produced via fallback ladder',
+    );
+  }
+
+  if (!round) {
+    // Defensive — should never happen since the loop always assigns at L0.
+    throw new Error('Fallback ladder produced no round — engine misconfigured');
   }
 
   // Persist this round's matches

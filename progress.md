@@ -6788,3 +6788,69 @@ These are queued in the master plan and ship in subsequent phases, each with its
 - Manual override of pre-planning per pod template (Phase 5.5 polish)
 - Fallback ladder (Phase 2.8 — spec §10 "platform repeats → pod repeats → recent → event")
 - Real learning loop (Phase 5.5 — spec §8)
+
+---
+
+## Matching Spec Compliance — Phase 2.7 + 2.8 — 2026-05-06
+
+**Status:** Completed (server-only, no DB / client changes)
+**Plan:** `docs/superpowers/plans/2026-05-06-phase-2-7-and-2-8-disconnect-and-fallback.md`
+**Why:** Two remaining spec gaps after Phase 2.5 — disconnect-handling consistency (§9) and the matching fallback ladder (§10).
+
+### Phase 2.7 — Disconnect hardening (Ali's call: 15 s decisive cut, not 180 s)
+
+The 5 May plan called for a 180 s auto-LEFT timer per spec §9 literal text. Ali's review on 6 May rejected that framing: holding a user in DISCONNECTED state for 3 minutes lies to the host UI (shows them as connected) and pollutes matching counts (system pretends they're still there). 15 s is decisive enough — the existing reassignment timer's window is the right window for the LEFT decision too.
+
+**What changed:**
+- The existing 15 s mid-match disconnect timeout (`participant-flow.ts:1409`) now ALSO transitions the disconnected user to LEFT via the chokepoint (Phase 2 spine) and fires `maybeRepairFutureRounds(io, sessionId, 'left')` (Phase 2.5D auto-repair). Net: a user who closes their laptop mid-round gets reassigned-or-bye'd for THAT round (existing) AND removed from upcoming pre-planned rounds (new). Future rounds regenerate without them within 15 s + the 5 s repair throttle.
+- The 90 s stale-heartbeat detector (`startHeartbeatStaleDetection`) does the same — transitions to LEFT + repairs future rounds. STALE_HEARTBEAT_MS unchanged at 90 s; that's the right cadence for lobby users with brief network blips, distinct from the in-match decisive 15 s.
+- Best-effort error handling: a failed transition or repair logs a warn and the partner-reassignment continues. Phase 2's reconciler picks up any drift on the next 30 s tick.
+
+### Phase 2.8 — Fallback ladder (Spec §10)
+
+Replaced the 1-step fallback (strict → drop excludedPairs) with a 5-level ladder. The service iterates levels 0 → 4, stops at the first level that produces a complete matching, tags every pair with the level it landed at for audit (Spec §13).
+
+**Levels:**
+- **L0** — strict (default): full encounterFreshness penalty, full within-event excludedPairs.
+- **L1** — encounterFreshness penalty halved. Cross-event repeats become more acceptable.
+- **L2** — encounterFreshness penalty zero. Cross-event repeats neutral.
+- **L3** — half of within-event excludedPairs relaxed (deterministic alphabetical-keyed lower half). Allows targeted within-event repeats only when forced.
+- **L4** — drop within-event exclusion entirely (current single-step fallback behaviour).
+
+**Match audit tags** stored in `match_reason` per pair when the ladder escalates:
+- `fallback_l1_freshness_softened`
+- `fallback_l2_freshness_neutral`
+- `fallback_l3_partial_event_repeats`
+- `fallback_l4_event_repeats`
+
+**L1–L3 differentiation note:** spec §10 distinguishes "platform repeats vs pod repeats vs recent repeats" but the current `encounter_history` schema doesn't carry rich enough per-pod / per-recency metadata to make that distinction cheaply. We collapse L1–L3 into "soften encounter freshness signal at increasing intensity" for now. True per-level differentiation queued for Phase 5.5 once the `pair_relationship` aggregate table lands.
+
+**Why the ladder rarely fires:** Phase 2.5E's backtracking-primary already finds complete matchings for ≤30 participants whenever one exists. The ladder is the safety net for edge cases — large events with sparse history, or small events that have run too many rounds and exhausted unique pairs. L0 is still hit > 99% of the time in normal usage.
+
+### Files
+
+**Modified**
+- `server/src/services/orchestration/handlers/participant-flow.ts` (2.7 — auto-LEFT in mid-match disconnect timeout + stale-heartbeat detector)
+- `server/src/services/matching/matching.service.ts` (2.8 — replace single-step fallback with 5-level ladder; tag pairs with `fallback_lN_*` reason)
+- `server/src/__tests__/services/matching/phase3-engine-registry.test.ts` (pin updated to survive the 2.8 reshape — checks engine-lookup-before-call ordering instead of the deprecated `let round = ` pattern)
+
+**New**
+- `server/src/__tests__/services/matching/phase-2-7-2-8-disconnect-and-fallback.test.ts` (11 architectural pins covering 2.7 + 2.8)
+- `docs/superpowers/plans/2026-05-06-phase-2-7-and-2-8-disconnect-and-fallback.md`
+
+### Verification
+
+- `npx tsc --noEmit` (server, client) — clean
+- `npx jest` — **1029 / 1029 across 78 suites** (was 1018; +11 Phase 2.7+2.8)
+- All 157+ existing matching tests pass — no regressions
+- Carried-pin update on `phase3-engine-registry.test.ts` to follow the 2.8 code reshape (engine-lookup ordering preserved; pin no longer brittle to local variable shape changes)
+- CI staging: pending push
+- CI main: pending push
+- Render: pending deploy
+- Sentry post-deploy: will watch for any spike in matching errors or LEFT transitions
+
+### What is NOT in this phase
+
+- True per-level (L1/L2/L3) differentiation between platform / pod / recent repeats — deferred to Phase 5.5 alongside `pair_relationship` aggregate
+- Client UI for `participant:auto_left` toast (server-side LEFT transition emits via existing state-machine path; UI consumer is Phase 3 host dashboard work)
+- Configurable disconnect timing per pod template — deferred to Phase 5.5 polish
