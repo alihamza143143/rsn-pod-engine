@@ -100,6 +100,10 @@ interface SessionLiveState {
   // host:event_plan_generated socket event. Used by HostControls to show a
   // persistent "Plan: 5 rounds, 15 pairs" badge after the host clicks Start.
   eventPlanSummary: { roundCount: number; totalPairs: number } | null;
+  // Phase 5B (5 May spec) — test-mode flag from session state snapshot.
+  // Server detects when 2+ participants share email-username root with the
+  // host (heuristic) or honours an explicit session.config.testMode override.
+  testMode: boolean;
   lobbyDensity: 'compact' | 'normal' | 'spacious';
   cohosts: Set<string>;
   leftCurrentRound: boolean;
@@ -146,6 +150,7 @@ interface SessionLiveState {
   setBreakoutTimerHidden: (v: boolean) => void;
   setMatchPreview: (preview: SessionLiveState['matchPreview']) => void;
   setEventPlanSummary: (summary: SessionLiveState['eventPlanSummary']) => void;
+  setTestMode: (testMode: boolean) => void;
   setHostMuteCommand: (muted: boolean | null) => void;
   setPartnerDisconnected: (v: boolean) => void;
   setRoundDashboard: (data: SessionLiveState['roundDashboard']) => void;
@@ -231,6 +236,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   breakoutTimerHidden: false,
   matchPreview: null,
   eventPlanSummary: null,
+  testMode: false,
   hostMuteCommand: null,
   partnerDisconnected: false,
   roundDashboard: null,
@@ -309,6 +315,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   setBreakoutTimerHidden: (breakoutTimerHidden) => set({ breakoutTimerHidden }),
   setMatchPreview: (matchPreview) => set({ matchPreview }),
   setEventPlanSummary: (eventPlanSummary) => set({ eventPlanSummary }),
+  setTestMode: (testMode) => set({ testMode }),
   setHostMuteCommand: (muted) => set({ hostMuteCommand: muted }),
   setPartnerDisconnected: (partnerDisconnected) => set({ partnerDisconnected }),
   setRoundDashboard: (roundDashboard) => set({ roundDashboard }),
@@ -398,7 +405,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
     isReconnecting: false, isByeRound: false, liveKitToken: null, livekitUrl: null, currentRoomId: null,
     lobbyToken: null, lobbyUrl: null, lobbyRoomId: null,
     timerVisibility: 'always_visible', breakoutTimerHidden: false, matchPreview: null,
-    eventPlanSummary: null,
+    eventPlanSummary: null, testMode: false,
     hostMuteCommand: null, partnerDisconnected: false, roundDashboard: null,
     chatMessages: [], unreadChatCount: 0, chatOpen: false, matchingOverlay: null, preparingMatches: false, lobbyDensity: 'normal' as const,
     cohosts: new Set<string>(), leftCurrentRound: false, lastRatedRound: 0, isPaused: false,

@@ -327,3 +327,37 @@ export async function handleReactionSend(
     logger.error({ err }, 'Error handling reaction');
   }
 }
+
+// ─── Phase 4B (5 May spec) — Chat history force-fetch on demand ────────────
+//
+// Stefan #8: "Message received notification appears, message itself not shown."
+// Pre-fix, chat history was only emitted on session-join. If the chat panel
+// opened later (or local message state somehow lost a message), there was no
+// way to recover — the user saw an empty / stale chat.
+//
+// This handler lets the client request a fresh chat history snapshot on
+// demand (typically: when the chat panel mounts, or when the local message
+// count is behind the server's notification count). Returns lobby-scoped
+// messages by default; if the client is in a breakout match the room
+// messages for THAT match are also included.
+export async function handleChatRequestHistory(
+  _io: import('socket.io').Server,
+  socket: import('socket.io').Socket,
+  data: { sessionId: string; matchId?: string },
+): Promise<void> {
+  try {
+    const userId = (socket.data as any)?.userId;
+    if (!userId || !data?.sessionId) return;
+    const allHistory = chatMessages.get(data.sessionId) || [];
+    // Lobby messages are visible to everyone in the session. Room messages
+    // are visible only to the requested match's participants.
+    const visible = allHistory.filter(m => {
+      if (m.scope === 'lobby' || !m.scope) return true;
+      if (m.scope === 'room' && data.matchId && (m as any).matchId === data.matchId) return true;
+      return false;
+    });
+    socket.emit('chat:history', { messages: visible });
+  } catch (err) {
+    logger.error({ err }, 'Error handling chat:request_history');
+  }
+}

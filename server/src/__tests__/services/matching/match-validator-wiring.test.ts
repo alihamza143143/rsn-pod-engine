@@ -22,21 +22,24 @@ describe('T0-1 wiring — validator called from every match-write handler', () =
       expect(src).toMatch(/import \{ validateMatchAssignment \} from '\.\.\/\.\.\/matching\/match-validator\.service'/);
     });
 
-    it('calls validateMatchAssignment inside handleHostCreateBreakout BEFORE Step 1 reassign', () => {
+    it('calls validateMatchAssignment inside handleHostCreateBreakout BEFORE the transaction', () => {
+      // Phase 4A (5 May spec) refactored the function — reassign + insert
+      // now run inside transaction(). The validator pin asserts validation
+      // happens BEFORE the transaction begins (and before LiveKit room create).
       const fnStart = src.indexOf('export async function handleHostCreateBreakout(');
       const fnEnd = src.indexOf('\nexport ', fnStart + 1);
       const fn = src.slice(fnStart, fnEnd);
       const validatorIdx = fn.indexOf('validateMatchAssignment(');
-      const reassignIdx = fn.indexOf('Step 1: Remove each participant');
+      const transactionIdx = fn.indexOf('await transaction(async (client)');
       expect(validatorIdx).toBeGreaterThan(-1);
-      expect(reassignIdx).toBeGreaterThan(-1);
-      expect(validatorIdx).toBeLessThan(reassignIdx);
+      expect(transactionIdx).toBeGreaterThan(-1);
+      expect(validatorIdx).toBeLessThan(transactionIdx);
     });
 
-    it('skips conflict check at this site (Step 1 reassigns existing matches)', () => {
+    it('skips conflict check at this site (Phase 4A transaction reassigns existing matches)', () => {
       const fnStart = src.indexOf('export async function handleHostCreateBreakout(');
-      const reassignIdx = src.indexOf('Step 1: Remove each participant', fnStart);
-      const block = src.slice(fnStart, reassignIdx);
+      const transactionIdx = src.indexOf('await transaction(async (client)', fnStart);
+      const block = src.slice(fnStart, transactionIdx);
       expect(block).toMatch(/skipConflictCheck:\s*true/);
     });
 

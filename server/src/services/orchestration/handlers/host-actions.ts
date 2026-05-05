@@ -1887,115 +1887,128 @@ export async function handleHostCreateBreakout(
         }
       }
 
-      // Step 1: Remove each participant from ANY active match (across all rounds)
-      // Each removal is independent — failure in one doesn't affect others
-      for (const pid of participantIds) {
-        try {
-          const currentMatch = await query<{ id: string; participant_a_id: string; participant_b_id: string | null; participant_c_id: string | null }>(
-            `SELECT id, participant_a_id, participant_b_id, participant_c_id FROM matches
-             WHERE session_id = $1 AND status = 'active'
-               AND (participant_a_id = $2 OR participant_b_id = $2 OR participant_c_id = $2)`,
-            [sessionId, pid]
-          );
+      // Phase 4A (5 May spec) — atomic create-breakout flow.
+      //
+      // Stefan #6 + #7: pre-fix, Step 1 (reassign existing matches) and
+      // Step 3 (insert new manual match) were independent DB writes — if
+      // Step 3 failed, Step 1's reassignments stuck, leaving participants
+      // stranded in 'reassigned' state with no replacement room. The
+      // current order: LiveKit room first (fail fast — no DB writes if
+      // room creation fails), then Steps 1+3 wrapped in a single
+      // transaction so they commit together or roll back together.
+      //
+      // The LiveKit room is idempotent — if the transaction rolls back
+      // after room creation, the room is orphaned but harmless (empty
+      // room with no participants ever joining; LiveKit garbage-collects
+      // empty rooms).
 
-          if (currentMatch.rows.length > 0) {
-            const match = currentMatch.rows[0];
-            // Host moved participants to another room — the original match was
-            // reassigned, not abandoned. Reassigned matches are still ratable
-            // and count in People Met / recap stats.
-            await query(`UPDATE matches SET status = 'reassigned', ended_at = NOW() WHERE id = $1 AND status = 'active'`, [match.id]);
-
-            // Notify remaining partners (exclude participants being moved together)
-            const remainingPartners = [match.participant_a_id, match.participant_b_id, match.participant_c_id]
-              .filter((id): id is string => !!id && id !== pid && !participantIds.includes(id));
-
-            for (const partnerId of remainingPartners) {
-              io.to(userRoom(partnerId)).emit('match:partner_disconnected', { matchId: match.id });
-            }
-
-            // Solo partner left behind: return to lobby after 5s
-            if (remainingPartners.length === 1) {
-              const soloPartnerId = remainingPartners[0];
-              setTimeout(async () => {
-                try {
-                  const s = activeSessions.get(sessionId);
-                  if (!s || s.status !== SessionStatus.ROUND_ACTIVE) return;
-                  const freshMatch = (await matchingService.getMatchesByRound(sessionId, s.currentRound))
-                    .find(m => m.id === match.id);
-                  if (!freshMatch || freshMatch.status !== 'no_show') return;
-
-                  await sessionService.updateParticipantStatus(sessionId, soloPartnerId, ParticipantStatus.IN_LOBBY);
-                  io.to(userRoom(soloPartnerId)).emit('match:return_to_lobby', { reason: 'partner_left' });
-
-                  const session = await sessionService.getSessionById(sessionId);
-                  if (session.lobbyRoomId) {
-                    const { config: appConfig } = await import('../../../config');
-                    const socketsInRoom = await io.in(userRoom(soloPartnerId)).fetchSockets();
-                    for (const sk of socketsInRoom) {
-                      const uid = (sk.data as any)?.userId;
-                      if (uid !== soloPartnerId) continue;
-                      const dName = (sk.data as any)?.displayName || 'User';
-                      const lobbyToken = await videoService.issueJoinToken(uid, session.lobbyRoomId, dName);
-                      sk.emit('lobby:token', { token: lobbyToken.token, livekitUrl: appConfig.livekit.host, roomId: session.lobbyRoomId });
-                    }
-                  }
-                } catch (err) {
-                  logger.error({ err }, 'Error returning solo partner to lobby after create_breakout');
-                }
-              }, 5000);
-            }
-          }
-        } catch (err) {
-          logger.warn({ err, pid }, 'Non-fatal: failed to remove participant from current match during create_breakout');
-        }
-      }
-
-      // Step 2: Create LiveKit room
+      // Step 2 (was): Create LiveKit room FIRST. If this fails, return
+      // immediately — no DB writes have happened, no rollback needed.
       const roomSlug = `host-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       try {
         await videoService.createMatchRoom(sessionId, activeSession.currentRound, roomSlug);
       } catch (err) {
         logger.error({ err }, 'Failed to create LiveKit room for host breakout');
         socket.emit('error', { code: 'ROOM_CREATION_FAILED', message: 'Failed to create breakout room. Try again.' });
-        // Bug 1 (April 18 Dr Arch): Step-1 reassignment may have already run.
-        // Refresh dashboard so the host sees the actual DB state, not stale.
         if (_emitHostDashboard) await _emitHostDashboard(sessionId).catch(() => {});
         return;
       }
       const newRoomId = videoService.matchRoomId(sessionId, activeSession.currentRound, roomSlug);
 
-      // Step 3: Create match in DB (for 1+ participants — enables dashboard, leave, timer)
-      // is_manual=TRUE marks this as a host-created breakout — invisible to the
-      // algorithm exclusion logic (matching.service.ts).
+      // Steps 1 + 3 wrapped in a single transaction. If the new-match INSERT
+      // fails, the existing matches stay 'active' (reassignments rolled
+      // back). Notifications for the orphaned partners are deferred until
+      // AFTER the transaction commits so we never emit "your partner left"
+      // for a reassignment that didn't actually take effect.
       let matchId = '';
-      if (participantIds.length >= 1) {
-        const { v4: uuid } = await import('uuid');
-        matchId = uuid();
-        const sorted = [...participantIds].sort();
-        try {
-          await query(
-            `INSERT INTO matches (id, session_id, round_number, participant_a_id, participant_b_id, participant_c_id, room_id, status, started_at, is_manual)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', NOW(), TRUE)`,
-            [matchId, sessionId, activeSession.currentRound, sorted[0], sorted[1] || null, sorted[2] || null, newRoomId]
-          );
-        } catch (err: any) {
-          logger.error({ err }, 'Failed to insert match for host breakout');
-          // Surface participant-already-matched constraint violation to host so
-          // the UI can tell them what went wrong instead of silently failing.
-          if (err?.code === '23505' || /unique|duplicate|already/i.test(err?.message || '')) {
-            socket.emit('error', {
-              code: 'PARTICIPANT_ALREADY_MATCHED',
-              message: 'One or more participants are already in another active match. Wait for it to end.',
-            });
-          } else {
-            socket.emit('error', { code: 'MATCH_CREATION_FAILED', message: 'Failed to create room assignment. Try again.' });
+      type ReassignedMatch = { matchId: string; remainingPartners: string[] };
+      const reassignedForNotification: ReassignedMatch[] = [];
+      try {
+        await transaction(async (client) => {
+          // Step 1 (in-transaction): reassign existing active matches for
+          // each participant being moved.
+          for (const pid of participantIds) {
+            const currentMatch = await client.query<{ id: string; participant_a_id: string; participant_b_id: string | null; participant_c_id: string | null }>(
+              `SELECT id, participant_a_id, participant_b_id, participant_c_id FROM matches
+               WHERE session_id = $1 AND status = 'active'
+                 AND (participant_a_id = $2 OR participant_b_id = $2 OR participant_c_id = $2)`,
+              [sessionId, pid],
+            );
+            if (currentMatch.rows.length === 0) continue;
+            const match = currentMatch.rows[0];
+            await client.query(
+              `UPDATE matches SET status = 'reassigned', ended_at = NOW() WHERE id = $1 AND status = 'active'`,
+              [match.id],
+            );
+            const remainingPartners = [match.participant_a_id, match.participant_b_id, match.participant_c_id]
+              .filter((id): id is string => !!id && id !== pid && !participantIds.includes(id));
+            reassignedForNotification.push({ matchId: match.id, remainingPartners });
           }
-          // Bug 1 (April 18 Dr Arch): the Step-1 reassign already moved the
-          // participants' prior matches to status='reassigned'. The new manual
-          // INSERT failed, but we still need to refresh the dashboard so the
-          // host sees the actual DB state — not the cached pre-action snapshot.
-          if (_emitHostDashboard) await _emitHostDashboard(sessionId).catch(() => {});
-          return;
+
+          // Step 3 (in-transaction): create the new manual match. A failure
+          // here rolls back every reassignment from Step 1.
+          if (participantIds.length >= 1) {
+            const { v4: uuid } = await import('uuid');
+            matchId = uuid();
+            const sorted = [...participantIds].sort();
+            await client.query(
+              `INSERT INTO matches (id, session_id, round_number, participant_a_id, participant_b_id, participant_c_id, room_id, status, started_at, is_manual)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', NOW(), TRUE)`,
+              [matchId, sessionId, activeSession.currentRound, sorted[0], sorted[1] || null, sorted[2] || null, newRoomId],
+            );
+          }
+        });
+      } catch (err: any) {
+        logger.error({ err }, 'Phase 4A — atomic create-breakout transaction rolled back');
+        if (err?.code === '23505' || /unique|duplicate|already/i.test(err?.message || '')) {
+          socket.emit('error', {
+            code: 'PARTICIPANT_ALREADY_MATCHED',
+            message: 'One or more participants are already in another active match. Wait for it to end.',
+          });
+        } else {
+          socket.emit('error', { code: 'MATCH_CREATION_FAILED', message: 'Failed to create room assignment. Try again.' });
+        }
+        if (_emitHostDashboard) await _emitHostDashboard(sessionId).catch(() => {});
+        return;
+      }
+
+      // Post-transaction: notifications + solo-partner return-to-lobby.
+      // Run only AFTER the transaction commits so we never emit "your
+      // partner left" for a reassignment that was rolled back.
+      for (const reassigned of reassignedForNotification) {
+        for (const partnerId of reassigned.remainingPartners) {
+          io.to(userRoom(partnerId)).emit('match:partner_disconnected', { matchId: reassigned.matchId });
+        }
+        if (reassigned.remainingPartners.length === 1) {
+          const soloPartnerId = reassigned.remainingPartners[0];
+          const reassignedMatchId = reassigned.matchId;
+          setTimeout(async () => {
+            try {
+              const s = activeSessions.get(sessionId);
+              if (!s || s.status !== SessionStatus.ROUND_ACTIVE) return;
+              const freshMatch = (await matchingService.getMatchesByRound(sessionId, s.currentRound))
+                .find(m => m.id === reassignedMatchId);
+              if (!freshMatch || freshMatch.status !== 'no_show') return;
+
+              await sessionService.updateParticipantStatus(sessionId, soloPartnerId, ParticipantStatus.IN_LOBBY);
+              io.to(userRoom(soloPartnerId)).emit('match:return_to_lobby', { reason: 'partner_left' });
+
+              const session = await sessionService.getSessionById(sessionId);
+              if (session.lobbyRoomId) {
+                const { config: appConfig } = await import('../../../config');
+                const socketsInRoom = await io.in(userRoom(soloPartnerId)).fetchSockets();
+                for (const sk of socketsInRoom) {
+                  const uid = (sk.data as any)?.userId;
+                  if (uid !== soloPartnerId) continue;
+                  const dName = (sk.data as any)?.displayName || 'User';
+                  const lobbyToken = await videoService.issueJoinToken(uid, session.lobbyRoomId, dName);
+                  sk.emit('lobby:token', { token: lobbyToken.token, livekitUrl: appConfig.livekit.host, roomId: session.lobbyRoomId });
+                }
+              }
+            } catch (err) {
+              logger.error({ err }, 'Error returning solo partner to lobby after create_breakout');
+            }
+          }, 5000);
         }
       }
 

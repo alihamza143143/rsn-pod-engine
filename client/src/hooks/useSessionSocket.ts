@@ -138,6 +138,7 @@ export default function useSessionSocket(sessionId: string) {
       if (data.totalRounds !== undefined) store.setTotalRounds(data.totalRounds);
       if (data.timerVisibility) store.setTimerVisibility(data.timerVisibility);
       if (data.cohosts) store.setCohosts(data.cohosts);
+      if (data.testMode !== undefined) store.setTestMode(data.testMode);
     });
 
     // ── Co-host ──
@@ -647,14 +648,39 @@ export default function useSessionSocket(sessionId: string) {
     });
 
     socket.on('error', (data: any) => {
-      // Don't show transient errors as persistent banners
-      const msg = data.message || 'An error occurred';
-      store.setError(msg);
-      // Auto-clear non-critical errors after 5 seconds
-      setTimeout(() => {
-        const current = useSessionStore.getState().error;
-        if (current === msg) store.setError(null);
-      }, 5000);
+      // Phase 5A (5 May spec) — Stefan #14: surface socket errors as toasts
+      // with code-specific friendly text instead of just a transient banner.
+      // Codes that map to known user-actionable failures get tailored copy;
+      // anything unrecognised falls through to the generic message.
+      const code = data?.code || '';
+      const rawMsg = data?.message || 'An error occurred';
+      const FRIENDLY: Record<string, { msg: string; severity: 'error' | 'info' }> = {
+        UNAUTHORIZED: { msg: 'You need to sign in again.', severity: 'error' },
+        VALIDATION_ERROR: { msg: rawMsg, severity: 'info' },
+        INVALID_STATE: { msg: rawMsg, severity: 'info' },
+        NOT_ENOUGH_PARTICIPANTS: { msg: 'Not enough participants to start matching yet.', severity: 'info' },
+        INSUFFICIENT_PARTICIPANTS: { msg: rawMsg, severity: 'info' },
+        NO_ELIGIBLE_PAIRS: { msg: 'Everyone has already been matched. End the event or wait for new participants.', severity: 'info' },
+        GENERATE_FAILED: { msg: 'Could not generate matches. Try again.', severity: 'error' },
+        REGENERATE_FAILED: { msg: 'Re-match failed. Try again.', severity: 'error' },
+        ROOM_CREATION_FAILED: { msg: 'Could not create breakout room. Try again.', severity: 'error' },
+        MATCH_CREATION_FAILED: { msg: 'Could not assign participants to the room. Try again.', severity: 'error' },
+        PARTICIPANT_ALREADY_MATCHED: { msg: 'One or more participants are already in another active match.', severity: 'info' },
+        FORCE_MATCH_FAILED: { msg: 'Force-match failed. Try again.', severity: 'error' },
+        REMOVE_FAILED: { msg: 'Could not remove that participant. Try again.', severity: 'error' },
+        DM_SEND_FAILED: { msg: 'Message could not be sent. Try again.', severity: 'error' },
+        DM_REACT_FAILED: { msg: 'Reaction could not be added. Try again.', severity: 'info' },
+      };
+      const entry = FRIENDLY[code] || { msg: rawMsg, severity: 'error' as const };
+      // Toast for visibility, plus banner for persistence on critical issues.
+      useToastStore.getState().addToast(entry.msg, entry.severity);
+      if (entry.severity === 'error') {
+        store.setError(entry.msg);
+        setTimeout(() => {
+          const current = useSessionStore.getState().error;
+          if (current === entry.msg) store.setError(null);
+        }, 5000);
+      }
     });
 
     // T0-3 — authoritative state resync via REST. Called on mount and on

@@ -94,6 +94,12 @@ export default function LiveSessionPage() {
 
   return (
     <div className="h-[100dvh] bg-white flex flex-col">
+      {/* Phase 5B (5 May spec) — test-mode banner.
+          Shown to ALL participants when the server detects multiple
+          accounts sharing the host's email-username root, OR when the
+          host explicitly set session.config.testMode=true. Stefan #2:
+          "clearly separate test mode vs real users". */}
+      <TestModeBanner />
       {/* Top bar */}
       <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
         <div className="flex items-center gap-1.5 min-w-0">
@@ -270,6 +276,21 @@ const STATE_CONFIG: Record<string, { label: string; icon: React.ReactNode; color
   closing_lobby:    { label: '', icon: <Loader2 className="h-3.5 w-3.5 animate-spin" />, color: 'bg-white/5 text-gray-400' },
   completed:        { label: 'Event ended', icon: <CheckCircle2 className="h-3.5 w-3.5" />, color: 'bg-emerald-500/10 text-emerald-400' },
 };
+
+// Phase 5B (5 May spec) — test-mode banner. Renders only when
+// store.testMode is true (server-detected or explicitly configured).
+// Stefan #2: clearly separate test mode from real events so anyone
+// looking at the screen knows this isn't production data.
+function TestModeBanner() {
+  const testMode = useSessionStore(s => s.testMode);
+  if (!testMode) return null;
+  return (
+    <div className="px-4 py-1.5 flex items-center justify-center gap-2 text-xs font-semibold bg-amber-100 text-amber-900 border-b border-amber-300">
+      <span aria-hidden="true">⚠</span>
+      <span>Test mode — multiple accounts detected. This is not a real event.</span>
+    </div>
+  );
+}
 
 function EventStateBanner({ sessionStatus, currentRound, totalRounds }: { sessionStatus: string; currentRound: number; totalRounds: number; phase?: string }) {
   const config = STATE_CONFIG[sessionStatus] || STATE_CONFIG.scheduled;

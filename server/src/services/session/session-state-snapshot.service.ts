@@ -60,6 +60,21 @@ export interface SessionStateSnapshot {
 
   /** UI hint propagated from session config. */
   timerVisibility: string;
+
+  /**
+   * Phase 5B (5 May spec) — test-mode flag. Stefan's #2: when the host is
+   * signed in across multiple accounts to test the system, display a
+   * banner so it's visually clear this isn't a real production event.
+   *
+   * Sources (priority):
+   *   1. Explicit session.config.testMode flag (host opt-in, definitive)
+   *   2. Heuristic: 2+ non-host participants whose emails share the host's
+   *      email-username root (length ≥ 4 chars). Catches the canonical
+   *      Stefan case (stefan@avivson.com / stefanavivson@gmail.com /
+   *      im@mister-raw.com all reading as "stefan" / "raw" patterns —
+   *      we use the host's username root specifically).
+   */
+  testMode: boolean;
 }
 
 /**
@@ -142,6 +157,46 @@ export async function buildSessionStateSnapshot(
     ? connectedParticipants.some(p => p.userId === session.hostUserId)
     : false;
 
+  // ── Phase 5B — test-mode detection ──────────────────────────────────────
+  // 1. Explicit override via session.config.testMode wins.
+  // 2. Heuristic: pull host email + non-host registered emails. If the host
+  //    email username root (first 4+ chars) appears in 2 or more non-host
+  //    participant emails, flag testMode=true.
+  let testMode = false;
+  if (typeof (config as any).testMode === 'boolean') {
+    testMode = (config as any).testMode;
+  } else if (session.hostUserId && registeredIds.size > 0) {
+    try {
+      const hostRow = await query<{ email: string | null }>(
+        `SELECT email FROM users WHERE id = $1`,
+        [session.hostUserId],
+      );
+      const hostEmail = hostRow.rows[0]?.email || '';
+      const hostUsername = hostEmail.split('@')[0]?.toLowerCase() || '';
+      // Take the alphabetic root (drop digits / dots / underscores so
+      // "stefan_avivson" and "stefanavivson" both reduce to "stefan").
+      const hostRoot = hostUsername.replace(/[^a-z]+/g, '').slice(0, 5);
+      if (hostRoot.length >= 4) {
+        const partRows = await query<{ email: string }>(
+          `SELECT u.email FROM session_participants sp
+             JOIN users u ON u.id = sp.user_id
+            WHERE sp.session_id = $1
+              AND sp.user_id != $2
+              AND u.email IS NOT NULL`,
+          [sessionId, session.hostUserId],
+        );
+        let matches = 0;
+        for (const r of partRows.rows) {
+          const u = (r.email || '').toLowerCase().split('@')[0].replace(/[^a-z]+/g, '');
+          if (u.includes(hostRoot)) matches++;
+        }
+        if (matches >= 2) testMode = true;
+      }
+    } catch {
+      // Heuristic is best-effort; skip on any DB error.
+    }
+  }
+
   // ── Compose snapshot ───────────────────────────────────────────────────
   return {
     sessionId,
@@ -168,5 +223,6 @@ export async function buildSessionStateSnapshot(
     },
 
     timerVisibility: (config as any).timerVisibility || 'last_10s',
+    testMode,
   };
 }

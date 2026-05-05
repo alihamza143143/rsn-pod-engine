@@ -30,6 +30,8 @@ export interface ServerToClientEvents {
     totalRounds?: number;
     timerVisibility?: string;
     cohosts?: string[];
+    // Phase 5B (5 May spec) — test-mode banner surface.
+    testMode?: boolean;
   }) => void;
 
   // Rating window
@@ -183,6 +185,8 @@ export interface ClientToServerEvents {
   // Chat
   'chat:send': (data: { sessionId: string; message: string; scope: 'lobby' | 'room' }) => void;
   'chat:react': (data: { sessionId: string; messageId: string; emoji: string }) => void;
+  // Phase 4B (5 May spec) — force-fetch chat history on demand.
+  'chat:request_history': (data: { sessionId: string; matchId?: string }) => void;
 
   // DM (Phase D of chat-fix-and-dm-system, 1 May 2026)
   'dm:send': (data: { toUserId: string; content: string }) => void;

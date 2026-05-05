@@ -50,7 +50,7 @@ import {
 } from './handlers/round-lifecycle';
 
 // Handlers — Chat
-import { handleChatSend, handleChatReact, handleReactionSend } from './handlers/chat-handlers';
+import { handleChatSend, handleChatReact, handleReactionSend, handleChatRequestHistory } from './handlers/chat-handlers';
 import { handleDmSend, handleDmRead, handleDmReact, handleDmUnreact } from './handlers/dm-handlers';
 // Phase 2E (5 May spec) — global state reconciler.
 import { startGlobalReconciler } from './state/participant-state-machine';
@@ -254,6 +254,11 @@ export function initOrchestration(socketServer: SocketServer): void {
     socket.on('chat:react', async (data) => {
       try { await handleChatReact(io, socket, data); }
       catch (err) { logger.error({ err, userId }, 'Chat react error'); }
+    });
+    // Phase 4B (5 May spec) — chat history force-fetch fallback for Stefan #8.
+    socket.on('chat:request_history', async (data) => {
+      try { await handleChatRequestHistory(io, socket, data); }
+      catch (err) { logger.error({ err, userId }, 'Chat request_history error'); }
     });
     socket.on('reaction:send', async (data) => {
       try { await handleReactionSend(io, socket, data); }

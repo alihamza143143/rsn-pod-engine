@@ -6919,3 +6919,82 @@ Replaced the 1-step fallback (strict → drop excludedPairs) with a 5-level ladd
 - Atomic room creation (Stefan #6, #7 server-side) — Phase 4
 - Chat reliability (Stefan #8) — Phase 4
 - Test-mode UX (Stefan #2) — Phase 5
+
+---
+
+## Matching Spec Compliance — Phase 4 + 5 — 2026-05-06
+
+**Status:** Completed (server + client; combined per Ali's call to ship 4+5 in one cycle)
+**Why:** Closes Stefan's 5th May items #6 + #7 (atomic room creation), #8 (chat receive), #14 (error surfacing), #2 (test-mode separation).
+
+### Sub-phases
+
+**4A — Atomic create-breakout (`handleHostCreateBreakout`)**
+- Pre-fix: Step 1 (reassign existing matches) and Step 3 (insert new manual match) were independent DB writes. If Step 3 failed, Step 1's reassignments stuck — participants stranded in 'reassigned' state with no replacement room.
+- Phase 4A: LiveKit room creation runs FIRST (fail-fast — no DB writes if it fails). Steps 1+3 wrapped in a single `transaction(async (client) => ...)` block. If Step 3's INSERT fails (e.g. unique-constraint hit because a participant got matched elsewhere mid-flight), the entire transaction rolls back including Step 1's reassignments.
+- Notifications (`match:partner_disconnected`, solo-partner setTimeout return-to-lobby) moved to AFTER the transaction commits — we never emit "your partner left" for a reassignment that was rolled back.
+- Catch block surfaces `PARTICIPANT_ALREADY_MATCHED` for unique-violation and `MATCH_CREATION_FAILED` for everything else.
+
+**4B — Chat history force-fetch (`chat:request_history`)**
+- New socket event `chat:request_history` + handler `handleChatRequestHistory` in chat-handlers.ts. Returns a fresh chat-history snapshot scoped to the user's current breakout match (room messages) plus all lobby messages.
+- ChatPanel.tsx emits this on mount — closes Stefan #8 ("notification appears, message not shown") by re-fetching authoritative state when the panel opens, regardless of what the local store has.
+- Wired in orchestration.service.ts.
+
+**5A — Error toast surface with code-specific friendly text**
+- `useSessionSocket.ts` extended: `socket.on('error', ...)` now fires `useToastStore.addToast` in addition to setting the legacy `store.error` banner.
+- New `FRIENDLY` mapping translates 14+ error codes to user-facing copy (e.g. `ROOM_CREATION_FAILED` → "Could not create breakout room. Try again.", `NO_ELIGIBLE_PAIRS` → "Everyone has already been matched. End the event or wait for new participants.").
+- Severity routing: `error` → toast + 5 s banner; `info`-class codes (validation, invalid_state, no_eligible_pairs) → toast only.
+- Unknown codes fall through to the server's raw message — never silenced.
+
+**5B — Test-mode banner**
+- `SessionStateSnapshot` interface adds `testMode: boolean`.
+- Detection in `buildSessionStateSnapshot`:
+  1. **Explicit override** (`session.config.testMode === true|false`) wins.
+  2. **Heuristic fallback**: extract host's email-username root (alphabetic chars only, first 4–5). Query non-host participants' emails. If 2+ contain the host root, flag testMode=true. Catches the canonical Stefan case (`stefan@avivson.com`, `stefanavivson@gmail.com`, etc. — multiple accounts whose email usernames share an obvious root).
+- `session:state` socket payload propagates `testMode`. `useSessionSocket` stores it in `sessionStore.testMode`.
+- New `<TestModeBanner />` component in LiveSessionPage. Renders an amber banner above the top bar when `testMode === true`: *"Test mode — multiple accounts detected. This is not a real event."* Visible to all participants, not just the host — anyone looking at the screen knows it's a test.
+
+### Files
+
+**New**
+- `server/src/__tests__/services/orchestration/phase-4-and-5-atomic-and-errors.test.ts` (18 architectural pins)
+- `docs/superpowers/plans/2026-05-06-phase-4-and-5-...` (plan written inline in this entry; no separate doc this phase)
+
+**Modified — server**
+- `server/src/services/orchestration/handlers/host-actions.ts` (4A — atomic transaction)
+- `server/src/services/orchestration/handlers/chat-handlers.ts` (4B — handleChatRequestHistory)
+- `server/src/services/orchestration/orchestration.service.ts` (4B wiring)
+- `server/src/services/orchestration/handlers/participant-flow.ts` (5B — testMode in session:state emit)
+- `server/src/services/session/session-state-snapshot.service.ts` (5B — testMode field + heuristic detection)
+
+**Modified — client**
+- `client/src/hooks/useSessionSocket.ts` (5A — toast on error events; 5B — testMode in session:state)
+- `client/src/stores/sessionStore.ts` (5B — testMode field + setter)
+- `client/src/features/live/ChatPanel.tsx` (4B — emit chat:request_history on mount)
+- `client/src/features/live/LiveSessionPage.tsx` (5B — TestModeBanner component)
+
+**Modified — shared**
+- `shared/src/types/events.ts` (chat:request_history event type; testMode in session:state)
+
+**Carried-pin updates** (from 4A's transaction reshape)
+- `match-validator-wiring.test.ts` — pin updated from "validator before Step 1 reassign" to "validator before transaction" (Phase 4A renamed the stage)
+- `phase0-room-assignment-server-canonical.test.ts` — search window widened from 2000 to 4000 chars to span the post-transaction setRoomAssignment block
+
+### Verification
+
+- `npx tsc --noEmit` (server, client) — clean
+- `npx jest` — **1068 / 1068 across 80 suites** (was 1050; +18 Phase 4+5)
+- `npm run build` (client) — clean (15.18 s)
+- 18 architectural pins covering 4A (4 pins), 4B (4 pins), 5A (4 pins), 5B (6 pins)
+- CI staging: pending push
+- CI main: pending push
+- Render: pending deploy
+- Vercel: pending deploy
+- Sentry post-deploy: will watch for any spike
+
+### What is NOT in this phase
+
+- Manual host-side toggle UI for `session.config.testMode` (the heuristic should auto-detect Stefan's canonical case; explicit override is reachable via session-config update API)
+- Bulk breakout (`handleHostCreateBreakoutBulk`) atomicity — same pattern needs application; queued for Phase 6 hardening
+- Compensating LiveKit room cleanup when transaction rolls back — orphan empty rooms are harmless and LiveKit garbage-collects them; explicit cleanup is Phase 6 polish
+- Per-error-code analytics surface — the FRIENDLY mapping is enough for this round; richer admin observability is Phase 5.5

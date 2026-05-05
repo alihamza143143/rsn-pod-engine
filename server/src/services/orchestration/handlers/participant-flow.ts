@@ -340,6 +340,9 @@ export async function handleJoinSession(
             pausedTimeRemainingMs: snapshot.pausedTimeRemainingMs,
             pendingRoundNumber: snapshot.pendingRoundNumber,
             participantCounts: snapshot.participantCounts,
+            // Phase 5B (5 May spec) — surface test-mode flag for the host
+            // banner. Heuristic-or-explicit detection happens server-side.
+            testMode: snapshot.testMode,
           });
         }
       } catch (stateErr) {
