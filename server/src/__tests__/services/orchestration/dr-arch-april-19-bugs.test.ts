@@ -59,12 +59,15 @@ describe('Dr Arch April 19 — Bug 7: Manual breakout rejects participants in ac
     expect(handlerStart).toBeGreaterThan(-1);
     const handlerEnd = src.indexOf('export async function handleHostExtendBreakoutAll');
     const handler = src.slice(handlerStart, handlerEnd);
-    // Rejection path must come BEFORE the "Reassign any existing active matches" loop.
+    // Rejection path must come BEFORE the per-room transactional reassign+insert.
+    // Phase 6 (5 May spec) reshaped the bulk loop body to use transaction();
+    // the literal "Reassign any existing active matches" comment is gone.
+    // Pin: rejection sits before the transaction wrapper.
     const rejectIdx = handler.indexOf('PARTICIPANT_IN_ACTIVE_ROOM');
-    const reassignIdx = handler.indexOf('Reassign any existing active matches');
+    const transactionIdx = handler.indexOf('await transaction(async (client)');
     expect(rejectIdx).toBeGreaterThan(-1);
-    expect(reassignIdx).toBeGreaterThan(-1);
-    expect(rejectIdx).toBeLessThan(reassignIdx);
+    expect(transactionIdx).toBeGreaterThan(-1);
+    expect(rejectIdx).toBeLessThan(transactionIdx);
   });
 
   it('HostControls modal disables checkbox for participants already in an active room', () => {

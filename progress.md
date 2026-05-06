@@ -6998,3 +6998,59 @@ Replaced the 1-step fallback (strict → drop excludedPairs) with a 5-level ladd
 - Bulk breakout (`handleHostCreateBreakoutBulk`) atomicity — same pattern needs application; queued for Phase 6 hardening
 - Compensating LiveKit room cleanup when transaction rolls back — orphan empty rooms are harmless and LiveKit garbage-collects them; explicit cleanup is Phase 6 polish
 - Per-error-code analytics surface — the FRIENDLY mapping is enough for this round; richer admin observability is Phase 5.5
+
+---
+
+## Matching Spec Compliance — Phase 6 — 2026-05-06
+
+**Status:** Completed
+**Why:** Final spec-compliance hardening. Two pieces:
+1. Apply Phase 4A's atomicity pattern to the bulk breakout handler (`handleHostCreateBreakoutBulk`) so all manual-room flows are transaction-safe.
+2. Lock down Spec §14 (acceptance criteria) as automated CI tests so the rebuild can never silently regress.
+
+### Changes
+
+**Atomic bulk create-breakout** (`breakout-bulk.ts`)
+- Per-room body now mirrors Phase 4A's pattern: LiveKit room created first (fail-fast), then reassign + insert wrapped in `transaction()`. Notifications + clear-room-timers run AFTER the transaction commits — no orphaned state if the new-match INSERT trips a constraint mid-bulk.
+- Partial-success behaviour preserved: if one room in a 5-room bulk fails, the other 4 still attempt and any successful transactions stay committed. Host gets a focused error per failed room, not a total bulk-create failure.
+
+**Spec §14 acceptance gate** (`phase-6-acceptance-gate.test.ts`)
+- 21 architectural pins + behavioural assertions covering every Spec §14 bullet:
+  1. ✅ Full event plan generated before start (Phase 2.5A wiring)
+  2. ✅ No duplicate matches inside event (5-round K_6 produces full 1-factorisation)
+  3. ✅ Each user gets one match per session (regression test for `3fc21cbb` r3 case + ladder existence)
+  4. ✅ Fairness maintained — every participant meets exactly 5 distinct partners over 5 rounds in K_6
+  5. ✅ Premium respected but not dominant — weight cap pinned (combined max 0.33 vs intent 0.50)
+  6. ✅ Feedback collected after each session (rating service + `meeting_records` table)
+  7. ⏭️ Future matching improves (test.skip — deferred to Phase 5.5; documented in test as the only deferred bullet)
+  8. ✅ System adapts to joins/leaves (`repairFutureRounds` + auto-fire wiring + Phase 2.7 LEFT transition)
+  9. ✅ No blocked users matched (block-pair load + hard-exclusions check pinned)
+  10. ✅ Edge cases handled (trios for odd, atomic rooms for both single + bulk, reconciler for drift)
+- Plus a final-principle assertion that all three pillars exist in code: "Plan globally" (`generateSessionSchedule`), "Execute session by session" (`getMatchesByRound`), "Repair only the future" (`repairFutureRounds`).
+
+**Carried-pin update**: `dr-arch-april-19-bugs.test.ts` adapted to Phase 6's bulk-handler reshape — rejection-before-reassign pin now checks rejection-before-transaction.
+
+### Files
+
+**New**
+- `server/src/__tests__/services/matching/phase-6-acceptance-gate.test.ts` (21 pins, 1 documented skip for Phase 5.5)
+
+**Modified**
+- `server/src/services/orchestration/handlers/breakout-bulk.ts` (Phase 4A pattern applied to per-room loop body)
+- `server/src/__tests__/services/orchestration/dr-arch-april-19-bugs.test.ts` (carry pin updated)
+
+### Verification
+
+- `npx tsc --noEmit` (server, client) — clean
+- `npx jest` — **1088 / 1088 passing across 81 suites** (was 1068; +20 Phase 6, plus 1 skipped Phase 5.5 placeholder)
+- All Spec §14 bullets ASSERTED (1 deferred to Phase 5.5)
+- CI staging: pending push
+- CI main: pending push
+- Render: pending deploy
+
+### What is NOT in this phase
+
+- Phase 5.5 — Real learning loop (deferred per Ali's call; will revisit after sufficient feedback data accumulates from real events)
+- 100-user mock event in staging (would require dedicated load-test infrastructure; the existing `_loadtest-scratch/` work covers this and runs locally; not a CI gate)
+- Browser walk on staging — needs human hands; documented in the testing message for Stefan
+- Compensating LiveKit room cleanup (orphan empty rooms remain harmless; LiveKit auto-GC's them)

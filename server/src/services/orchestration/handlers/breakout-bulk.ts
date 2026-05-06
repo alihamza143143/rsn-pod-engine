@@ -22,7 +22,7 @@
 
 import { Server as SocketServer, Socket } from 'socket.io';
 import logger from '../../../config/logger';
-import { query } from '../../../db';
+import { query, transaction } from '../../../db';
 import { ParticipantStatus } from '@rsn/shared';
 import {
   activeSessions, withSessionGuard, userRoom, emitRatingWindowOnce,
@@ -183,34 +183,20 @@ export async function handleHostCreateBreakoutBulk(
 
     const createdMatchIds: string[] = [];
 
+    // Phase 6 (5 May spec) — atomic per-room bulk-create.
+    // Same pattern as Phase 4A on handleHostCreateBreakout:
+    //   1. LiveKit room first (fail-fast — no DB writes if it can't be created)
+    //   2. Reassign + insert wrapped in a single transaction
+    //   3. Notifications + setRoomAssignment AFTER the transaction commits
+    // If any room in the bulk fails, that room is skipped (continue) but
+    // earlier rooms' transactions stay committed and later rooms still
+    // attempt — preserving the partial-success behaviour the host expects
+    // ("4 of 5 rooms were created successfully").
+
     for (const roomSpec of rooms) {
       const { participantIds } = roomSpec;
 
-      // Reassign any existing active matches for these participants
-      for (const pid of participantIds) {
-        try {
-          const curr = await query<{ id: string; participant_a_id: string; participant_b_id: string | null; participant_c_id: string | null }>(
-            `SELECT id, participant_a_id, participant_b_id, participant_c_id FROM matches
-             WHERE session_id = $1 AND status = 'active'
-               AND (participant_a_id = $2 OR participant_b_id = $2 OR participant_c_id = $2)`,
-            [sessionId, pid],
-          );
-          if (curr.rows.length > 0) {
-            const m = curr.rows[0];
-            await query(`UPDATE matches SET status = 'reassigned', ended_at = NOW() WHERE id = $1 AND status = 'active'`, [m.id]);
-            clearRoomTimers(m.id);
-            const remainingPartners = [m.participant_a_id, m.participant_b_id, m.participant_c_id]
-              .filter((id): id is string => !!id && id !== pid && !participantIds.includes(id));
-            for (const partnerId of remainingPartners) {
-              io.to(userRoom(partnerId)).emit('match:partner_disconnected', { matchId: m.id });
-            }
-          }
-        } catch (err) {
-          logger.warn({ err, pid }, 'Non-fatal: failed to clear prior match during bulk create');
-        }
-      }
-
-      // Create LiveKit room
+      // Step 1 — LiveKit room first
       const roomSlug = `host-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       try {
         await videoService.createMatchRoom(sessionId, activeSession.currentRound, roomSlug);
@@ -221,15 +207,10 @@ export async function handleHostCreateBreakoutBulk(
       }
       const newRoomId = videoService.matchRoomId(sessionId, activeSession.currentRound, roomSlug);
 
-      // Insert match — is_manual=TRUE so algorithm exclusion ignores this match.
+      // Pre-transaction validation (structural only — conflict check skipped
+      // since the in-tx reassign clears any active-match conflicts).
       const matchId = uuid();
       const sorted = [...participantIds].sort();
-
-      // T0-1: defense-in-depth structural check before INSERT. The handler
-      // already validates count + cross-room dedup + active-match conflicts
-      // above, so this catches edge cases (in-room dupes that survived
-      // earlier checks). Conflict check skipped since the per-room reassign
-      // loop above just cleared any active-match conflicts for these IDs.
       const validation = await validateMatchAssignment({
         sessionId,
         roundNumber: activeSession.currentRound,
@@ -247,15 +228,37 @@ export async function handleHostCreateBreakoutBulk(
         continue;
       }
 
+      // Step 2 — atomic transaction: reassign existing + insert new
+      type ReassignedMatch = { matchId: string; remainingPartners: string[] };
+      const reassignedForNotification: ReassignedMatch[] = [];
       try {
-        await query(
-          `INSERT INTO matches (id, session_id, round_number, participant_a_id, participant_b_id, participant_c_id, room_id, status, started_at, timer_visibility, is_manual)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', NOW(), $8, TRUE)`,
-          [matchId, sessionId, activeSession.currentRound, sorted[0], sorted[1] || null, sorted[2] || null, newRoomId, timerVisibility],
-        );
+        await transaction(async (client) => {
+          for (const pid of participantIds) {
+            const curr = await client.query<{ id: string; participant_a_id: string; participant_b_id: string | null; participant_c_id: string | null }>(
+              `SELECT id, participant_a_id, participant_b_id, participant_c_id FROM matches
+               WHERE session_id = $1 AND status = 'active'
+                 AND (participant_a_id = $2 OR participant_b_id = $2 OR participant_c_id = $2)`,
+              [sessionId, pid],
+            );
+            if (curr.rows.length === 0) continue;
+            const m = curr.rows[0];
+            await client.query(
+              `UPDATE matches SET status = 'reassigned', ended_at = NOW() WHERE id = $1 AND status = 'active'`,
+              [m.id],
+            );
+            const remainingPartners = [m.participant_a_id, m.participant_b_id, m.participant_c_id]
+              .filter((id): id is string => !!id && id !== pid && !participantIds.includes(id));
+            reassignedForNotification.push({ matchId: m.id, remainingPartners });
+          }
+
+          await client.query(
+            `INSERT INTO matches (id, session_id, round_number, participant_a_id, participant_b_id, participant_c_id, room_id, status, started_at, timer_visibility, is_manual)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 'active', NOW(), $8, TRUE)`,
+            [matchId, sessionId, activeSession.currentRound, sorted[0], sorted[1] || null, sorted[2] || null, newRoomId, timerVisibility],
+          );
+        });
       } catch (err: any) {
-        logger.error({ err, matchId }, 'Failed to insert match in bulk create');
-        // Surface participant-already-matched constraint violation to host.
+        logger.error({ err, matchId }, 'Phase 6 — atomic bulk-room transaction rolled back');
         if (err?.code === '23505' || /unique|duplicate|already/i.test(err?.message || '')) {
           socket.emit('error', {
             code: 'PARTICIPANT_ALREADY_MATCHED',
@@ -266,6 +269,16 @@ export async function handleHostCreateBreakoutBulk(
         }
         continue;
       }
+
+      // Post-transaction: clear timers for reassigned matches + emit
+      // partner-disconnected. Runs only for rooms that committed.
+      for (const reassigned of reassignedForNotification) {
+        clearRoomTimers(reassigned.matchId);
+        for (const partnerId of reassigned.remainingPartners) {
+          io.to(userRoom(partnerId)).emit('match:partner_disconnected', { matchId: reassigned.matchId });
+        }
+      }
+
       createdMatchIds.push(matchId);
 
       // Phase 0 (1 May spec) — server-canonical room assignment for manual
