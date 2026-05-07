@@ -286,6 +286,31 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
     }
   }, [localParticipant, isHost]);
 
+  // Phase 7-audit fix — keep local camEnabled / micEnabled in sync with the
+  // actual LiveKit track state. Pre-fix the toggle handlers updated React
+  // state optimistically, but a) the LiveKit auto-publish on join and
+  // b) any external state change (host mute, network reconnect) would
+  // not flow back into the React state. Result: button label said "Cam Off"
+  // while the camera was actually publishing video.
+  useEffect(() => {
+    if (!localParticipant) return;
+    const sync = () => {
+      setCamEnabled(localParticipant.isCameraEnabled);
+      setMicEnabled(localParticipant.isMicrophoneEnabled);
+    };
+    sync();
+    localParticipant.on('trackPublished' as any, sync);
+    localParticipant.on('trackUnpublished' as any, sync);
+    localParticipant.on('trackMuted' as any, sync);
+    localParticipant.on('trackUnmuted' as any, sync);
+    return () => {
+      localParticipant.off('trackPublished' as any, sync);
+      localParticipant.off('trackUnpublished' as any, sync);
+      localParticipant.off('trackMuted' as any, sync);
+      localParticipant.off('trackUnmuted' as any, sync);
+    };
+  }, [localParticipant]);
+
   // Guard: prevent user toggle while host mute command is being applied (race condition)
   const [hostMuteProcessing, setHostMuteProcessing] = useState(false);
 
