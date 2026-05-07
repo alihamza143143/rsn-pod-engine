@@ -82,7 +82,7 @@ export default function AdminAnalyticsPage() {
   const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('overview');
 
-  if (!user || !isAdmin(user)) {
+  if (!user || !isAdmin(user.role)) {
     return (
       <div className="px-6 py-12 max-w-md mx-auto text-center">
         <Shield className="h-10 w-10 mx-auto text-red-500" />
