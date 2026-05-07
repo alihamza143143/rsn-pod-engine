@@ -753,10 +753,14 @@ export default function HostControls({ sessionId }: Props) {
         </div>
       )}
 
-      {/* Control bar */}
-      <div className="p-4">
-        <div className="max-w-4xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      {/* Control bar.
+          Phase 7-audit fix — mobile-responsive. Wrapping flex layout so
+          buttons line-break instead of pushing the page wider than the
+          viewport. On small screens, button labels collapse to icon-only
+          via the .sm:inline rule below. */}
+      <div className="p-3 sm:p-4">
+        <div className="max-w-4xl mx-auto flex flex-wrap items-center justify-between gap-y-2 gap-x-3">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0">
             <div className="flex items-center gap-2 text-xs text-gray-400">
               <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {eligibleCount}</span>
               {roundDashboard && isInRound ? (() => {
@@ -796,7 +800,7 @@ export default function HostControls({ sessionId }: Props) {
               </span>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-end">
             {/* Start Event */}
             {!sessionStarted && (
               <Button size="sm" onClick={startSession}>

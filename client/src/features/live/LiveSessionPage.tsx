@@ -93,7 +93,11 @@ export default function LiveSessionPage() {
   if (!sessionId) return <PageLoader />;
 
   return (
-    <div className="h-[100dvh] bg-white flex flex-col">
+    // Phase 7-audit fix — overflow-x-hidden on the root prevents any
+    // child overflow (host bar, event plan strip) from forcing the
+    // viewport wider on mobile. min-w-0 lets flex children shrink
+    // below their content width instead of pushing the parent.
+    <div className="h-[100dvh] bg-white flex flex-col overflow-x-hidden min-w-0">
       {/* Phase 5B (5 May spec) — test-mode banner.
           Shown to ALL participants when the server detects multiple
           accounts sharing the host's email-username root, OR when the

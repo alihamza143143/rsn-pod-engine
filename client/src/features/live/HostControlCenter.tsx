@@ -22,7 +22,8 @@
 //   - host:move_to_room    — force into a specific active room
 //   - host:remove_participant  — kick from event
 
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useMemo, useState, useEffect, useRef, type ReactNode } from 'react';
+import { Rnd } from 'react-rnd';
 import { Button } from '@/components/ui/Button';
 import { useSessionStore } from '@/stores/sessionStore';
 import { getSocket } from '@/lib/socket';
@@ -40,8 +41,48 @@ import {
   AlertTriangle,
   Filter,
   RefreshCw,
+  Minus,
+  Square,
+  Copy,
 } from 'lucide-react';
 import { useActionLock } from '@/hooks/useActionLock';
+
+// Phase 7C.5 — windowed Host Control Center on desktop (md+).
+// Mobile keeps the original full-screen drawer (a draggable resizable
+// window at 360 px is unusable). Position + size persist across
+// sessions so the host's pane stays where they left it.
+const HCC_WINDOW_KEY = 'rsn:hcc-window';
+const HCC_DEFAULT_W = 900;
+const HCC_DEFAULT_H = 700;
+const HCC_MIN_W = 480;
+const HCC_MIN_H = 360;
+const HCC_DESKTOP_BREAKPOINT_PX = 768;
+
+interface PersistedBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+function readPersistedBounds(): PersistedBounds | null {
+  try {
+    const raw = localStorage.getItem(HCC_WINDOW_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (
+      typeof parsed?.x === 'number' &&
+      typeof parsed?.y === 'number' &&
+      typeof parsed?.width === 'number' &&
+      typeof parsed?.height === 'number'
+    ) return parsed;
+  } catch { /* ignore */ }
+  return null;
+}
+
+function writePersistedBounds(b: PersistedBounds): void {
+  try { localStorage.setItem(HCC_WINDOW_KEY, JSON.stringify(b)); } catch { /* ignore */ }
+}
 
 interface Props {
   sessionId: string;
@@ -71,6 +112,34 @@ export default function HostControlCenter({ sessionId, open, onClose }: Props) {
   const [filter, setFilter] = useState<StateFilter>('all');
   const [moveTargetUserId, setMoveTargetUserId] = useState<string | null>(null);
   const { runLocked } = useActionLock();
+
+  // ── Window mode (desktop) — drag, resize, maximize, minimize ──────────
+  const [isMobile, setIsMobile] = useState<boolean>(() =>
+    typeof window !== 'undefined' && window.innerWidth < HCC_DESKTOP_BREAKPOINT_PX
+  );
+  const [bounds, setBounds] = useState<PersistedBounds>(() => {
+    const persisted = readPersistedBounds();
+    if (persisted) return persisted;
+    if (typeof window === 'undefined') {
+      return { x: 100, y: 100, width: HCC_DEFAULT_W, height: HCC_DEFAULT_H };
+    }
+    return {
+      x: Math.max(20, Math.floor((window.innerWidth - HCC_DEFAULT_W) / 2)),
+      y: Math.max(20, Math.floor((window.innerHeight - HCC_DEFAULT_H) / 2)),
+      width: Math.min(HCC_DEFAULT_W, window.innerWidth - 40),
+      height: Math.min(HCC_DEFAULT_H, window.innerHeight - 40),
+    };
+  });
+  const [isMaximized, setIsMaximized] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
+  // Snapshot of bounds before maximize so Restore returns to the previous size.
+  const preMaxBoundsRef = useRef<PersistedBounds | null>(null);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < HCC_DESKTOP_BREAKPOINT_PX);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // Reset filter when drawer opens — small UX nicety so the host doesn't
   // open a stale "Disconnected" filter from the last session.
@@ -157,34 +226,73 @@ export default function HostControlCenter({ sessionId, open, onClose }: Props) {
       socket?.emit('host:extend_breakout_room' as any, { sessionId, matchId, additionalSeconds: 120 });
     });
 
-  return (
-    <div className="fixed inset-0 z-40 flex">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-        onClick={onClose}
-        aria-hidden="true"
-      />
+  // ── Window control handlers ───────────────────────────────────────────
+  const toggleMaximize = () => {
+    if (isMaximized) {
+      // Restore — pull bounds from snapshot, fall back to default if missing.
+      const restored = preMaxBoundsRef.current ?? bounds;
+      setBounds(restored);
+      writePersistedBounds(restored);
+      setIsMaximized(false);
+    } else {
+      preMaxBoundsRef.current = bounds;
+      const max: PersistedBounds = {
+        x: 0,
+        y: 0,
+        width: window.innerWidth,
+        height: window.innerHeight,
+      };
+      setBounds(max);
+      setIsMaximized(true);
+    }
+  };
+  const minimize = () => setIsMinimized(true);
+  const restoreFromMinimize = () => setIsMinimized(false);
 
-      {/* Drawer panel — right side, takes 90%+ on small screens */}
-      <div className="relative ml-auto w-full sm:max-w-3xl lg:max-w-5xl bg-white shadow-2xl h-full overflow-y-auto">
-        {/* Header */}
-        <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-5 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Users className="h-4 w-4 text-rsn-red" />
-            <h2 className="text-base font-semibold text-gray-900">Host Control Center</h2>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
-            aria-label="Close Control Center"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
+  // ── Body content (shared by drawer + window) ──────────────────────────
+  const titleBar: ReactNode = (
+    <div className="hcc-drag-handle cursor-move bg-white border-b border-gray-200 px-4 py-2.5 flex items-center justify-between select-none">
+      <div className="flex items-center gap-2">
+        <Users className="h-4 w-4 text-rsn-red" />
+        <h2 className="text-sm font-semibold text-gray-900">Host Control Center</h2>
+      </div>
+      <div className="flex items-center gap-0.5 hcc-window-controls">
+        {!isMobile && (
+          <>
+            <button
+              onClick={minimize}
+              className="p-1.5 rounded text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+              aria-label="Minimize"
+              title="Minimize"
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={toggleMaximize}
+              className="p-1.5 rounded text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+              aria-label={isMaximized ? 'Restore' : 'Maximize'}
+              title={isMaximized ? 'Restore' : 'Maximize'}
+            >
+              {isMaximized ? <Copy className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
+            </button>
+          </>
+        )}
+        <button
+          onClick={onClose}
+          className="p-1.5 rounded text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+          aria-label="Close Control Center"
+          title="Close"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
 
+  const bodyContent: ReactNode = (
+    <div className="flex flex-col h-full overflow-hidden">
         {/* Counts row */}
-        <div className="border-b border-gray-200 bg-gray-50 px-5 py-3">
+        <div className="border-b border-gray-200 bg-gray-50 px-5 py-3 shrink-0">
           <div className="flex flex-wrap items-center gap-2">
             <CountChip
               label="All"
@@ -228,7 +336,7 @@ export default function HostControlCenter({ sessionId, open, onClose }: Props) {
         </div>
 
         {/* Phase 7-audit fix — single column on tablet (md), 3-col only at lg+. */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 lg:divide-x divide-gray-200">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 lg:divide-x divide-gray-200 flex-1 overflow-y-auto">
           {/* Participants list */}
           <div className="lg:col-span-2 min-h-[300px]">
             <div className="px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 flex items-center gap-1.5">
@@ -345,55 +453,123 @@ export default function HostControlCenter({ sessionId, open, onClose }: Props) {
           </div>
         </div>
 
-        {/* Move-to-room sub-modal */}
-        {moveTargetUser && (
-          <div
-            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
-            onClick={() => setMoveTargetUserId(null)}
-          >
-            <div
-              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <h3 className="text-base font-semibold text-gray-900 mb-1">
-                Move {moveTargetUser.displayName} to a room
-              </h3>
-              <p className="text-xs text-gray-500 mb-3">
-                The current room they're in (if any) will end immediately for them.
-              </p>
-              {activeRoomsForMove.length === 0 ? (
-                <p className="text-sm text-gray-500 py-4 text-center">
-                  No active rooms to move into.
-                </p>
-              ) : (
-                <ul className="space-y-1.5 max-h-64 overflow-y-auto">
-                  {activeRoomsForMove
-                    .filter((r) => !r.participants.some((rp) => rp.userId === moveTargetUserId))
-                    .map((r) => (
-                      <li key={r.matchId}>
-                        <button
-                          onClick={() => moveToRoom(moveTargetUser.userId, r.matchId)}
-                          className="w-full text-left px-3 py-2 rounded-lg border border-gray-200 hover:border-emerald-400 hover:bg-emerald-50 text-sm transition-colors flex items-center justify-between"
-                        >
-                          <span className="truncate text-gray-800">
-                            {r.participants.map((rp) => rp.displayName).join(', ')}
-                          </span>
-                          <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
-                        </button>
-                      </li>
-                    ))}
-                </ul>
-              )}
-              <div className="flex justify-end mt-4">
-                <Button size="sm" variant="ghost" onClick={() => setMoveTargetUserId(null)}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </div>
+    </div>
+  );
+
+  // Move-to-room sub-modal — rendered alongside the window/drawer.
+  const subModal: ReactNode = moveTargetUser && (
+    <div
+      className="fixed inset-0 z-[60] bg-black/50 flex items-center justify-center p-4"
+      onClick={() => setMoveTargetUserId(null)}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-base font-semibold text-gray-900 mb-1">
+          Move {moveTargetUser.displayName} to a room
+        </h3>
+        <p className="text-xs text-gray-500 mb-3">
+          The current room they're in (if any) will end immediately for them.
+        </p>
+        {activeRoomsForMove.length === 0 ? (
+          <p className="text-sm text-gray-500 py-4 text-center">
+            No active rooms to move into.
+          </p>
+        ) : (
+          <ul className="space-y-1.5 max-h-64 overflow-y-auto">
+            {activeRoomsForMove
+              .filter((r) => !r.participants.some((rp) => rp.userId === moveTargetUserId))
+              .map((r) => (
+                <li key={r.matchId}>
+                  <button
+                    onClick={() => moveToRoom(moveTargetUser.userId, r.matchId)}
+                    className="w-full text-left px-3 py-2 rounded-lg border border-gray-200 hover:border-emerald-400 hover:bg-emerald-50 text-sm transition-colors flex items-center justify-between"
+                  >
+                    <span className="truncate text-gray-800">
+                      {r.participants.map((rp) => rp.displayName).join(', ')}
+                    </span>
+                    <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+                  </button>
+                </li>
+              ))}
+          </ul>
         )}
+        <div className="flex justify-end mt-4">
+          <Button size="sm" variant="ghost" onClick={() => setMoveTargetUserId(null)}>
+            Cancel
+          </Button>
+        </div>
       </div>
     </div>
+  );
+
+  // ── Render ────────────────────────────────────────────────────────────
+  // Minimized — small floating pill bottom-right; click to restore.
+  if (isMinimized) {
+    return (
+      <button
+        onClick={restoreFromMinimize}
+        className="fixed bottom-4 right-4 z-40 flex items-center gap-2 bg-rsn-red text-white rounded-full shadow-lg px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+        aria-label="Restore Host Control Center"
+      >
+        <Users className="h-4 w-4" /> Control Center
+      </button>
+    );
+  }
+
+  // Mobile — full-screen drawer with backdrop (window mode is desktop-only).
+  if (isMobile) {
+    return (
+      <div className="fixed inset-0 z-40 flex">
+        <div
+          className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+          onClick={onClose}
+          aria-hidden="true"
+        />
+        <div className="relative ml-auto w-full bg-white shadow-2xl h-full flex flex-col">
+          {titleBar}
+          {bodyContent}
+        </div>
+        {subModal}
+      </div>
+    );
+  }
+
+  // Desktop — windowed: drag, resize, maximize, minimize.
+  return (
+    <>
+      <Rnd
+        bounds="window"
+        minWidth={HCC_MIN_W}
+        minHeight={HCC_MIN_H}
+        size={{ width: bounds.width, height: bounds.height }}
+        position={{ x: bounds.x, y: bounds.y }}
+        onDragStop={(_e, d) => {
+          const next = { ...bounds, x: d.x, y: d.y };
+          setBounds(next);
+          if (!isMaximized) writePersistedBounds(next);
+        }}
+        onResizeStop={(_e, _dir, ref, _delta, position) => {
+          const next = {
+            x: position.x,
+            y: position.y,
+            width: ref.offsetWidth,
+            height: ref.offsetHeight,
+          };
+          setBounds(next);
+          if (!isMaximized) writePersistedBounds(next);
+        }}
+        dragHandleClassName="hcc-drag-handle"
+        disableDragging={isMaximized}
+        enableResizing={!isMaximized}
+        className="z-40 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden"
+      >
+        {titleBar}
+        {bodyContent}
+      </Rnd>
+      {subModal}
+    </>
   );
 }
 
