@@ -7115,6 +7115,43 @@ The remaining items from Stefan's doc — #1 (404 on join), #3 + #11 (host contr
 
 ---
 
+## Stefan's 7th May Feedback — Phase 7C.1+7C.2 — 2026-05-07
+
+**Status:** Host Control Center + Cohost UX shipped (7C.1 + 7C.2; 7C.3 + 7C.4 next)
+**Why:** Stefan #3 — host had no view of which participants were unmatched / disconnected mid-event. Stefan #11 — needs a single Control Center for per-person actions. Stefan #7 (UX half) — cohost role needs an obvious assignment + "what does this role do" hint.
+
+**What changed**
+
+Server (extends `host:round_dashboard` socket payload — no new endpoints):
+- New `server/src/services/orchestration/handlers/host-participants-view.ts` — single source of truth for the host's participants list. SQL joins `session_participants`, `users`, `session_cohosts` in one query. State derivation prioritises: `left/no_show/removed → 'left'`, in any active match → `'in_room'`, `disconnected` or absent from presenceMap → `'disconnected'`, else `'in_main_room'`. Role: hostUserId → `'host'`, row in session_cohosts → `'cohost'`, else `'participant'`. Never derives role from session_participants.role (post-7A.5 cohost source-of-truth fix).
+- `matching-flow.ts:1023` — every host:round_dashboard emit now includes `participants: HostParticipantSummary[]` built from the helper. Same cadence as room status changes, so the Control Center never shows stale state.
+- `participant-flow.ts:386` — host reconnect re-emit also carries the new `participants` field.
+- `shared/src/types/events.ts` — host:round_dashboard payload type extended with optional `participants` array (forward-compatible).
+
+Client:
+- New `client/src/features/live/HostControlCenter.tsx` — full-screen drawer. Sticky header. Counts row with tappable filter chips (All, In main room, In a room, Disconnected, Left, plus host/cohost counter). Two-column layout: participants list (left, 2/3) with per-row state badge + per-row action buttons; rooms pane (right, 1/3) with each active room, its participants, +2 min for manual rooms. Move-to-room sub-modal lists active rooms a participant isn't already in.
+- Per-row actions: Make co-host / Remove co-host (`host:assign_cohost` / `host:remove_cohost`), Re-match (`host:reassign`, only when in_room), Move to room… (opens the sub-modal, `host:move_to_room`), Kick (`host:remove_participant`). Every action goes through `useActionLock` so double-clicks coalesce.
+- Cohost permissions tooltip on hover of the Shield badge: "Co-host — can run rounds, manage breakouts, broadcast. Excluded from matching." Same pattern for host badge.
+- HostControls integration: new "Control Center" button in both the live control bar (when sessionStarted) and the wrapping-up bar. Drawer mounts in both branches.
+
+Architectural pins: 8 new tests in `phase-7c1-host-control-center.test.ts` covering helper signature, all four state branches, role derivation via session_cohosts, both emit-site wirings, and shared event type shape. All passing.
+
+**Verification**
+
+- Server tests: 1110/1111 passing (was 1102/1103, +8 new pins; 1 pre-existing skip), 83 suites green
+- Server TypeScript: clean
+- Client TypeScript: clean
+- Client build: clean (12.34s, 1.5 MB main bundle, 414 KB gzipped)
+- All four state filters reachable via the chip row
+- Move-to-room sub-modal correctly hides rooms the user is already in
+
+**Pending in 7C**
+
+- 7C.3 — Test-mode banner v2: backend heuristic upgrade (drop length-≥4 gate, add domain match), manual host toggle for `session.config.testMode`. Stefan #12.
+- 7C.4 — Admin analytics dashboard: cross-event aggregate page + per-event detail page; force-directed connection graph. Stefan #6. Approved Option B (full charts + graph).
+
+---
+
 ## Stefan's 7th May Feedback — Phase 7B — 2026-05-07
 
 **Status:** Frontend safety net + click polish shipped (7B; 7C UI builds queued)

@@ -90,6 +90,18 @@ interface SessionLiveState {
     // Algorithm round endsAt — top-level. null when no algorithm round
     // is active (e.g. between rounds, or only manual breakouts running).
     timerEndsAt?: string | null;
+    // Phase 7C.1 (7 May spec) — Host Control Center backing data.
+    // Optional for forward-compat with reconnect/older payloads.
+    participants?: Array<{
+      userId: string;
+      displayName: string;
+      email: string | null;
+      role: 'host' | 'cohost' | 'participant';
+      state: 'in_main_room' | 'in_room' | 'disconnected' | 'left';
+      currentMatchId: string | null;
+      currentRoomId: string | null;
+      joinedAt: string;
+    }>;
   } | null;
   chatMessages: ChatMessage[];
   unreadChatCount: number;

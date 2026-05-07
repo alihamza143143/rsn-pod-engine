@@ -66,13 +66,26 @@ export interface ServerToClientEvents {
     regeneratedRounds: number[];
   }) => void;
 
-  // Host round dashboard (breakout room monitoring)
+  // Host round dashboard (breakout room monitoring).
+  // Phase 7C.1 (7 May spec, Stefan #3 + #11) — `participants` field added
+  // to back the Host Control Center drawer. Optional for forward
+  // compatibility with older server versions on reconnect paths.
   'host:round_dashboard': (data: {
     roundNumber: number;
     rooms: { matchId: string; roomId: string; status: string; participants: { userId: string; displayName: string; isConnected: boolean }[]; isTrio: boolean }[];
     byeParticipants: { userId: string; displayName: string }[];
     timerSecondsRemaining: number;
     reassignmentInProgress: boolean;
+    participants?: Array<{
+      userId: string;
+      displayName: string;
+      email: string | null;
+      role: 'host' | 'cohost' | 'participant';
+      state: 'in_main_room' | 'in_room' | 'disconnected' | 'left';
+      currentMatchId: string | null;
+      currentRoomId: string | null;
+      joinedAt: string;
+    }>;
   }) => void;
   'host:room_status_update': (data: {
     matchId: string;

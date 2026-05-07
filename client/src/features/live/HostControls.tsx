@@ -1,10 +1,11 @@
 import { useSessionStore } from '@/stores/sessionStore';
 import { Button } from '@/components/ui/Button';
-import { Play, Square, Loader2, Users, Radio, Shuffle, Check, X, Pause, SkipForward, MessageSquare, UserMinus, RefreshCw, UserPlus, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
+import { Play, Square, Loader2, Users, Radio, Shuffle, Check, X, Pause, SkipForward, MessageSquare, UserMinus, RefreshCw, UserPlus, AlertTriangle, CheckCircle2, Clock, LayoutDashboard } from 'lucide-react';
 import { getSocket } from '@/lib/socket';
 import { useState } from 'react';
 import EventPlanStrip from './EventPlanStrip';
 import { useActionLock } from '@/hooks/useActionLock';
+import HostControlCenter from './HostControlCenter';
 
 interface Props { sessionId: string; }
 
@@ -40,6 +41,8 @@ export default function HostControls({ sessionId }: Props) {
   const [roomRows, setRoomRows] = useState<Array<Set<string>>>([new Set()]); // array of room-participant sets
   const [bulkDurationEdit, setBulkDurationEdit] = useState(false);
   const [bulkDurationValue, setBulkDurationValue] = useState(300);
+  // Phase 7C.1 — Host Control Center drawer toggle.
+  const [showControlCenter, setShowControlCenter] = useState(false);
 
   const sessionStarted = sessionStatus !== 'scheduled' || transitionStatus === 'starting_session' || currentRound > 0;
   const isSessionEnding = transitionStatus === 'session_ending';
@@ -221,6 +224,11 @@ export default function HostControls({ sessionId }: Props) {
   if (isSessionEnding) {
     return (
       <div className="border-t border-gray-200 bg-white">
+        <HostControlCenter
+          sessionId={sessionId}
+          open={showControlCenter}
+          onClose={() => setShowControlCenter(false)}
+        />
         {/* Announcement input — available in wrapping-up state */}
         {showBroadcast && (
           <div className="border-b border-gray-200 bg-amber-500/10 px-4 py-3">
@@ -252,6 +260,9 @@ export default function HostControls({ sessionId }: Props) {
             <div className="flex gap-2">
               <Button size="sm" variant="ghost" onClick={() => setShowBroadcast(!showBroadcast)} title="Send announcement to all">
                 <MessageSquare className="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => setShowControlCenter(true)} title="Open Host Control Center">
+                <LayoutDashboard className="h-4 w-4 mr-1" /> Control Center
               </Button>
               <Button size="sm" onClick={() => {
                 // Bug 9 (April 19) — Another Round must follow the same flow as
@@ -290,6 +301,11 @@ export default function HostControls({ sessionId }: Props) {
 
   return (
     <div className="border-t border-gray-200 bg-white">
+      <HostControlCenter
+        sessionId={sessionId}
+        open={showControlCenter}
+        onClose={() => setShowControlCenter(false)}
+      />
       {/* Phase 3 — pre-event plan visibility for the host. Shows when a plan
           exists (event has started). Auto-hides for non-host viewers via
           server-side auth on /sessions/:id/plan. */}
@@ -903,6 +919,13 @@ export default function HostControls({ sessionId }: Props) {
             {(sessionStatus === 'lobby_open' || sessionStatus === 'round_transition') && (
               <Button size="sm" variant="secondary" onClick={() => setShowInviteModal(true)}>
                 <UserPlus className="h-4 w-4 mr-1" /> Invite
+              </Button>
+            )}
+
+            {/* Phase 7C.1 — Host Control Center toggle (Stefan #3 + #11) */}
+            {sessionStarted && (
+              <Button size="sm" variant="secondary" onClick={() => setShowControlCenter(true)} title="Open Host Control Center">
+                <LayoutDashboard className="h-4 w-4 mr-1" /> Control Center
               </Button>
             )}
 

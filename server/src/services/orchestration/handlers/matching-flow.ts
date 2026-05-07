@@ -22,6 +22,8 @@ import {
 import { verifyHost, getAllHostIds } from './host-actions';
 import * as matchingService from '../../matching/matching.service';
 import { validateMatchAssignment } from '../../matching/match-validator.service';
+// Phase 7C.1 (7 May spec) — backing data for the Host Control Center drawer.
+import { buildHostParticipantsView } from './host-participants-view';
 
 // ─── Cross-module references (wired in Task 7) ────────────────────────────
 // transitionToRound lives in round-lifecycle.ts.
@@ -1020,6 +1022,21 @@ async function emitHostDashboardImmediate(io: SocketServer, sessionId: string): 
     );
     const eligibleMainRoomCount = parseInt(eligibleMainRoomRes.rows[0]?.c || '0', 10);
 
+    // Phase 7C.1 — backing data for the Host Control Center drawer.
+    // Same query cadence as the dashboard, so opening the drawer never
+    // shows stale state.
+    let participants: Awaited<ReturnType<typeof buildHostParticipantsView>> = [];
+    try {
+      participants = await buildHostParticipantsView({
+        sessionId,
+        hostUserId: activeSession.hostUserId,
+        presenceMap: activeSession.presenceMap,
+        activeMatches: matches,
+      });
+    } catch (err) {
+      logger.warn({ err, sessionId }, 'Failed to build host participants view');
+    }
+
     io.to(userRoom(activeSession.hostUserId)).emit('host:round_dashboard', {
       roundNumber: activeSession.currentRound,
       rooms,
@@ -1032,6 +1049,7 @@ async function emitHostDashboardImmediate(io: SocketServer, sessionId: string): 
       timerEndsAt: activeSession.timerEndsAt ? activeSession.timerEndsAt.toISOString() : null,
       eligibleMainRoomCount,
       reassignmentInProgress: false,
+      participants,
     });
   } catch (err) {
     logger.warn({ err, sessionId }, 'Failed to emit host dashboard');

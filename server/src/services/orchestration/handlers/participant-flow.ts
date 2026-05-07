@@ -383,12 +383,28 @@ export async function handleJoinSession(
           const byeParticipants = byeResult.rows
             .filter(r => !matchedUserIds.has(r.user_id))
             .map(r => ({ userId: r.user_id, displayName: r.display_name }));
+          // Phase 7C.1 — also include the Host Control Center participants
+          // payload on reconnect, so the host's drawer (if open) populates
+          // immediately with the live participants/state list.
+          let hccParticipants: any[] = [];
+          try {
+            const { buildHostParticipantsView } = await import('./host-participants-view');
+            hccParticipants = await buildHostParticipantsView({
+              sessionId: data.sessionId,
+              hostUserId: session.hostUserId,
+              presenceMap: activeSession.presenceMap,
+              activeMatches: matches,
+            });
+          } catch (hccErr) {
+            logger.warn({ err: hccErr, sessionId: data.sessionId }, 'Failed to build HCC participants on reconnect');
+          }
           socket.emit('host:round_dashboard', {
             roundNumber: activeSession.currentRound,
             rooms: rooms.filter((r: any) => r.status !== 'cancelled'),
             byeParticipants,
             timerSecondsRemaining: 0,
             reassignmentInProgress: false,
+            participants: hccParticipants,
           });
         } catch (dashErr) {
           logger.warn({ err: dashErr }, 'Failed to re-send host round dashboard on reconnect');

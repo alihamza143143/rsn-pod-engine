@@ -1,0 +1,579 @@
+// ─── Host Control Center ───────────────────────────────────────────────────
+//
+// Phase 7C.1 (7 May spec, Stefan #3 + #11) — full-screen drawer that
+// gives the host an authoritative view of EVERY person in the event,
+// what state they're in, and per-row actions to fix anything off.
+//
+// Stefan #3: "When matching round 4 of 5, system did not match a few
+//   participants without telling host or them. Host had no way to see
+//   what was happening with each person."
+// Stefan #11: "Need a single 'Control Center' that shows host every
+//   person, their status, and per-person actions in one place."
+//
+// Data source: roundDashboard.participants — populated by every
+// host:round_dashboard emit on the server (matching-flow.ts), so the
+// list refreshes on the same cadence as room status changes. The
+// server is canonical; this component renders, doesn't compute.
+//
+// Per-row actions wire to existing socket events (no new endpoints):
+//   - host:assign_cohost   — promote a participant to co-host
+//   - host:remove_cohost   — demote a co-host back to participant
+//   - host:reassign        — pull someone out of their room and re-match
+//   - host:move_to_room    — force into a specific active room
+//   - host:remove_participant  — kick from event
+
+import { useMemo, useState, useEffect } from 'react';
+import { Button } from '@/components/ui/Button';
+import { useSessionStore } from '@/stores/sessionStore';
+import { getSocket } from '@/lib/socket';
+import {
+  X,
+  Crown,
+  Shield,
+  User as UserIcon,
+  Wifi,
+  WifiOff,
+  DoorOpen,
+  Sofa,
+  Users,
+  ChevronRight,
+  AlertTriangle,
+  Filter,
+  RefreshCw,
+} from 'lucide-react';
+import { useActionLock } from '@/hooks/useActionLock';
+
+interface Props {
+  sessionId: string;
+  open: boolean;
+  onClose: () => void;
+}
+
+type StateFilter =
+  | 'all'
+  | 'in_main_room'
+  | 'in_room'
+  | 'disconnected'
+  | 'left';
+
+const STATE_LABEL: Record<StateFilter, string> = {
+  all: 'All',
+  in_main_room: 'In main room',
+  in_room: 'In a room',
+  disconnected: 'Disconnected',
+  left: 'Left',
+};
+
+export default function HostControlCenter({ sessionId, open, onClose }: Props) {
+  const roundDashboard = useSessionStore((s) => s.roundDashboard);
+  const hostUserId = useSessionStore((s) => s.hostUserId);
+  const socket = getSocket();
+  const [filter, setFilter] = useState<StateFilter>('all');
+  const [moveTargetUserId, setMoveTargetUserId] = useState<string | null>(null);
+  const { runLocked } = useActionLock();
+
+  // Reset filter when drawer opens — small UX nicety so the host doesn't
+  // open a stale "Disconnected" filter from the last session.
+  useEffect(() => {
+    if (open) setFilter('all');
+  }, [open]);
+
+  const participants = roundDashboard?.participants ?? [];
+  const rooms = roundDashboard?.rooms ?? [];
+
+  const counts = useMemo(() => {
+    const c = {
+      total: participants.length,
+      host: 0,
+      cohost: 0,
+      in_main_room: 0,
+      in_room: 0,
+      disconnected: 0,
+      left: 0,
+    };
+    for (const p of participants) {
+      if (p.role === 'host') c.host += 1;
+      else if (p.role === 'cohost') c.cohost += 1;
+      if (p.state === 'in_main_room') c.in_main_room += 1;
+      else if (p.state === 'in_room') c.in_room += 1;
+      else if (p.state === 'disconnected') c.disconnected += 1;
+      else if (p.state === 'left') c.left += 1;
+    }
+    return c;
+  }, [participants]);
+
+  const visibleParticipants = useMemo(() => {
+    if (filter === 'all') return participants;
+    return participants.filter((p) => p.state === filter);
+  }, [participants, filter]);
+
+  const moveTargetUser = participants.find((p) => p.userId === moveTargetUserId) || null;
+  const activeRoomsForMove = rooms.filter((r) => r.status === 'active');
+
+  if (!open) return null;
+
+  // ── Action wiring ─────────────────────────────────────────────────────
+  const makeCohost = (userId: string) =>
+    runLocked(`make_cohost:${userId}`, () => {
+      socket?.emit('host:assign_cohost', { sessionId, userId, role: 'co_host' });
+    });
+  const removeCohost = (userId: string) =>
+    runLocked(`remove_cohost:${userId}`, () => {
+      socket?.emit('host:remove_cohost', { sessionId, userId });
+    });
+  const reassign = (userId: string) =>
+    runLocked(`reassign:${userId}`, () => {
+      if (!confirm('Pull this person out of their current spot and re-match them?')) return;
+      socket?.emit('host:reassign', { sessionId, participantId: userId });
+    });
+  const kick = (userId: string, displayName: string) =>
+    runLocked(`kick:${userId}`, () => {
+      if (!confirm(`Remove ${displayName} from the event? They'll be disconnected immediately.`)) return;
+      socket?.emit('host:remove_participant', { sessionId, userId, reason: 'host_removed' });
+    });
+  const moveToRoom = (userId: string, targetMatchId: string) =>
+    runLocked(`move_to_room:${userId}`, () => {
+      socket?.emit('host:move_to_room', { sessionId, userId, targetMatchId });
+      setMoveTargetUserId(null);
+    });
+  const extendRoom = (matchId: string) =>
+    runLocked(`extend_room:${matchId}`, () => {
+      socket?.emit('host:extend_breakout_room' as any, { sessionId, matchId, additionalSeconds: 120 });
+    });
+
+  return (
+    <div className="fixed inset-0 z-40 flex">
+      {/* Backdrop */}
+      <div
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+
+      {/* Drawer panel — right side, takes 90%+ on small screens */}
+      <div className="relative ml-auto w-full sm:max-w-3xl lg:max-w-5xl bg-white shadow-2xl h-full overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-5 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Users className="h-4 w-4 text-rsn-red" />
+            <h2 className="text-base font-semibold text-gray-900">Host Control Center</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+            aria-label="Close Control Center"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Counts row */}
+        <div className="border-b border-gray-200 bg-gray-50 px-5 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <CountChip
+              label="All"
+              count={counts.total}
+              active={filter === 'all'}
+              onClick={() => setFilter('all')}
+            />
+            <CountChip
+              label="In main room"
+              count={counts.in_main_room}
+              active={filter === 'in_main_room'}
+              onClick={() => setFilter('in_main_room')}
+              tone="blue"
+            />
+            <CountChip
+              label="In a room"
+              count={counts.in_room}
+              active={filter === 'in_room'}
+              onClick={() => setFilter('in_room')}
+              tone="emerald"
+            />
+            <CountChip
+              label="Disconnected"
+              count={counts.disconnected}
+              active={filter === 'disconnected'}
+              onClick={() => setFilter('disconnected')}
+              tone="red"
+            />
+            <CountChip
+              label="Left"
+              count={counts.left}
+              active={filter === 'left'}
+              onClick={() => setFilter('left')}
+              tone="gray"
+            />
+            <span className="ml-auto text-[11px] text-gray-500 flex items-center gap-1">
+              <Crown className="h-3 w-3 text-amber-500" />
+              {counts.host} host · {counts.cohost} co-host{counts.cohost !== 1 ? 's' : ''}
+            </span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-0">
+          {/* Participants list */}
+          <div className="lg:col-span-2 border-r border-gray-200 min-h-[300px]">
+            <div className="px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 flex items-center gap-1.5">
+              <Filter className="h-3 w-3" /> {STATE_LABEL[filter]}
+              <span className="text-gray-400 normal-case font-normal">
+                ({visibleParticipants.length})
+              </span>
+            </div>
+            {visibleParticipants.length === 0 ? (
+              <div className="px-5 py-8 text-center text-sm text-gray-500">
+                No participants in this view.
+              </div>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {visibleParticipants.map((p) => (
+                  <li key={p.userId} className="px-5 py-3 hover:bg-gray-50">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <RoleBadge role={p.role} />
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-gray-900 truncate">
+                            {p.displayName}
+                            {p.userId === hostUserId && (
+                              <span className="ml-1.5 text-[10px] uppercase tracking-wide text-amber-600">
+                                you
+                              </span>
+                            )}
+                          </div>
+                          {p.email && (
+                            <div className="text-xs text-gray-500 truncate">{p.email}</div>
+                          )}
+                          <StateBadge state={p.state} matchId={p.currentMatchId} />
+                        </div>
+                      </div>
+                      {p.userId !== hostUserId && (
+                        <RowActions
+                          isCohost={p.role === 'cohost'}
+                          state={p.state}
+                          onMakeCohost={() => makeCohost(p.userId)}
+                          onRemoveCohost={() => removeCohost(p.userId)}
+                          onReassign={() => reassign(p.userId)}
+                          onMoveToRoom={() => setMoveTargetUserId(p.userId)}
+                          onKick={() => kick(p.userId, p.displayName)}
+                          activeRoomsAvailable={activeRoomsForMove.length > 0}
+                        />
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Rooms pane */}
+          <div className="bg-gray-50 min-h-[300px]">
+            <div className="px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 flex items-center gap-1.5">
+              <DoorOpen className="h-3 w-3" /> Rooms ({activeRoomsForMove.length})
+            </div>
+            {activeRoomsForMove.length === 0 ? (
+              <div className="px-5 py-8 text-center text-sm text-gray-500">
+                No active rooms.
+              </div>
+            ) : (
+              <ul className="px-3 pb-4 space-y-2">
+                {activeRoomsForMove.map((r) => (
+                  <li
+                    key={r.matchId}
+                    className="bg-white rounded-lg border border-gray-200 p-3"
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="text-xs font-medium text-gray-700 flex items-center gap-1.5">
+                        {r.isManual ? (
+                          <span className="text-purple-600">Manual</span>
+                        ) : (
+                          <span className="text-emerald-600">Algorithm</span>
+                        )}
+                        <span className="text-gray-400">·</span>
+                        <span>{r.participants.length} people</span>
+                        {r.isTrio && (
+                          <span className="text-[10px] bg-blue-100 text-blue-700 rounded px-1.5 py-0.5">
+                            Trio
+                          </span>
+                        )}
+                      </div>
+                      {r.isManual && (
+                        <button
+                          onClick={() => extendRoom(r.matchId)}
+                          className="text-[11px] text-gray-500 hover:text-emerald-700 flex items-center gap-1"
+                          title="Add 2 minutes to this room"
+                        >
+                          <RefreshCw className="h-3 w-3" /> +2 min
+                        </button>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      {r.participants.map((rp) => (
+                        <div
+                          key={rp.userId}
+                          className="flex items-center gap-2 text-xs text-gray-700"
+                        >
+                          {rp.isConnected ? (
+                            <Wifi className="h-3 w-3 text-emerald-500 shrink-0" />
+                          ) : (
+                            <WifiOff className="h-3 w-3 text-red-500 shrink-0" />
+                          )}
+                          <span className="truncate">{rp.displayName}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        {/* Move-to-room sub-modal */}
+        {moveTargetUser && (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+            onClick={() => setMoveTargetUserId(null)}
+          >
+            <div
+              className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-5"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-base font-semibold text-gray-900 mb-1">
+                Move {moveTargetUser.displayName} to a room
+              </h3>
+              <p className="text-xs text-gray-500 mb-3">
+                The current room they're in (if any) will end immediately for them.
+              </p>
+              {activeRoomsForMove.length === 0 ? (
+                <p className="text-sm text-gray-500 py-4 text-center">
+                  No active rooms to move into.
+                </p>
+              ) : (
+                <ul className="space-y-1.5 max-h-64 overflow-y-auto">
+                  {activeRoomsForMove
+                    .filter((r) => !r.participants.some((rp) => rp.userId === moveTargetUserId))
+                    .map((r) => (
+                      <li key={r.matchId}>
+                        <button
+                          onClick={() => moveToRoom(moveTargetUser.userId, r.matchId)}
+                          className="w-full text-left px-3 py-2 rounded-lg border border-gray-200 hover:border-emerald-400 hover:bg-emerald-50 text-sm transition-colors flex items-center justify-between"
+                        >
+                          <span className="truncate text-gray-800">
+                            {r.participants.map((rp) => rp.displayName).join(', ')}
+                          </span>
+                          <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
+                        </button>
+                      </li>
+                    ))}
+                </ul>
+              )}
+              <div className="flex justify-end mt-4">
+                <Button size="sm" variant="ghost" onClick={() => setMoveTargetUserId(null)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Sub-components ──────────────────────────────────────────────────────────
+
+function CountChip({
+  label,
+  count,
+  active,
+  onClick,
+  tone = 'gray',
+}: {
+  label: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+  tone?: 'gray' | 'blue' | 'emerald' | 'red';
+}) {
+  const inactiveClass =
+    tone === 'blue'
+      ? 'border-blue-200 text-blue-700'
+      : tone === 'emerald'
+      ? 'border-emerald-200 text-emerald-700'
+      : tone === 'red'
+      ? 'border-red-200 text-red-700'
+      : 'border-gray-200 text-gray-700';
+  const activeClass =
+    tone === 'blue'
+      ? 'bg-blue-100 border-blue-400 text-blue-800'
+      : tone === 'emerald'
+      ? 'bg-emerald-100 border-emerald-400 text-emerald-800'
+      : tone === 'red'
+      ? 'bg-red-100 border-red-400 text-red-800'
+      : 'bg-gray-200 border-gray-400 text-gray-900';
+  return (
+    <button
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium transition-colors ${
+        active ? activeClass : inactiveClass + ' hover:bg-gray-50'
+      }`}
+    >
+      {label}
+      <span
+        className={`px-1.5 py-px rounded-full text-[10px] font-semibold bg-white/70 ${
+          active ? 'text-gray-900' : 'text-gray-700'
+        }`}
+      >
+        {count}
+      </span>
+    </button>
+  );
+}
+
+function RoleBadge({ role }: { role: 'host' | 'cohost' | 'participant' }) {
+  if (role === 'host') {
+    return (
+      <div
+        className="h-8 w-8 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center shrink-0"
+        title="Host — runs the event, generates rounds, ends the session"
+      >
+        <Crown className="h-4 w-4" />
+      </div>
+    );
+  }
+  if (role === 'cohost') {
+    // Phase 7C.2 — permissions tooltip on hover (Stefan #7 UX half).
+    // Cohosts can: see the Control Center, run breakout rooms, broadcast
+    // announcements. They CANNOT: end the session, change session config.
+    // Excluded from matching by default.
+    return (
+      <div
+        className="h-8 w-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center shrink-0"
+        title="Co-host — can run rounds, manage breakouts, broadcast. Excluded from matching."
+      >
+        <Shield className="h-4 w-4" />
+      </div>
+    );
+  }
+  return (
+    <div className="h-8 w-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center shrink-0">
+      <UserIcon className="h-4 w-4" />
+    </div>
+  );
+}
+
+function StateBadge({
+  state,
+  matchId,
+}: {
+  state: 'in_main_room' | 'in_room' | 'disconnected' | 'left';
+  matchId: string | null;
+}) {
+  const map: Record<typeof state, { label: string; cls: string; Icon: any }> = {
+    in_main_room: {
+      label: 'In main room',
+      cls: 'bg-blue-50 text-blue-700 border-blue-200',
+      Icon: Sofa,
+    },
+    in_room: {
+      label: matchId ? `In a room` : 'In a room',
+      cls: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      Icon: DoorOpen,
+    },
+    disconnected: {
+      label: 'Disconnected',
+      cls: 'bg-red-50 text-red-700 border-red-200',
+      Icon: WifiOff,
+    },
+    left: {
+      label: 'Left',
+      cls: 'bg-gray-100 text-gray-600 border-gray-200',
+      Icon: AlertTriangle,
+    },
+  };
+  const { label, cls, Icon } = map[state];
+  return (
+    <span
+      className={`mt-1 inline-flex items-center gap-1 text-[11px] border rounded-full px-2 py-0.5 ${cls}`}
+    >
+      <Icon className="h-3 w-3" /> {label}
+    </span>
+  );
+}
+
+function RowActions({
+  isCohost,
+  state,
+  onMakeCohost,
+  onRemoveCohost,
+  onReassign,
+  onMoveToRoom,
+  onKick,
+  activeRoomsAvailable,
+}: {
+  isCohost: boolean;
+  state: 'in_main_room' | 'in_room' | 'disconnected' | 'left';
+  onMakeCohost: () => void;
+  onRemoveCohost: () => void;
+  onReassign: () => void;
+  onMoveToRoom: () => void;
+  onKick: () => void;
+  activeRoomsAvailable: boolean;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+      {state !== 'left' && state !== 'disconnected' && (
+        isCohost ? (
+          <ActionButton onClick={onRemoveCohost} title="Remove co-host role">
+            Remove co-host
+          </ActionButton>
+        ) : (
+          <ActionButton onClick={onMakeCohost} title="Make this person a co-host">
+            Make co-host
+          </ActionButton>
+        )
+      )}
+      {state === 'in_room' && (
+        <ActionButton onClick={onReassign} title="Pull out of current room and re-match">
+          Re-match
+        </ActionButton>
+      )}
+      {state !== 'left' && activeRoomsAvailable && (
+        <ActionButton onClick={onMoveToRoom} title="Force into a specific active room">
+          Move to room…
+        </ActionButton>
+      )}
+      {state !== 'left' && (
+        <ActionButton onClick={onKick} title="Remove from the event" tone="danger">
+          Kick
+        </ActionButton>
+      )}
+    </div>
+  );
+}
+
+function ActionButton({
+  onClick,
+  children,
+  title,
+  tone = 'normal',
+}: {
+  onClick: () => void;
+  children: React.ReactNode;
+  title?: string;
+  tone?: 'normal' | 'danger';
+}) {
+  const cls =
+    tone === 'danger'
+      ? 'border-red-200 text-red-700 hover:bg-red-50'
+      : 'border-gray-200 text-gray-700 hover:bg-gray-50';
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${cls}`}
+    >
+      {children}
+    </button>
+  );
+}
