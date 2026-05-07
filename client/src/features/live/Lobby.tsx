@@ -1,4 +1,4 @@
-import { Users, Loader2, Video, VideoOff, Sparkles, ChevronDown, ChevronUp, Mic, MicOff, Volume2, VolumeX, UserX, Camera } from 'lucide-react';
+import { Users, Loader2, Video, VideoOff, Sparkles, ChevronDown, ChevronUp, Mic, MicOff, Volume2, VolumeX, UserX, Camera, X } from 'lucide-react';
 import HostRoundDashboard from './HostRoundDashboard';
 
 // Lazy-load track processors (may not be available in all environments)
@@ -421,43 +421,73 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
           BG
         </button>
         {showBgPanel && (
-          <div className="absolute bottom-full right-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-200 p-2 w-56 z-50">
-            <p className="text-[10px] font-semibold text-gray-400 uppercase mb-1.5 px-1">Background</p>
-            <div className="grid grid-cols-3 gap-1.5">
-              {[
-                { label: 'None', mode: 'disabled' },
-                { label: 'Blur', mode: 'blur' },
-                { label: 'Office', mode: 'office', img: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=200&q=60' },
-                { label: 'Nature', mode: 'nature', img: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=200&q=60' },
-                { label: 'City', mode: 'city', img: 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=200&q=60' },
-                { label: 'Abstract', mode: 'abstract', img: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=200&q=60' },
-              ].map(preset => (
-                <button key={preset.mode} onClick={async () => {
-                  try {
-                    const mod = await loadBgProcessors();
-                    if (!mod) { console.error('Background processors not available'); return; }
-                    // T2-6 (Issue 15) — Track.Source enum (was string 'camera' = always undefined → silent no-op)
-                    const camPub = Array.from(localParticipant.trackPublications.values()).find(p => p.source === Track.Source.Camera);
-                    const camTrack = camPub?.track;
-                    if (!camTrack) return;
-                    await (camTrack as any).stopProcessor?.();
-                    if (preset.mode === 'disabled') { setBgMode('disabled'); }
-                    // T2-6 — bumped blur strength 10 → 25 for visible effect
-                    else if (preset.mode === 'blur') { await (camTrack as any).setProcessor(mod.BackgroundBlur(25)); setBgMode('blur'); }
-                    else if (preset.img) { await (camTrack as any).setProcessor(mod.VirtualBackground(preset.img.replace('w=200', 'w=1280'))); setBgMode(preset.mode); }
-                  } catch (err) { console.error('BG effect failed:', err); }
-                  setShowBgPanel(false);
-                }}
-                className={`rounded-lg border-2 overflow-hidden ${bgMode === preset.mode ? 'border-rsn-red' : 'border-gray-200 hover:border-gray-400'}`}>
-                  {preset.img ? (
-                    <img src={preset.img} alt={preset.label} className="w-full h-10 object-cover" />
-                  ) : (
-                    <div className={`w-full h-10 flex items-center justify-center text-[10px] font-medium ${preset.mode === 'disabled' ? 'bg-gray-100 text-gray-500' : 'bg-indigo-50 text-indigo-600'}`}>{preset.label}</div>
-                  )}
+          // Phase 7-audit fix — was `absolute bottom-full right-0` inside the
+          // camera tile which has `overflow-hidden` for rounded corners,
+          // clipping the popup ("ACKGROUND" with the B cut off + bottom
+          // overlap with control bar). Now: viewport-fixed centered card
+          // on desktop, full-width bottom sheet on mobile. Click-out + Esc
+          // both close. Same UX pattern as the Invite / Room modals.
+          <>
+            <div
+              className="fixed inset-0 z-50 bg-black/30 backdrop-blur-sm"
+              onClick={() => setShowBgPanel(false)}
+              aria-hidden="true"
+            />
+            <div
+              role="dialog"
+              aria-label="Choose background"
+              className="fixed z-50 left-1/2 -translate-x-1/2 bottom-0 sm:bottom-auto sm:top-1/2 sm:-translate-y-1/2 w-full sm:w-[28rem] max-w-[95vw] bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl border-t sm:border border-gray-200 p-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-semibold text-gray-900">Background</p>
+                <button
+                  onClick={() => setShowBgPanel(false)}
+                  className="text-gray-400 hover:text-gray-700 p-1 -m-1 rounded"
+                  aria-label="Close"
+                >
+                  <X className="h-4 w-4" />
                 </button>
-              ))}
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { label: 'None', mode: 'disabled' },
+                  { label: 'Blur', mode: 'blur' },
+                  { label: 'Office', mode: 'office', img: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=200&q=60' },
+                  { label: 'Nature', mode: 'nature', img: 'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=200&q=60' },
+                  { label: 'City', mode: 'city', img: 'https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=200&q=60' },
+                  { label: 'Abstract', mode: 'abstract', img: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=200&q=60' },
+                ].map(preset => (
+                  <button key={preset.mode} onClick={async () => {
+                    try {
+                      const mod = await loadBgProcessors();
+                      if (!mod) { console.error('Background processors not available'); return; }
+                      // T2-6 (Issue 15) — Track.Source enum (was string 'camera' = always undefined → silent no-op)
+                      const camPub = Array.from(localParticipant.trackPublications.values()).find(p => p.source === Track.Source.Camera);
+                      const camTrack = camPub?.track;
+                      if (!camTrack) return;
+                      await (camTrack as any).stopProcessor?.();
+                      if (preset.mode === 'disabled') { setBgMode('disabled'); }
+                      // T2-6 — bumped blur strength 10 → 25 for visible effect
+                      else if (preset.mode === 'blur') { await (camTrack as any).setProcessor(mod.BackgroundBlur(25)); setBgMode('blur'); }
+                      else if (preset.img) { await (camTrack as any).setProcessor(mod.VirtualBackground(preset.img.replace('w=200', 'w=1280'))); setBgMode(preset.mode); }
+                    } catch (err) { console.error('BG effect failed:', err); }
+                    setShowBgPanel(false);
+                  }}
+                  className={`rounded-lg border-2 overflow-hidden transition-colors ${bgMode === preset.mode ? 'border-rsn-red ring-2 ring-rsn-red/20' : 'border-gray-200 hover:border-gray-400'}`}>
+                    {preset.img ? (
+                      <div className="relative">
+                        <img src={preset.img} alt={preset.label} className="w-full h-20 object-cover" />
+                        <span className="absolute bottom-0 inset-x-0 bg-black/50 text-white text-[10px] font-medium py-0.5 text-center">{preset.label}</span>
+                      </div>
+                    ) : (
+                      <div className={`w-full h-20 flex items-center justify-center text-xs font-medium ${preset.mode === 'disabled' ? 'bg-gray-100 text-gray-600' : 'bg-indigo-50 text-indigo-600'}`}>{preset.label}</div>
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          </>
         )}
       </div>
       {isHost && sessionId && (

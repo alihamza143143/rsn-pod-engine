@@ -349,8 +349,20 @@ export async function handleJoinSession(
         logger.warn({ err: stateErr }, 'Failed to send initial session state');
       }
 
-      // If host reconnects during an active round, re-send the round dashboard
-      if (isHost && activeSession && (activeSession.status === SessionStatus.ROUND_ACTIVE || activeSession.status === SessionStatus.ROUND_RATING)) {
+      // Phase 7-audit fix — also emit the dashboard in LOBBY_OPEN /
+      // ROUND_TRANSITION / CLOSING_LOBBY so the host's Control Center
+      // drawer has its participants list before any round starts. The
+      // rooms / byeParticipants stay empty in those states; the
+      // participants array (synthesized host + cohorts + registered
+      // users) is what the drawer relies on.
+      const hostDashboardStates = activeSession ? [
+        SessionStatus.LOBBY_OPEN,
+        SessionStatus.ROUND_ACTIVE,
+        SessionStatus.ROUND_RATING,
+        SessionStatus.ROUND_TRANSITION,
+        SessionStatus.CLOSING_LOBBY,
+      ].includes(activeSession.status) : false;
+      if (isHost && activeSession && hostDashboardStates) {
         try {
           const getName = async (uid: string) => {
             const r = await query<{ display_name: string }>('SELECT display_name FROM users WHERE id = $1', [uid]);
