@@ -1,6 +1,6 @@
 import { useSessionStore } from '@/stores/sessionStore';
 import { Button } from '@/components/ui/Button';
-import { Play, Square, Loader2, Users, Radio, Shuffle, Check, X, Pause, SkipForward, MessageSquare, UserMinus, RefreshCw, UserPlus, AlertTriangle, CheckCircle2, Clock, LayoutDashboard } from 'lucide-react';
+import { Play, Square, Loader2, Users, Radio, Shuffle, Check, X, Pause, SkipForward, MessageSquare, UserMinus, RefreshCw, UserPlus, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
 import { getSocket } from '@/lib/socket';
 import { useState } from 'react';
 import EventPlanStrip from './EventPlanStrip';
@@ -243,6 +243,7 @@ export default function HostControls({ sessionId }: Props) {
           sessionId={sessionId}
           open={showControlCenter}
           onClose={() => setShowControlCenter(false)}
+          onOpen={() => setShowControlCenter(true)}
           onOpenInvite={() => setShowInviteModal(true)}
           onOpenRoomCreate={() => { setShowRoomModal(true); setRoomRows([new Set()]); }}
           onOpenBroadcast={() => setShowBroadcast(true)}
@@ -250,7 +251,7 @@ export default function HostControls({ sessionId }: Props) {
           onBulkEnd={bulkEndAll}
           onBulkSetDuration={() => setBulkDurationEdit(true)}
           bulkActionsAvailable={hasActiveManualRooms}
-          inviteAvailable={sessionStatus === 'lobby_open' || sessionStatus === 'round_transition'}
+          inviteAvailable={sessionStarted}
         />
         {/* Announcement input — available in wrapping-up state */}
         {showBroadcast && (
@@ -284,9 +285,10 @@ export default function HostControls({ sessionId }: Props) {
               <Button size="sm" variant="ghost" onClick={() => setShowBroadcast(!showBroadcast)} title="Send announcement to all">
                 <MessageSquare className="h-4 w-4" />
               </Button>
-              <Button size="sm" variant="secondary" onClick={() => setShowControlCenter(true)} title="Open Host Control Center">
-                <LayoutDashboard className="h-4 w-4 mr-1" /> Control Center
-              </Button>
+              {/* 8 May iter — duplicate Control Center button removed.
+                  The persistent red FAB (bottom-right of the page,
+                  rendered by HostControlCenter when closed) is the only
+                  entry point now. */}
               <Button size="sm" onClick={() => {
                 // Bug 9 (April 19) — Another Round must follow the same flow as
                 // Round 1/2: Match People → preview → confirm → Start Round.
@@ -911,12 +913,9 @@ export default function HostControls({ sessionId }: Props) {
                 into Control Center > Actions tab. The host now manages
                 the event from ONE operational surface. */}
 
-            {/* Phase 7C.1 — Host Control Center toggle (Stefan #3 + #11) */}
-            {sessionStarted && (
-              <Button size="sm" variant="secondary" onClick={() => setShowControlCenter(true)} title="Open Host Control Center">
-                <LayoutDashboard className="h-4 w-4 mr-1" /> Control Center
-              </Button>
-            )}
+            {/* 8 May iter — Control Center button removed from the host
+                bar. The persistent red FAB (bottom-right, owned by the
+                HostControlCenter component) is the only way to open it. */}
 
             <Button size="sm" variant="danger" onClick={endEvent}>
               <Square className="h-4 w-4 mr-1" /> End Event

@@ -89,6 +89,10 @@ interface Props {
   sessionId: string;
   open: boolean;
   onClose: () => void;
+  // 8 May iter — onOpen lets the persistent red FAB (rendered when the
+  // panel is closed) raise `open` back to the parent without the host
+  // bar needing its own duplicate Control Center button.
+  onOpen?: () => void;
   // Phase 8C.1 (8 May spec) — Stefan #5: secondary actions live here now
   // instead of cluttering the main host bar. HostControls passes these
   // callbacks; HCC renders the "Actions" strip that triggers them.
@@ -121,6 +125,7 @@ export default function HostControlCenter({
   sessionId,
   open,
   onClose,
+  onOpen,
   onOpenInvite,
   onOpenRoomCreate,
   onOpenBroadcast,
@@ -219,7 +224,22 @@ export default function HostControlCenter({
   const moveTargetUser = participants.find((p) => p.userId === moveTargetUserId) || null;
   const activeRoomsForMove = rooms.filter((r) => r.status === 'active');
 
-  if (!open) return null;
+  // 8 May iter — when the panel is closed, render a persistent red FAB
+  // bottom-right so the host always has ONE obvious entry point. Removes
+  // the duplicate Control Center button that used to live in the host bar.
+  // Positioned above the host action bar + EVENT PLAN strip so it doesn't
+  // collide with their controls.
+  if (!open) {
+    return (
+      <button
+        onClick={onOpen}
+        className="fixed bottom-44 right-4 z-40 flex items-center gap-2 bg-rsn-red text-white rounded-full shadow-lg px-4 py-2 text-sm font-medium hover:opacity-90 transition-opacity"
+        aria-label="Open Host Control Center"
+      >
+        <Users className="h-4 w-4" /> Control Center
+      </button>
+    );
+  }
 
   // ── Action wiring ─────────────────────────────────────────────────────
   const makeCohost = (userId: string) =>
