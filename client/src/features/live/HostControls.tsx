@@ -330,6 +330,14 @@ export default function HostControls({ sessionId }: Props) {
         sessionId={sessionId}
         open={showControlCenter}
         onClose={() => setShowControlCenter(false)}
+        onOpenInvite={() => setShowInviteModal(true)}
+        onOpenRoomCreate={() => { setShowRoomModal(true); setRoomRows([new Set()]); }}
+        onOpenBroadcast={() => setShowBroadcast(true)}
+        onBulkExtend={bulkExtendAll}
+        onBulkEnd={bulkEndAll}
+        onBulkSetDuration={() => setBulkDurationEdit(true)}
+        bulkActionsAvailable={hasActiveManualRooms}
+        inviteAvailable={sessionStarted}
       />
       {/* Phase 3 — pre-event plan visibility for the host. Shows when a plan
           exists (event has started). Auto-hides for non-host viewers via
