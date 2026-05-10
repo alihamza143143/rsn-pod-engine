@@ -25,6 +25,8 @@ const SOCKET_EVENTS = [
   // co-host's UI gains host buttons immediately, without waiting for the
   // 30s session:state re-sync.
   'permissions:updated',
+  // Phase G (10 May spec item 11) — host visibility mode change broadcast.
+  'host:visibility_changed',
 ] as const;
 
 // ── LiveKit token fetch with retry ──
@@ -143,11 +145,21 @@ export default function useSessionSocket(sessionId: string) {
       if (data.timerVisibility) store.setTimerVisibility(data.timerVisibility);
       if (data.cohosts) store.setCohosts(data.cohosts);
       if (data.testMode !== undefined) store.setTestMode(data.testMode);
+      // Phase G (10 May spec item 11) — apply per-user host visibility modes
+      // from the authoritative snapshot. Server emits this in session:state.
+      if (data.hostVisibilityModes && typeof data.hostVisibilityModes === 'object') {
+        store.setHostVisibilityModes(data.hostVisibilityModes);
+      }
     });
 
     // ── Co-host ──
     socket.on('cohost:assigned', (data: any) => { store.addCohost(data.userId); });
     socket.on('cohost:removed', (data: any) => { store.removeCohost(data.userId); });
+
+    // ── Phase G (10 May spec item 11) — host visibility mode ──
+    socket.on('host:visibility_changed', (data: any) => {
+      if (data?.userId && data?.mode) store.setHostVisibility(data.userId, data.mode);
+    });
 
     // Phase 8B.1 (8 May spec) — Stefan #4 + #9: a newly-promoted/demoted
     // co-host's UI must reflect their new role immediately, not after

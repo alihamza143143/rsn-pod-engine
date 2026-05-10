@@ -1665,6 +1665,87 @@ export function setHostActionsIo(io: SocketServer): void {
   _io = io;
 }
 
+// ─── Host Visibility Mode (Phase G — 10 May spec item 11) ──────────────────
+//
+// Modes: big_speaker | normal | producer | hidden.
+//
+// Rules
+//   • Caller must be able to act as host (verifyHost / canActAsHost — so
+//     original host, co-hosts, and admins/super-admins can all change any
+//     host's mode).
+//   • Target must be either the session's original host (sessions.host_user_id)
+//     or an active session_cohosts row. Anyone else → 400.
+//   • Persisted on the right column (sessions.host_visibility_mode for the
+//     original host, session_cohosts.visibility_mode for co-hosts).
+//   • Broadcast `host:visibility_changed { userId, mode }` to the session
+//     room so all clients can re-render the lobby/video tiles. Hidden hosts
+//     are filtered out client-side; big_speaker hosts are pinned big.
+
+export type HostVisibilityMode = 'big_speaker' | 'normal' | 'producer' | 'hidden';
+
+const VISIBILITY_MODES: HostVisibilityMode[] = ['big_speaker', 'normal', 'producer', 'hidden'];
+
+export function isHostVisibilityMode(v: unknown): v is HostVisibilityMode {
+  return typeof v === 'string' && (VISIBILITY_MODES as string[]).includes(v);
+}
+
+export async function setHostVisibility(
+  sessionId: string,
+  requesterUserId: string,
+  requesterRole: UserRole | undefined,
+  targetUserId: string,
+  mode: HostVisibilityMode,
+): Promise<{ userId: string; mode: HostVisibilityMode }> {
+  // Auth: caller must be able to act as host.
+  const { canActAsHost } = await import('../../roles/effective-role.service');
+  const { allowed } = await canActAsHost(requesterUserId, requesterRole, sessionId);
+  if (!allowed) {
+    throw new ForbiddenError('Only hosts, co-hosts, or admins can set visibility');
+  }
+  if (!isHostVisibilityMode(mode)) {
+    throw new ValidationError(`Invalid visibility mode: ${String(mode)}`);
+  }
+
+  const session = await sessionService.getSessionById(sessionId);
+  let updated = false;
+
+  if (session.hostUserId === targetUserId) {
+    await query(
+      `UPDATE sessions SET host_visibility_mode = $1::host_visibility_mode WHERE id = $2`,
+      [mode, sessionId],
+    );
+    updated = true;
+  } else {
+    const cohost = await query<{ id: string }>(
+      `SELECT id FROM session_cohosts WHERE session_id = $1 AND user_id = $2`,
+      [sessionId, targetUserId],
+    );
+    if (cohost.rows.length > 0) {
+      await query(
+        `UPDATE session_cohosts SET visibility_mode = $1::host_visibility_mode
+          WHERE session_id = $2 AND user_id = $3`,
+        [mode, sessionId, targetUserId],
+      );
+      updated = true;
+    }
+  }
+
+  if (!updated) {
+    throw new ValidationError('Target user is not a host or co-host of this session');
+  }
+
+  if (_io) {
+    _io.to(sessionRoom(sessionId)).emit('host:visibility_changed', {
+      sessionId,
+      userId: targetUserId,
+      mode,
+    });
+  }
+
+  logger.info({ sessionId, targetUserId, mode, requesterUserId }, 'Host visibility mode updated');
+  return { userId: targetUserId, mode };
+}
+
 export async function startSession(sessionId: string, hostUserId: string): Promise<void> {
   const session = await sessionService.getSessionById(sessionId);
   if (session.hostUserId !== hostUserId) {

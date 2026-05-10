@@ -115,6 +115,8 @@ export interface ServerToClientEvents {
   // promoted). Lets the client re-render host-only controls without
   // polling or refresh.
   'permissions:updated': (data: { sessionId: string; effectiveRole: 'pod_admin' | 'event_host' | 'cohost' | 'participant'; capabilities: string[] }) => void;
+  // Phase G (10 May spec item 11) — host or co-host visibility mode changed.
+  'host:visibility_changed': (data: { sessionId: string; userId: string; mode: 'big_speaker' | 'normal' | 'producer' | 'hidden' }) => void;
 
   // Reactions
   'reaction:received': (data: { userId: string; displayName: string; type: string; timestamp: string }) => void;

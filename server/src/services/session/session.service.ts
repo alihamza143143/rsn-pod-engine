@@ -18,7 +18,9 @@ const SESSION_COLUMNS = `
   id, pod_id AS "podId", title, description, scheduled_at AS "scheduledAt",
   started_at AS "startedAt", ended_at AS "endedAt", status,
   current_round AS "currentRound", config, host_user_id AS "hostUserId",
-  lobby_room_id AS "lobbyRoomId", created_at AS "createdAt", updated_at AS "updatedAt"
+  lobby_room_id AS "lobbyRoomId",
+  host_visibility_mode AS "hostVisibilityMode",
+  created_at AS "createdAt", updated_at AS "updatedAt"
 `;
 
 const PARTICIPANT_COLUMNS = `

@@ -33,6 +33,7 @@ import {
   handleHostMoveToRoom, handleAssignCohost, handleRemoveCohost, handlePromoteCohost, handleHostExtendRound,
   handleHostExtendBreakoutRoom, handleHostCreateBreakout,
   startSession, pauseSession, resumeSession, endSession, broadcastMessage,
+  setHostVisibility,
   setHostActionsIo, injectHostActionDeps,
 } from './handlers/host-actions';
 
@@ -356,6 +357,7 @@ export function getActiveSessionState(sessionId: string): {
 
 // ── Public API Re-exports ──────────────────────────────────────────────────
 
-export { startSession, pauseSession, resumeSession, endSession, broadcastMessage };
+export { startSession, pauseSession, resumeSession, endSession, broadcastMessage, setHostVisibility };
+export type { HostVisibilityMode } from './handlers/host-actions';
 export { notifyRatingSubmitted };
 export { getActiveSessionCount } from './state/session-state';

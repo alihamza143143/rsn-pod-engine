@@ -343,6 +343,10 @@ export async function handleJoinSession(
             // Phase 5B (5 May spec) — surface test-mode flag for the host
             // banner. Heuristic-or-explicit detection happens server-side.
             testMode: snapshot.testMode,
+            // Phase G (10 May spec item 11) — per-host visibility modes for
+            // cold-start (page reload) so the client renders the right
+            // tile arrangement without waiting for a host:visibility_changed.
+            hostVisibilityModes: snapshot.hostVisibilityModes,
           });
         }
       } catch (stateErr) {

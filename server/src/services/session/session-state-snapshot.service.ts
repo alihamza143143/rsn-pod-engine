@@ -62,6 +62,15 @@ export interface SessionStateSnapshot {
   timerVisibility: string;
 
   /**
+   * Phase G (10 May spec item 11) — visibility mode per host/co-host.
+   * Map of userId → mode (`big_speaker` | `normal` | `producer` | `hidden`).
+   * Absent users default to `normal`. Lets the client render the right
+   * tile arrangement on cold-start (page refresh) without waiting for a
+   * `host:visibility_changed` socket event.
+   */
+  hostVisibilityModes: Record<string, string>;
+
+  /**
    * Phase 5B (5 May spec) — test-mode flag. Stefan's #2: when the host is
    * signed in across multiple accounts to test the system, display a
    * banner so it's visually clear this isn't a real production event.
@@ -119,11 +128,23 @@ export async function buildSessionStateSnapshot(
   }
 
   // ── Co-hosts ────────────────────────────────────────────────────────────
-  const cohostResult = await query<{ user_id: string }>(
-    `SELECT user_id FROM session_cohosts WHERE session_id = $1`,
+  // Phase G (10 May spec) — also pull each cohost's visibility_mode so the
+  // client renders the right tile for them on cold-start (page refresh).
+  // The original host's visibility lives on sessions.host_visibility_mode and
+  // is already pulled via SESSION_COLUMNS — no extra query needed.
+  const cohostResult = await query<{ user_id: string; visibility_mode: string }>(
+    `SELECT user_id, visibility_mode FROM session_cohosts WHERE session_id = $1`,
     [sessionId],
   );
   const cohosts = cohostResult.rows.map(r => r.user_id);
+  const hostVisibilityModes: Record<string, string> = {};
+  for (const r of cohostResult.rows) {
+    if (r.visibility_mode) hostVisibilityModes[r.user_id] = r.visibility_mode;
+  }
+  const hostMode = (session as any).hostVisibilityMode as string | undefined;
+  if (session.hostUserId && hostMode) {
+    hostVisibilityModes[session.hostUserId] = hostMode;
+  }
 
   // ── T1-4 — three canonical counts ────────────────────────────────────
   // Registered: all session_participants rows with non-ghost statuses,
@@ -255,5 +276,6 @@ export async function buildSessionStateSnapshot(
 
     timerVisibility: (config as any).timerVisibility || 'last_10s',
     testMode,
+    hostVisibilityModes,
   };
 }

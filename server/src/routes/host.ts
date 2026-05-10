@@ -20,6 +20,11 @@ const broadcastSchema = z.object({
   message: z.string().min(1).max(2000),
 });
 
+const visibilitySchema = z.object({
+  userId: z.string().uuid(),
+  mode: z.enum(['big_speaker', 'normal', 'producer', 'hidden']),
+});
+
 // ─── Host Verification Helper ───────────────────────────────────────────────
 
 async function verifyHostOrAdmin(req: Request, next: NextFunction): Promise<boolean> {
@@ -113,6 +118,34 @@ router.post(
         req.params.id, req.user!.userId, req.body.message
       );
       res.json({ success: true, data: { message: 'Broadcast sent' } });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// ─── POST /sessions/:id/host/visibility — set host or co-host visibility ───
+//
+// Phase G (10 May spec item 11) — host visibility mode. Hosts and co-hosts
+// can choose how they appear in the live event: big_speaker | normal |
+// producer | hidden. Permission goes through canActAsHost (in the service)
+// so co-hosts and admins can also set modes for themselves or for the host.
+
+router.post(
+  '/:id/host/visibility',
+  authenticate,
+  validate(visibilitySchema, 'body'),
+  auditMiddleware('session:host_visibility', 'session'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const result = await orchestrationService.setHostVisibility(
+        req.params.id,
+        req.user!.userId,
+        req.user!.role,
+        req.body.userId,
+        req.body.mode,
+      );
+      res.json({ success: true, data: result });
     } catch (err) {
       next(err);
     }

@@ -118,6 +118,14 @@ interface SessionLiveState {
   testMode: boolean;
   lobbyDensity: 'compact' | 'normal' | 'spacious';
   cohosts: Set<string>;
+  /**
+   * Phase G (10 May spec item 11) — host visibility mode per host/co-host.
+   * Map of userId → 'big_speaker' | 'normal' | 'producer' | 'hidden'.
+   * Absent users default to 'normal'. Drives lobby/video tile rendering:
+   * 'hidden' users are not shown anywhere; 'producer' users are not shown
+   * in video tiles; 'big_speaker' users are pinned big when present.
+   */
+  hostVisibilityModes: Record<string, 'big_speaker' | 'normal' | 'producer' | 'hidden'>;
   leftCurrentRound: boolean;
   lastRatedRound: number;
   isPaused: boolean;
@@ -179,6 +187,8 @@ interface SessionLiveState {
   setCohosts: (userIds: string[]) => void;
   addCohost: (userId: string) => void;
   removeCohost: (userId: string) => void;
+  setHostVisibility: (userId: string, mode: 'big_speaker' | 'normal' | 'producer' | 'hidden') => void;
+  setHostVisibilityModes: (modes: Record<string, 'big_speaker' | 'normal' | 'producer' | 'hidden'>) => void;
   setLeftCurrentRound: (v: boolean) => void;
   setLastRatedRound: (r: number) => void;
   setIsPaused: (v: boolean) => void;
@@ -218,6 +228,8 @@ export interface SessionStateSnapshot {
     ghostFiltered: boolean;
   };
   timerVisibility: string;
+  /** Phase G — host/cohost visibility modes from snapshot. */
+  hostVisibilityModes?: Record<string, string>;
 }
 
 export const useSessionStore = create<SessionLiveState>((set) => ({
@@ -259,6 +271,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   preparingMatches: false,
   lobbyDensity: 'normal' as const,
   cohosts: new Set<string>(),
+  hostVisibilityModes: {},
   leftCurrentRound: false,
   lastRatedRound: 0,
   isPaused: false,
@@ -354,6 +367,10 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   setCohosts: (userIds) => set({ cohosts: new Set(userIds) }),
   addCohost: (userId) => set((s) => { const c = new Set(s.cohosts); c.add(userId); return { cohosts: c }; }),
   removeCohost: (userId) => set((s) => { const c = new Set(s.cohosts); c.delete(userId); return { cohosts: c }; }),
+  setHostVisibility: (userId, mode) => set((s) => ({
+    hostVisibilityModes: { ...s.hostVisibilityModes, [userId]: mode },
+  })),
+  setHostVisibilityModes: (modes) => set({ hostVisibilityModes: modes }),
   setLeftCurrentRound: (leftCurrentRound) => set({ leftCurrentRound }),
   setLastRatedRound: (lastRatedRound) => set({ lastRatedRound }),
   setIsPaused: (isPaused) => set({ isPaused }),
@@ -395,6 +412,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
         displayName: p.displayName,
       })),
       cohosts: new Set(snapshot.cohosts),
+      hostVisibilityModes: (snapshot.hostVisibilityModes as any) || {},
       timerVisibility: (snapshot.timerVisibility as any) || 'last_10s',
     };
   }),
@@ -420,6 +438,6 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
     eventPlanSummary: null, testMode: false,
     hostMuteCommand: null, partnerDisconnected: false, roundDashboard: null,
     chatMessages: [], unreadChatCount: 0, chatOpen: false, matchingOverlay: null, preparingMatches: false, lobbyDensity: 'normal' as const,
-    cohosts: new Set<string>(), leftCurrentRound: false, lastRatedRound: 0, isPaused: false,
+    cohosts: new Set<string>(), hostVisibilityModes: {}, leftCurrentRound: false, lastRatedRound: 0, isPaused: false,
   }),
 }));
