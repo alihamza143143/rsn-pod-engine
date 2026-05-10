@@ -46,11 +46,24 @@ describe('T2 UI polish batch', () => {
     });
   });
 
-  describe('T2-3 — responsive grid for pair vs trio', () => {
+  describe('T2-3 — responsive layout for pair vs trio (Phase E 10 May rework)', () => {
     const src = readClient('features/live/VideoRoom.tsx');
 
-    it('pair grid uses grid-cols-1 lg:grid-cols-2 (full-width on small desktop, side-by-side on lg)', () => {
-      expect(src).toMatch(/isTrio\s*\?\s*['"]grid-cols-2 lg:grid-cols-3['"]\s*:\s*['"]grid-cols-1 lg:grid-cols-2['"]/);
+    // Phase E (10 May 2026 spec) — desktop layout no longer puts the local
+    // "You" tile inside the same grid as remote tiles. That equal-size grid
+    // made users perceive themselves as the big tile (Stefan #12). The new
+    // layout: pair = single partner full-stage; trio/quad+ = remote tiles
+    // in a grid; self in both cases is a PIP overlay top-right (Google Meet
+    // / FaceTime pattern). The pair-vs-trio split now lives inside the
+    // hidden md:block branch, not as a single isTrio ternary on the grid.
+    it('desktop pair view renders the single partner full-stage (no equal-size grid with self)', () => {
+      // Pair branch: `!isTrio && remoteTracks.length === 1` → full-width partner.
+      expect(src).toMatch(/!isTrio\s*&&\s*remoteTracks\.length\s*===\s*1/);
+    });
+
+    it('desktop trio+ view renders remote partners in a 2-col grid (3-col on lg)', () => {
+      // Trio/quad branch contains a grid-cols-2 (and grid-cols-2 lg:grid-cols-3 for 3+ remotes).
+      expect(src).toMatch(/grid-cols-2\s+lg:grid-cols-3/);
     });
   });
 

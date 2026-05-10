@@ -136,12 +136,6 @@ const VideoStage = memo(function VideoStage() {
   const localTrack = cameraTracks.find(t => t.participant.sid === localParticipant.sid);
   const remoteTracks = cameraTracks.filter(t => t.participant.sid !== localParticipant.sid);
 
-  // Phase 8C.2 (8 May spec) — selector for self-tile prominence. Used
-  // below to add a subtle ring on the local participant's tile so the
-  // user can clearly identify their own camera in the desktop grid.
-  // (In 1:1 mobile, the partner stays full-screen — standard call UX.)
-  const isLocalTile = (sid: string) => sid === localParticipant.sid;
-
   const allTiles = [
     { trackRef: localTrack, label: 'You', sid: localParticipant.sid, userId: localParticipant.identity },
     ...remoteTracks.map((rt, i) => ({
@@ -205,31 +199,57 @@ const VideoStage = memo(function VideoStage() {
               column, height = width × 9/16). On short windows max-h-full
               caps the height and width shrinks proportionally to maintain
               the aspect ratio — no distortion, no overflow. */}
-          {/* T2-3 (Issue 13.3) — responsive grid for 2/3/4 participants.
-              Old grid: hardcoded 2 cols (pair) or 2/3 cols (trio). Wasted
-              space at small-desktop widths for pair (2x2 = 4 cells for 2
-              people) and underserved tablet (768-1024px) for trio.
-              New grid:
-                pair (you + 1)  → grid-cols-1 lg:grid-cols-2  (full-width
-                                  tiles on small desktops, side-by-side on lg)
-                trio (you + 2+) → grid-cols-2 (md+) → 3 cols on lg
-              Tablet now gets a sensible 2-column layout for trios. */}
-          <div className={`hidden md:grid h-full gap-4 ${isTrio ? 'grid-cols-2 lg:grid-cols-3' : 'grid-cols-1 lg:grid-cols-2'}`}>
-            {remoteTracks.map((rt, i) => (
-              <div key={rt.participant.sid} className="h-full flex items-center justify-center cursor-pointer" onClick={() => setPinnedSid(rt.participant.sid)}>
+          {/* Phase E (10 May spec) — desktop layout mirrors mobile/Google Meet
+              now: remote partner(s) take the main stage, self is a PIP in the
+              corner. Pre-fix the desktop grid put the local "You" tile
+              alongside the remote tiles at the same size, so the user often
+              perceived themselves as the big tile (Stefan #12). The pinned-
+              tile behavior is unchanged — clicking any tile (including the
+              self PIP) pins it large. Self as PIP keeps the user oriented
+              ("am I on camera?") without dominating the screen.
+
+              Pair (you + 1):    partner full-stage,    self PIP top-right
+              Trio (you + 2):    2 partners in 2-col grid, self PIP top-right
+              Quad+ (you + 3+):  responsive grid for partners, self PIP    */}
+          <div className="hidden md:block h-full relative">
+            {!isTrio && remoteTracks.length === 1 ? (
+              // Pair: single partner full-stage
+              <div className="h-full flex items-center justify-center cursor-pointer"
+                onClick={() => setPinnedSid(remoteTracks[0].participant.sid)}>
                 <div className="w-full" style={{ aspectRatio: '16 / 9', maxHeight: '100%' }}>
-                  <VideoTile trackRef={rt} label={userDisplayLabel(rt.participant.name || currentPartners[i])} userId={rt.participant.identity} />
+                  <VideoTile
+                    trackRef={remoteTracks[0]}
+                    label={userDisplayLabel(remoteTracks[0].participant.name || currentPartners[0])}
+                    userId={remoteTracks[0].participant.identity}
+                  />
                 </div>
               </div>
-            ))}
-            <div
-              data-self={isLocalTile(localParticipant.sid) ? 'true' : undefined}
-              className="h-full flex items-center justify-center cursor-pointer"
-              onClick={() => setPinnedSid(localParticipant.sid)}
-            >
-              <div className="w-full ring-2 ring-rsn-red/40 rounded-xl overflow-hidden" style={{ aspectRatio: '16 / 9', maxHeight: '100%' }}>
-                <VideoTile trackRef={localTrack} label="You" userId={localParticipant.identity} />
+            ) : (
+              // Trio / quad+: remote partners in a grid
+              <div className={`h-full grid gap-4 ${remoteTracks.length === 2 ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-3'}`}>
+                {remoteTracks.map((rt, i) => (
+                  <div key={rt.participant.sid} className="h-full flex items-center justify-center cursor-pointer"
+                    onClick={() => setPinnedSid(rt.participant.sid)}>
+                    <div className="w-full" style={{ aspectRatio: '16 / 9', maxHeight: '100%' }}>
+                      <VideoTile
+                        trackRef={rt}
+                        label={userDisplayLabel(rt.participant.name || currentPartners[i])}
+                        userId={rt.participant.identity}
+                      />
+                    </div>
+                  </div>
+                ))}
               </div>
+            )}
+            {/* Self PIP — top-right corner. Click to pin large. */}
+            <div
+              data-self="true"
+              className="absolute top-3 right-3 w-44 lg:w-52 rounded-xl overflow-hidden shadow-lg border-2 border-white/80 z-10 bg-black cursor-pointer ring-2 ring-rsn-red/30"
+              style={{ aspectRatio: '16 / 9' }}
+              onClick={() => setPinnedSid(localParticipant.sid)}
+              title="Click to pin yourself"
+            >
+              <VideoTile trackRef={localTrack} label="You" userId={localParticipant.identity} fillMode="cover" />
             </div>
           </div>
 

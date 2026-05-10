@@ -100,23 +100,25 @@ describe('Dr Arch April 18 — Bug 2: 1:1 + trio breakout tiles fill available s
     );
   });
 
-  it('desktop 1:1 grid cells are h-full + flex-center so VideoTile fills cell vertically', () => {
-    // Bug 6.5 (April 19): each grid cell now uses
-    // `h-full flex items-center justify-center cursor-pointer` so the inner
-    // 16:9-capped tile centers vertically inside the row. Previously the
-    // cell was just `h-full cursor-pointer` and the tile filled the entire
-    // cell — nearly square on a wide desktop, causing huge bottom black bar
-    // when source video was landscape 16:9.
-    const desktopGridIdx = videoRoomSrc.indexOf("hidden md:grid h-full");
-    expect(desktopGridIdx).toBeGreaterThan(-1);
-    const block = videoRoomSrc.slice(desktopGridIdx, desktopGridIdx + 1800);
-    // Cells must include h-full AND flex-center so the inner 16:9 wrapper
-    // can center vertically. Allow the markers in any order on the className.
+  it('desktop layout block (pair full-stage / trio grid) holds 16:9 video wrappers', () => {
+    // Phase E (10 May 2026) — the previous layout used `hidden md:grid` with
+    // both remote AND local tiles inside (equal-size grid). That made users
+    // perceive themselves as the big tile (Stefan #12). The new layout uses
+    // `hidden md:block` and splits pair (single partner full-stage) vs trio+
+    // (grid of partners), with self rendered separately as a PIP overlay.
+    // The 16:9 wrapper still exists for both remote-tile arrangements.
+    const desktopBlockIdx = videoRoomSrc.indexOf("hidden md:block");
+    expect(desktopBlockIdx).toBeGreaterThan(-1);
+    const block = videoRoomSrc.slice(desktopBlockIdx, desktopBlockIdx + 4000);
+    // The flex-center cell wrappers still exist around remote tiles for the
+    // partner-stage / trio-grid layouts. They use the same h-full + flex
+    // centering pattern that this test originally pinned.
     const cellMatches = (block.match(/className="h-full flex items-center justify-center cursor-pointer"/g) || []).length;
-    expect(cellMatches).toBeGreaterThanOrEqual(2);
-    // The inner 16:9 wrapper is what holds the actual VideoTile. Verify it
-    // exists (aspectRatio inline style + maxHeight: 100%).
+    expect(cellMatches).toBeGreaterThanOrEqual(1);
+    // Inner 16:9 wrapper for the partner tile.
     expect(block).toMatch(/aspectRatio:\s*['"]16\s*\/\s*9['"][\s\S]*?maxHeight:\s*['"]100%['"]/);
+    // Self tile is now an absolute-positioned PIP, not a grid cell.
+    expect(block).toMatch(/data-self="true"[\s\S]*?absolute[\s\S]*?label="You"/);
   });
 
   it('VideoTile applies h-full w-full when not pinned (replaces aspect-video collapse)', () => {
