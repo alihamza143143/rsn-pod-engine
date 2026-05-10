@@ -155,11 +155,18 @@ export function initOrchestration(socketServer: SocketServer): void {
   setInterval(async () => {
     const now = Date.now();
     const { clearDashboardCoalesce } = await import('./handlers/matching-flow');
+    const { cleanupLiveKitRooms } = await import('./handlers/round-lifecycle');
     for (const [sessionId, session] of activeSessions) {
       const lastActivity = session.timerEndsAt?.getTime() || now;
       if (now - lastActivity > MAX_SESSION_AGE_MS) {
         logger.warn({ sessionId }, 'Cleaning up stale session (TTL exceeded)');
         clearSessionTimers(sessionId);
+        // Phase A4 (10 May spec) — tear down LiveKit rooms before dropping
+        // the in-memory entry. Pre-fix this only deleted the in-memory
+        // ActiveSession, leaving LiveKit rooms alive forever (Stefan's
+        // #17). Fire-and-forget so the loop keeps making progress.
+        cleanupLiveKitRooms(sessionId).catch(err =>
+          logger.warn({ err, sessionId }, 'TTL reaper: LiveKit cleanup failed (non-fatal)'));
         activeSessions.delete(sessionId);
         cleanupChatMessages(sessionId);
         // Tier-1 A1: also clear dashboard coalesce state
@@ -167,6 +174,39 @@ export function initOrchestration(socketServer: SocketServer): void {
       }
     }
   }, 5 * 60 * 1000);
+
+  // ── Phase A4 (10 May spec) — orphan-lobby reaper ──
+  // Catches sessions that ended cleanly via completeSession (which awaits
+  // LiveKit cleanup) but whose lobby room id stuck around in DB or LiveKit
+  // due to a transient failure, AND sessions that ended pre-Phase-A4 (whose
+  // lobby_room_id was never nulled). Runs every 15 min, sweeps anything
+  // that's been completed/cancelled for >1 h.
+  const ORPHAN_REAPER_INTERVAL_MS = 15 * 60 * 1000;
+  setInterval(async () => {
+    try {
+      const { query } = await import('../../db');
+      const { cleanupLiveKitRooms } = await import('./handlers/round-lifecycle');
+      const stale = await query<{ id: string }>(
+        `SELECT id FROM sessions
+          WHERE status IN ('completed', 'cancelled')
+            AND lobby_room_id IS NOT NULL
+            AND ended_at < NOW() - INTERVAL '1 hour'
+          LIMIT 50`,
+      );
+      if (stale.rows.length === 0) return;
+      logger.info({ count: stale.rows.length }, 'Orphan-lobby reaper: tearing down stale rooms');
+      for (const row of stale.rows) {
+        try {
+          await cleanupLiveKitRooms(row.id);
+          await query(`UPDATE sessions SET lobby_room_id = NULL WHERE id = $1`, [row.id]);
+        } catch (err) {
+          logger.warn({ err, sessionId: row.id }, 'Orphan-lobby reaper: per-session cleanup failed (will retry next tick)');
+        }
+      }
+    } catch (err) {
+      logger.warn({ err }, 'Orphan-lobby reaper tick failed');
+    }
+  }, ORPHAN_REAPER_INTERVAL_MS);
 
   // ── Register socket handlers ──
 

@@ -584,20 +584,20 @@ export async function handleLeaveSession(
     const session = await sessionService.getSessionById(data.sessionId).catch(() => null);
     const isHost = session?.hostUserId === userId;
 
-    // If event hasn't started yet, keep status as 'registered' — they're just leaving the lobby
-    if (session?.status === SessionStatus.SCHEDULED || session?.status === SessionStatus.LOBBY_OPEN) {
-      await sessionService.updateParticipantStatus(
-        data.sessionId, userId, ParticipantStatus.REGISTERED
-      );
-    } else {
-      await sessionService.updateParticipantStatus(
-        data.sessionId, userId, ParticipantStatus.LEFT
-      );
-      // Phase 2.5D — leaver future-only repair. Skip if the host left
-      // (their leaving is a different lifecycle path).
-      if (!isHost) {
-        void maybeRepairFutureRounds(io, data.sessionId, 'left');
-      }
+    // Phase A1 (10 May spec) — always mark LEFT, regardless of session phase.
+    // Pre-fix, leaving during SCHEDULED/LOBBY_OPEN reset status to REGISTERED;
+    // since `getEligibleParticipants` treats REGISTERED as eligible, the user
+    // was a "ghost" — gone from the room but still matched. The state-machine
+    // legal-transitions table allows LEFT → IN_MAIN_ROOM/CHECKED_IN, so a
+    // re-join works fine without the special case. This was Stefan's #2 in
+    // the 10 May review.
+    await sessionService.updateParticipantStatus(
+      data.sessionId, userId, ParticipantStatus.LEFT
+    );
+    // Phase 2.5D — leaver future-only repair. Skip if the host left
+    // (their leaving is a different lifecycle path).
+    if (!isHost) {
+      void maybeRepairFutureRounds(io, data.sessionId, 'left');
     }
 
     io.to(sessionRoom(data.sessionId)).emit('participant:left', { userId, isHost });

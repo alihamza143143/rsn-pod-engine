@@ -95,30 +95,16 @@ export async function handleHostGenerateMatches(
       });
     }
 
-    // Need at least 2 non-host/co-host participants for matching
+    // Phase A1 (10 May spec) — DB is the single source of truth for who can
+    // be matched. Pre-fix this code intersected DB eligibility with the
+    // in-memory presenceMap; whenever the two diverged (user left but DB
+    // status update lagged, OR DB status was stale and presenceMap was
+    // empty) the host either saw ghost users in the preview or got a
+    // misleading "Not enough participants" error. The state-machine
+    // chokepoint now keeps DB status accurate: leave→LEFT, disconnect→
+    // DISCONNECTED, both excluded by getEligibleParticipants. So one query
+    // covers both checks — count + filter, single source.
     const allHostIds = await getAllHostIds(data.sessionId, activeSession.hostUserId);
-    const hostIdSet = new Set(allHostIds);
-
-    // Cross-check DB status with actual presence to prevent phantom matches.
-    // Phase 2 (Redis): presentUserIds will come from Redis presence instead of in-memory map.
-    const presentUserIds = new Set(activeSession.presenceMap.keys());
-    const presentNonHostIds = new Set(
-      [...presentUserIds].filter(uid => !hostIdSet.has(uid))
-    );
-    const participantCount = presentNonHostIds.size;
-
-    if (participantCount < 2) {
-      socket.emit('error', {
-        code: 'NOT_ENOUGH_PARTICIPANTS',
-        message: `Need at least 2 participants (currently ${participantCount})`,
-      });
-      return;
-    }
-
-    // Server-side guard: verify enough MAIN-ROOM participants are eligible
-    // (i.e. not currently in any active match — including manual breakouts).
-    // This prevents the case where N participants are present but most are
-    // already in manual rooms, leaving fewer than 2 to match.
     const eligible = await matchingService.getEligibleParticipants(data.sessionId, allHostIds);
     if (eligible.length < 2) {
       socket.emit('error', {
@@ -164,9 +150,11 @@ export async function handleHostGenerateMatches(
       roundNumber: nextRound,
     });
 
-    // FIX 3B: Matching engine timeout — 60s max to prevent indefinite hangs
+    // FIX 3B: Matching engine timeout — 60s max to prevent indefinite hangs.
+    // Phase A1 (10 May) — no presentUserIds intersection; DB status is the
+    // single source of truth via getEligibleParticipants.
     try {
-      const matchPromise = matchingService.generateSingleRound(data.sessionId, nextRound, allHostIds, presentUserIds);
+      const matchPromise = matchingService.generateSingleRound(data.sessionId, nextRound, allHostIds);
       const timeoutPromise = new Promise<never>((_, reject) =>
         setTimeout(() => reject(new Error('Matching engine timeout after 60s')), MATCHING_TIMEOUT_MS)
       );
@@ -461,10 +449,11 @@ export async function handleHostRegenerateMatches(
       [data.sessionId, roundNumber]
     );
 
-    // Re-generate (exclude host + co-hosts from matching, filter by presence)
+    // Re-generate (exclude host + co-hosts from matching). Phase A1 (10 May)
+    // — DB status is the single source of truth via getEligibleParticipants
+    // inside the matching service; no in-memory presence intersection.
     const allHostIds = await getAllHostIds(data.sessionId, activeSession.hostUserId);
-    const presentUserIds = new Set(activeSession.presenceMap.keys());
-    await matchingService.generateSingleRound(data.sessionId, roundNumber, allHostIds, presentUserIds, { regenerate: true });
+    await matchingService.generateSingleRound(data.sessionId, roundNumber, allHostIds, undefined, { regenerate: true });
 
     // Re-send preview
     await sendMatchPreview(io, socket, data.sessionId, roundNumber, activeSession.hostUserId);

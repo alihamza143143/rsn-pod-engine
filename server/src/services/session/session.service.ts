@@ -451,6 +451,16 @@ export async function updateSessionStatus(
     setClauses.push(`lobby_room_id = $${paramIdx}`);
     values.push(updates.lobbyRoomId);
     paramIdx++;
+  } else if (status === SessionStatus.COMPLETED || status === SessionStatus.CANCELLED) {
+    // Phase A4 (10 May spec) — atomically null lobby_room_id when the session
+    // ends, so an orphan LiveKit room id can never be queried back into a
+    // completed event. Pre-fix, completeSession marked the session COMPLETED
+    // but left lobby_room_id populated; if a client later fetched a token
+    // for that session it tried to join a room that no longer existed (or
+    // worse, still existed because LiveKit cleanup also lagged — Stefan's
+    // #17 "lobby from May 7 still open"). Caller can override by passing
+    // updates.lobbyRoomId explicitly.
+    setClauses.push(`lobby_room_id = NULL`);
   }
 
   if (updates?.startedAt !== undefined) {

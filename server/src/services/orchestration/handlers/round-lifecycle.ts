@@ -747,8 +747,14 @@ export async function completeSession(io: SocketServer, sessionId: string): Prom
       logger.error({ err: emailErr, sessionId }, 'Error sending recap emails (non-fatal)');
     });
 
-    // Fire-and-forget: clean up LiveKit rooms (lobby + all match rooms)
-    cleanupLiveKitRooms(sessionId).catch(roomErr => {
+    // Phase A4 (10 May spec) — AWAIT LiveKit cleanup before tearing down
+    // in-memory state. Pre-fix this was fire-and-forget, so when the in-memory
+    // ActiveSession was deleted in finally{} the LiveKit room could outlive
+    // it indefinitely (Stefan's #17, "lobby from May 7 still open"). The
+    // updateSessionStatus call above also nulls lobby_room_id atomically so
+    // the DB never points at a stale room. Errors here are still non-fatal —
+    // the orphan-lobby reaper sweeps anything we miss.
+    await cleanupLiveKitRooms(sessionId).catch(roomErr => {
       logger.warn({ err: roomErr, sessionId }, 'Error cleaning up LiveKit rooms (non-fatal)');
     });
   } catch (err) {

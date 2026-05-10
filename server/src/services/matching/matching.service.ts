@@ -470,11 +470,17 @@ export async function getEligibleParticipants(
   sessionId: string,
   excludeUserIds: string[] = []
 ): Promise<string[]> {
+  // Phase A1 (10 May spec) — DB is the single source of truth for matching
+  // eligibility. `disconnected` was previously eligible (filter only excluded
+  // removed/left/no_show); the live path compensated by intersecting with an
+  // in-memory presenceMap. That intersection masked ghost-user bugs whenever
+  // the two diverged. Excluding `disconnected` here means matching can trust
+  // the DB exclusively — no in-memory crutch needed in the live path.
   const result = excludeUserIds.length > 0
     ? await query<{ user_id: string }>(
         `SELECT sp.user_id FROM session_participants sp
          WHERE sp.session_id = $1
-           AND sp.status NOT IN ('removed', 'left', 'no_show')
+           AND sp.status NOT IN ('removed', 'left', 'no_show', 'disconnected')
            AND sp.user_id != ALL($2::uuid[])
            AND NOT EXISTS (
              SELECT 1 FROM matches m
@@ -486,7 +492,7 @@ export async function getEligibleParticipants(
     : await query<{ user_id: string }>(
         `SELECT sp.user_id FROM session_participants sp
          WHERE sp.session_id = $1
-           AND sp.status NOT IN ('removed', 'left', 'no_show')
+           AND sp.status NOT IN ('removed', 'left', 'no_show', 'disconnected')
            AND NOT EXISTS (
              SELECT 1 FROM matches m
              WHERE m.session_id = $1 AND m.status = 'active'
