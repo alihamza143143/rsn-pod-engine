@@ -562,7 +562,7 @@ function useHostPresence(gracePeriodMs = 15000): boolean | null {
 }
 
 function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
-  const { participants, isByeRound, transitionStatus, sessionStatus, hostUserId, leftCurrentRound } = useSessionStore();
+  const { participants, isByeRound, transitionStatus, sessionStatus, hostUserId, leftCurrentRound, cohosts } = useSessionStore();
   const hostOnline = useHostPresence();
 
   // Session hasn't been started yet by host
@@ -644,15 +644,43 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
       <div className="flex items-center justify-center gap-1.5 text-gray-500 text-xs">
         <Users className="h-3 w-3" />
         <span>
-          {(() => {
-            const hostInList = participants.some(p => p.userId === hostUserId);
-            const count = participants.length - (hostInList ? 1 : 0);
-            return `${count} participant${count !== 1 ? 's' : ''}${hostOnline || hostInList ? ' + host' : ''}`;
-          })()}
+          {formatParticipantHeader(participants, hostUserId, cohosts, hostOnline)}
         </span>
       </div>
     </div>
   );
+}
+
+// Phase D3 (10 May spec) — single helper for participant-count text.
+// Stefan #10: pre-fix, all three counters lumped co-hosts into the
+// participant tally and showed "X participants + host" — silently making
+// "X" include co-hosts. Now: separate counts for participants vs hosts/
+// co-hosts. Examples:
+//   1 participant            (no host present, no cohosts)
+//   3 participants + host    (host present, no cohosts)
+//   3 participants + 2 hosts (host + 1 cohost; or 2 cohosts no host present)
+function formatParticipantHeader(
+  participants: { userId: string }[],
+  hostUserId: string | null,
+  cohosts: Set<string>,
+  hostOnline: boolean | null,
+): string {
+  const hostInList = !!hostUserId && participants.some(p => p.userId === hostUserId);
+  const cohostsPresent = participants.filter(p => cohosts.has(p.userId)).length;
+  // Headline count excludes BOTH the host and any co-hosts.
+  const participantCount = participants.length
+    - (hostInList ? 1 : 0)
+    - cohostsPresent;
+  // "Hosts" includes the original host if online OR present, plus any
+  // co-hosts in the room. We collapse to a single count so the string
+  // stays compact and doesn't say "+ host + 2 cohosts" — Stefan asked
+  // for "X participants and Y hosts" specifically.
+  const totalHosts = (hostOnline || hostInList ? 1 : 0) + cohostsPresent;
+  const safeCount = Math.max(0, participantCount);
+  const partWord = `${safeCount} participant${safeCount !== 1 ? 's' : ''}`;
+  if (totalHosts === 0) return partWord;
+  const hostWord = `${totalHosts} ${totalHosts === 1 ? 'host' : 'hosts'}`;
+  return `${partWord} + ${hostWord}`;
 }
 
 function HostParticipantPanel({ sessionId }: { sessionId?: string }) {
@@ -674,7 +702,14 @@ function HostParticipantPanel({ sessionId }: { sessionId?: string }) {
       >
         <div className="flex items-center gap-2">
           <Users className="h-4 w-4 text-gray-400" />
-          <span>Participants ({participants.filter(p => p.userId !== hostUserId && !cohosts.has(p.userId)).length}) + Host{cohosts.size > 0 ? 's' : ''}</span>
+          {/* Phase D3 (10 May) — separate counts so "+ Hosts" reads correctly when cohosts present. */}
+          <span>
+            Participants ({participants.filter(p => p.userId !== hostUserId && !cohosts.has(p.userId)).length})
+            {(() => {
+              const totalHosts = 1 + cohosts.size; // original host + cohosts
+              return ` · ${totalHosts} ${totalHosts === 1 ? 'Host' : 'Hosts'}`;
+            })()}
+          </span>
         </div>
         {expanded ? <ChevronUp className="h-4 w-4 text-gray-500" /> : <ChevronDown className="h-4 w-4 text-gray-500" />}
       </button>
@@ -832,7 +867,7 @@ function DeviceTest() {
  * status overlay is secondary — matches how Google Meet / FaceTime handle pre-call.
  */
 function PreLobbyWaitingRoom({ isHost = false }: { isHost?: boolean }) {
-  const { participants, hostUserId } = useSessionStore();
+  const { participants, hostUserId, cohosts } = useSessionStore();
   const hostOnline = useHostPresence();
 
   return (
@@ -862,16 +897,15 @@ function PreLobbyWaitingRoom({ isHost = false }: { isHost?: boolean }) {
               </div>
             )}
 
-            {/* Participant count — compact inline */}
+            {/* Participant count — compact inline.
+                Phase D3 (10 May spec) — uses formatParticipantHeader so
+                co-hosts are counted as hosts, not silently lumped into the
+                participant tally. */}
             {participants.length > 0 && (
               <div className="flex items-center gap-2 text-gray-500 text-xs">
                 <Users className="h-3.5 w-3.5" />
                 <span>
-                  {(() => {
-                    const hostInList = participants.some(p => p.userId === hostUserId);
-                    const participantCount = participants.length - (hostInList ? 1 : 0);
-                    return `${participantCount} participant${participantCount !== 1 ? 's' : ''}${hostOnline || hostInList ? ' + host' : ''} waiting`;
-                  })()}
+                  {formatParticipantHeader(participants, hostUserId, cohosts, hostOnline)} waiting
                 </span>
               </div>
             )}

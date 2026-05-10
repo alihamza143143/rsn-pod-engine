@@ -403,8 +403,13 @@ export default function HostControlCenter({
           </div>
         </div>
 
-        {/* Phase 7-audit fix — single column on tablet (md), 3-col only at lg+. */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 lg:divide-x divide-gray-200 flex-1 overflow-y-auto">
+        {/* Phase 7-audit fix — single column on tablet (md), 3-col only at lg+.
+            Phase D2 (10 May spec) — added min-h-0 (critical for nested
+            flexbox to shrink the grid below the parent's height) and pb-12
+            on the participants <ul> so the last row isn't visually clipped
+            by the bottom edge of the modal. Stefan #8: he couldn't see the
+            last user in the control center on his standard window size. */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-0 lg:divide-x divide-gray-200 flex-1 min-h-0 overflow-y-auto">
           {/* Participants list */}
           <div className="lg:col-span-2 min-h-[300px]">
             <div className="px-5 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 flex items-center gap-1.5">
@@ -418,7 +423,7 @@ export default function HostControlCenter({
                 No participants in this view.
               </div>
             ) : (
-              <ul className="divide-y divide-gray-100">
+              <ul className="divide-y divide-gray-100 pb-12">
                 {visibleParticipants.map((p) => (
                   <li key={p.userId} className="px-5 py-3 hover:bg-gray-50">
                     <div className="flex items-start justify-between gap-3">

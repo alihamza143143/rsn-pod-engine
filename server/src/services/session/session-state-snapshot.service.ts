@@ -172,10 +172,19 @@ export async function buildSessionStateSnapshot(
   //    testMode=true. Pre-fix the v1 heuristic required hostRoot length
   //    ≥ 4, which produced false negatives for short real names — and
   //    only checked the email root, missing same-domain workspace tests.
+  // Phase D1 (10 May spec) — only run the heuristic when the host has
+  // explicitly opted in (config.testMode === true) OR when the server is
+  // running in non-production. Stefan #5: real participants on a real
+  // event saw the embarrassing "Test mode — multiple accounts detected"
+  // banner because two of them happened to share an email domain. The
+  // explicit override (config.testMode boolean) still wins regardless,
+  // so an admin who knows it's a real test can flip it on; conversely,
+  // setting config.testMode = false suppresses the banner outright.
   let testMode = false;
+  const isProd = process.env.NODE_ENV === 'production';
   if (typeof (config as any).testMode === 'boolean') {
     testMode = (config as any).testMode;
-  } else if (session.hostUserId && registeredIds.size > 0) {
+  } else if (!isProd && session.hostUserId && registeredIds.size > 0) {
     try {
       const hostRow = await query<{ email: string | null; display_name: string | null }>(
         `SELECT email, display_name FROM users WHERE id = $1`,
