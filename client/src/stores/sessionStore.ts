@@ -133,6 +133,14 @@ interface SessionLiveState {
    * factors this into `isHost` for the local user only.
    */
   actingAsHostOverrides: Record<string, boolean>;
+  /**
+   * Phase O (12 May spec item 7) — server-authoritative host-muted state.
+   * Set of userIds whose host_muted=TRUE on session_participants. The
+   * local user checks if their own id is in the set on snapshot apply
+   * and mirrors the mute on their LiveKit audio track. Server is the
+   * single source of truth — self-unmute does not clear this.
+   */
+  hostMutedUserIds: Set<string>;
   leftCurrentRound: boolean;
   lastRatedRound: number;
   isPaused: boolean;
@@ -197,6 +205,7 @@ interface SessionLiveState {
   setHostVisibility: (userId: string, mode: 'big_speaker' | 'normal' | 'producer' | 'hidden') => void;
   setHostVisibilityModes: (modes: Record<string, 'big_speaker' | 'normal' | 'producer' | 'hidden'>) => void;
   setActingAsHostOverrides: (overrides: Record<string, boolean>) => void;
+  setHostMutedUserIds: (ids: string[]) => void;
   setLeftCurrentRound: (v: boolean) => void;
   setLastRatedRound: (r: number) => void;
   setIsPaused: (v: boolean) => void;
@@ -240,6 +249,8 @@ export interface SessionStateSnapshot {
   hostVisibilityModes?: Record<string, string>;
   /** Phase M — acting-as-host overrides from snapshot. */
   actingAsHostOverrides?: Record<string, boolean>;
+  /** Phase O — server-authoritative host-muted user IDs from snapshot. */
+  hostMutedUserIds?: string[];
 }
 
 export const useSessionStore = create<SessionLiveState>((set) => ({
@@ -283,6 +294,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   cohosts: new Set<string>(),
   hostVisibilityModes: {},
   actingAsHostOverrides: {},
+  hostMutedUserIds: new Set<string>(),
   leftCurrentRound: false,
   lastRatedRound: 0,
   isPaused: false,
@@ -383,6 +395,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   })),
   setHostVisibilityModes: (modes) => set({ hostVisibilityModes: modes }),
   setActingAsHostOverrides: (overrides) => set({ actingAsHostOverrides: overrides }),
+  setHostMutedUserIds: (ids) => set({ hostMutedUserIds: new Set(ids) }),
   setLeftCurrentRound: (leftCurrentRound) => set({ leftCurrentRound }),
   setLastRatedRound: (lastRatedRound) => set({ lastRatedRound }),
   setIsPaused: (isPaused) => set({ isPaused }),
@@ -426,6 +439,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
       cohosts: new Set(snapshot.cohosts),
       hostVisibilityModes: (snapshot.hostVisibilityModes as any) || {},
       actingAsHostOverrides: snapshot.actingAsHostOverrides || {},
+      hostMutedUserIds: new Set(snapshot.hostMutedUserIds || []),
       timerVisibility: (snapshot.timerVisibility as any) || 'last_10s',
     };
   }),
@@ -451,6 +465,6 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
     eventPlanSummary: null, testMode: false,
     hostMuteCommand: null, partnerDisconnected: false, roundDashboard: null,
     chatMessages: [], unreadChatCount: 0, chatOpen: false, matchingOverlay: null, preparingMatches: false, lobbyDensity: 'normal' as const,
-    cohosts: new Set<string>(), hostVisibilityModes: {}, actingAsHostOverrides: {}, leftCurrentRound: false, lastRatedRound: 0, isPaused: false,
+    cohosts: new Set<string>(), hostVisibilityModes: {}, actingAsHostOverrides: {}, hostMutedUserIds: new Set<string>(), leftCurrentRound: false, lastRatedRound: 0, isPaused: false,
   }),
 }));

@@ -81,6 +81,17 @@ export interface SessionStateSnapshot {
   actingAsHostOverrides: Record<string, boolean>;
 
   /**
+   * Phase O (12 May spec item 7) — authoritative host-muted state.
+   * Array of userIds whose `host_muted = TRUE` in session_participants.
+   * The client respects this on cold-start and reconnect: if our user is
+   * in the array, the client mirrors the muted state on its local audio
+   * track. The server is the single source of truth — self-unmute from
+   * the client UI does NOT clear this flag; only a host:mute_participant
+   * with muted=false can.
+   */
+  hostMutedUserIds: string[];
+
+  /**
    * Phase 5B (5 May spec) — test-mode flag. Stefan's #2: when the host is
    * signed in across multiple accounts to test the system, display a
    * banner so it's visually clear this isn't a real production event.
@@ -169,8 +180,17 @@ export async function buildSessionStateSnapshot(
   // session_participants. Pull non-null overrides into the
   // actingAsHostOverrides map; participants without an explicit toggle
   // contribute nothing (they follow the role default).
-  const registeredRes = await query<{ user_id: string; acting_as_host: boolean | null }>(
-    `SELECT sp.user_id, sp.acting_as_host
+  // Phase O (12 May item 7) piggybacks host_muted on the same SELECT so
+  // the snapshot stays a single round-trip for session_participants. The
+  // hostMutedUserIds array is the server-authoritative mute roster:
+  // a user reconnecting must look in this list and mirror the mute on
+  // their own audio track.
+  const registeredRes = await query<{
+    user_id: string;
+    acting_as_host: boolean | null;
+    host_muted: boolean | null;
+  }>(
+    `SELECT sp.user_id, sp.acting_as_host, sp.host_muted
      FROM session_participants sp
      JOIN users u ON u.id = sp.user_id
      WHERE sp.session_id = $1
@@ -179,10 +199,12 @@ export async function buildSessionStateSnapshot(
     [sessionId],
   );
   const actingAsHostOverrides: Record<string, boolean> = {};
+  const hostMutedUserIds: string[] = [];
   for (const r of registeredRes.rows) {
     if (r.acting_as_host !== null && r.acting_as_host !== undefined) {
       actingAsHostOverrides[r.user_id] = r.acting_as_host;
     }
+    if (r.host_muted === true) hostMutedUserIds.push(r.user_id);
   }
   const registeredIds = new Set(registeredRes.rows.map(r => r.user_id));
   // Exclude host from the headline count — surfaced separately as hostConnected
@@ -300,5 +322,6 @@ export async function buildSessionStateSnapshot(
     testMode,
     hostVisibilityModes,
     actingAsHostOverrides,
+    hostMutedUserIds,
   };
 }

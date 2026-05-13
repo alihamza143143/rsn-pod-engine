@@ -7625,3 +7625,81 @@ Phase L / Phase I / Phase B invariant tests updated to pin the new naming (`base
 - **Telemetry / audit log entries** beyond the existing `auditMiddleware('session:acting_as_host')`. Sufficient for now.
 
 Item 7 — Phase O next.
+
+---
+
+## Stefan's 12 May Feedback — Phase O — 2026-05-13
+
+**Status:** Authoritative host-muted state shipped (item 7). Final phase of the 12 May fix campaign — all 10 items now closed (J/K/L/N/M/O = 6 shipped phases; J also cross-referenced Phase F for items 10 + 14).
+**Why:** Stefan reported on 12 May that admins couldn't mute, participants couldn't unmute themselves, Shradha was stuck muted after a reconnect, and audio state was inconsistent across clients. Two root causes: (1) the mute gate accepted only the original event host (`activeSession.hostUserId === userId`), so co-hosts and super_admin hit "NOT_HOST" when they tried to mute; (2) the mute was a fire-and-forget socket relay with NO persistent server-side state, so reconnecting users came back un-muted at the LiveKit level even though hosts thought they were muted.
+
+### Data model
+
+Migration 061 adds two columns to `session_participants`:
+- `host_muted BOOLEAN NOT NULL DEFAULT FALSE` — server-authoritative mute flag.
+- `host_muted_at TIMESTAMPTZ` — wall-clock of the most recent mute (set when flipping to TRUE; left as-is on FALSE for audit history).
+
+Purely additive; existing rows untouched. Safe on live DB.
+
+### Server changes
+
+**`handleHostMuteParticipant` (host-actions.ts)**:
+- Gate changed from `activeSession.hostUserId !== userId` (event-host-only) to `verifyHost(socket, sessionId)` which delegates to `canActAsHost`. Co-hosts and super_admin can now mute; admins via Phase M opt-in covered.
+- Persists `host_muted` (TRUE or FALSE) on session_participants before relaying the socket event.
+- On TRUE: also sets `host_muted_at = NOW()`. On FALSE: leaves `host_muted_at` as-is.
+
+**`handleHostMuteAll`**:
+- Same gate fix (verifyHost).
+- Single bulk UPDATE excluding the host roster (via `getAllHostIds` — covers original host, co-hosts, Phase M opt-ins) and ghost statuses (`removed/left/no_show`). No N+1 from the per-user loop.
+- Socket relay mirrors the same exclusion.
+
+**`session-state-snapshot.service.ts`**:
+- New `hostMutedUserIds: string[]` field on the snapshot interface.
+- Piggybacked the `host_muted` column onto the existing T1-4 registered count SELECT — keeps the snapshot a single query for session_participants.
+- Returned snapshot includes the array at top level.
+
+### Client changes
+
+**`sessionStore.ts`**:
+- New `hostMutedUserIds: Set<string>` state field.
+- `setHostMutedUserIds(ids: string[])` setter wraps the array in a fresh `Set` so equality changes flow through Zustand correctly.
+- `applyFullState` populates the Set from `snapshot.hostMutedUserIds || []`.
+- `reset()` clears to a fresh empty Set.
+
+**`useSessionSocket.ts`**:
+- Imports `useAuthStore` to resolve the local user's id.
+- On `session:state` event, when `data.hostMutedUserIds` is an array: applies it to the store, then checks if the local user is in the list. If yes, fires `store.setHostMuteCommand(true)` — the existing client-side mute signal — so the user's LiveKit audio track is muted on reconnect. This closes the "Shradha stuck unmuted after refresh" gap.
+
+### Files
+
+- New: `server/src/db/migrations/061_host_muted_state.sql`
+- New: `server/src/__tests__/services/phase-o-authoritative-mute-state.test.ts` (16 pin tests across 6 describe blocks)
+- Modified: `server/src/services/orchestration/handlers/host-actions.ts` (mute handlers — gate + persistence)
+- Modified: `server/src/services/session/session-state-snapshot.service.ts` (new field + JOIN piggyback)
+- Modified: `client/src/stores/sessionStore.ts` (hostMutedUserIds Set + setter + reset)
+- Modified: `client/src/hooks/useSessionSocket.ts` (auth import + snapshot replay)
+- Modified: `progress.md` — this entry.
+
+### Verification
+
+- Server suite: **1310 passed, 1 skipped (pre-existing), 0 failed** across 103 suites (Phase O added 1 suite, 16 tests).
+- Client TypeScript: clean.
+- Client production build: clean — 1.59 MB main / 436 KB gzip, no net bundle growth.
+
+### What's NOT in Phase O (deferred)
+
+- **LiveKit `canPublishAudio` revocation**: today the client respects host_muted via UI (setHostMuteCommand → LobbyMediaControls disables the unmute button), but a determined client could bypass by directly publishing audio frames. The full fix requires re-issuing the participant's LiveKit token with restricted grants, or using LiveKit's `UpdateParticipantSubscription` API to mute server-side. Deferred to a follow-up; the Phase O store + replay path is the foundation that future LiveKit-level enforcement will build on.
+- **Toast / user-facing copy** on the mute state ("You've been muted by the host" / "Host has un-muted you"). The existing `hostMuteCommand` flag already drives the audio track; surfacing it as a banner is a UX polish for later.
+
+### Phase summary for the 12 May campaign
+
+| Phase | Items | Status |
+| ----- | ----- | ------ |
+| J     | 9, 10, 12, 14 (invariant pins) | shipped 2026-05-13 |
+| K     | 3, 4 (matching on-demand)      | shipped 2026-05-13 |
+| L     | 6 (control center role audit)  | shipped 2026-05-13 |
+| N     | 2 (multi-host visibility UI)   | shipped 2026-05-13 |
+| M     | 1 (acting-as-host toggle)      | shipped 2026-05-13 |
+| O     | 7 (authoritative mute state)   | shipped 2026-05-13 |
+
+All 10 items from Stefan's 12 May feedback now closed end-to-end on staging + main.

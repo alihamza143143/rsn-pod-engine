@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { connectSocket, disconnectSocket, getSocket } from '@/lib/socket';
 import { useSessionStore } from '@/stores/sessionStore';
+import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
 import api from '@/lib/api';
 
@@ -149,6 +150,18 @@ export default function useSessionSocket(sessionId: string) {
       // from the authoritative snapshot. Server emits this in session:state.
       if (data.hostVisibilityModes && typeof data.hostVisibilityModes === 'object') {
         store.setHostVisibilityModes(data.hostVisibilityModes);
+      }
+      // Phase O (12 May spec item 7) — apply server-authoritative host-mute
+      // roster. If the local user is in the array, fire the existing
+      // hostMuteCommand pathway so their LiveKit audio track is muted
+      // even after a reconnect (the pre-fix gap that left Shradha "stuck
+      // muted after refresh" was caused by the absence of this replay).
+      if (Array.isArray(data.hostMutedUserIds)) {
+        store.setHostMutedUserIds(data.hostMutedUserIds);
+        const myId = useAuthStore.getState().user?.id;
+        if (myId && data.hostMutedUserIds.includes(myId)) {
+          store.setHostMuteCommand(true);
+        }
       }
     });
 

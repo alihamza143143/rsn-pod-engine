@@ -773,14 +773,24 @@ export async function handleHostReassign(
 }
 
 // ─── Host: Mute/Unmute Participant ──────────────────────────────────────────
+//
+// Phase O (12 May spec item 7) — persistent authoritative mute state.
+// Stefan reported admins couldn't mute (the pre-fix gate accepted only
+// the original event host, never co-hosts or super_admin), and that
+// muted participants got "stuck" muted after reconnect because the
+// mute was a fire-and-forget socket relay with no DB persistence.
+// Both fixed below:
+//   - Gate via verifyHost (which uses canActAsHost — cohort + super_admin
+//     accepted post-Phase-I; admin opt-in via Phase M also covered).
+//   - UPDATE session_participants.host_muted before emitting the relay,
+//     so the snapshot can replay it to the user on reconnect.
 
 export async function handleHostMuteParticipant(
   io: SocketServer,
   socket: Socket,
   data: any
 ): Promise<void> {
-  const userId = getUserIdFromSocket(socket);
-  if (!userId) return;
+  if (!await verifyHost(socket, data.sessionId)) return;
 
   const activeSession = activeSessions.get(data.sessionId);
   if (!activeSession) {
@@ -788,19 +798,34 @@ export async function handleHostMuteParticipant(
     return;
   }
 
-  if (activeSession.hostUserId !== userId) {
-    socket.emit('error', { code: 'NOT_HOST', message: 'Only the host can mute/unmute participants' });
-    return;
+  // Persist host_muted on session_participants so the state survives
+  // reconnects. host_muted_at is set when flipping to TRUE; left as-is
+  // (history preserved) when flipping to FALSE.
+  if (data.muted) {
+    await query(
+      `UPDATE session_participants
+       SET host_muted = TRUE, host_muted_at = NOW()
+       WHERE session_id = $1 AND user_id = $2`,
+      [data.sessionId, data.targetUserId],
+    );
+  } else {
+    await query(
+      `UPDATE session_participants
+       SET host_muted = FALSE
+       WHERE session_id = $1 AND user_id = $2`,
+      [data.sessionId, data.targetUserId],
+    );
   }
 
-  // Relay mute command to the target participant's client
+  // Relay mute command to the target participant's client (immediate UX
+  // feedback). Snapshot replay on reconnect uses the persisted state.
   io.to(userRoom(data.targetUserId)).emit('lobby:mute_command', {
     muted: data.muted,
     byHost: true,
   });
 
   logger.info({ sessionId: data.sessionId, targetUserId: data.targetUserId, muted: data.muted },
-    'Host mute/unmute command sent');
+    'Phase O — Host mute/unmute command persisted + relayed');
 }
 
 // ─── Host: Mute/Unmute All ─────────────────────────────────────────────────
@@ -810,8 +835,7 @@ export async function handleHostMuteAll(
   socket: Socket,
   data: any
 ): Promise<void> {
-  const userId = getUserIdFromSocket(socket);
-  if (!userId) return;
+  if (!await verifyHost(socket, data.sessionId)) return;
 
   const activeSession = activeSessions.get(data.sessionId);
   if (!activeSession) {
@@ -819,15 +843,38 @@ export async function handleHostMuteAll(
     return;
   }
 
-  if (activeSession.hostUserId !== userId) {
-    socket.emit('error', { code: 'NOT_HOST', message: 'Only the host can mute/unmute all participants' });
-    return;
+  // Phase O — bulk persist BEFORE relay. Excludes the host themselves
+  // (existing behaviour) AND any co-hosts (who shouldn't be silenced by
+  // a bulk-mute action targeted at participants). One UPDATE replaces
+  // N updates from a loop — keeps the operation a single round-trip
+  // even at 100+ participants.
+  const allHostIds = await getAllHostIds(data.sessionId, activeSession.hostUserId);
+  if (data.muted) {
+    await query(
+      `UPDATE session_participants
+       SET host_muted = TRUE, host_muted_at = NOW()
+       WHERE session_id = $1
+         AND user_id != ALL($2::uuid[])
+         AND status NOT IN ('removed', 'left', 'no_show')`,
+      [data.sessionId, allHostIds],
+    );
+  } else {
+    await query(
+      `UPDATE session_participants
+       SET host_muted = FALSE
+       WHERE session_id = $1
+         AND user_id != ALL($2::uuid[])
+         AND status NOT IN ('removed', 'left', 'no_show')`,
+      [data.sessionId, allHostIds],
+    );
   }
 
   let count = 0;
   for (const [participantId] of activeSession.presenceMap) {
-    // Skip the host — they should not be muted
-    if (participantId === activeSession.hostUserId) continue;
+    // Skip the host AND all co-hosts — they should not be muted by
+    // bulk-mute. Excluded above for the DB persist; mirror here for
+    // the socket relay.
+    if (allHostIds.includes(participantId)) continue;
     io.to(userRoom(participantId)).emit('lobby:mute_command', {
       muted: data.muted,
       byHost: true,
@@ -836,7 +883,7 @@ export async function handleHostMuteAll(
   }
 
   logger.info({ sessionId: data.sessionId, muted: data.muted, count },
-    'Host mute/unmute all command sent');
+    'Phase O — Host mute/unmute all persisted + relayed');
 }
 
 // ─── Host: Remove participant from breakout room ────────────────────────────
