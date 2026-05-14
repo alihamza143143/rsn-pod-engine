@@ -45,17 +45,25 @@ export default function ChatPanel({ sessionId, onClose }: ChatPanelProps) {
     useSessionStore.getState().resetUnreadChat();
   }, []);
 
-  // Phase 4B (5 May spec) — force-fetch chat history on panel open.
-  // Closes Stefan #8: if a message arrived but the local store missed it
-  // (race / disconnect / scope filter), the panel opens with stale
-  // chat. This emits chat:request_history so the server replays the
-  // current authoritative history for the session, scoped to the user's
-  // current breakout match if any.
+  // Bug 15 (13 May live test) — only fetch chat history when we don't already
+  // have messages for the current scope. Pre-fix, every panel mount fired
+  // chat:request_history and the server's reply REPLACED the local array
+  // via store.setChatMessages — if the reply was empty (e.g. during a round
+  // transition, scope mismatch, or before the server has indexed the just-
+  // sent breakout message) the local messages visibly vanished. Closing and
+  // reopening the chat triggered this wipe every time. Now: keep the
+  // accumulated array, only fetch when we have nothing for this scope, and
+  // rely on socket.on('chat:message') to keep us live.
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
-    const matchId = useSessionStore.getState().currentMatchId || undefined;
-    socket.emit('chat:request_history', { sessionId, matchId });
+    const { currentMatchId, currentRoomId, chatMessages: cur } = useSessionStore.getState();
+    const inBreakout = useSessionStore.getState().phase === 'matched';
+    const haveScopeMessages = inBreakout
+      ? cur.some(m => m.scope === 'room' && (!m.roomId || m.roomId === currentRoomId))
+      : cur.some(m => m.scope === 'lobby' || !m.scope);
+    if (haveScopeMessages) return;
+    socket.emit('chat:request_history', { sessionId, matchId: currentMatchId || undefined });
   }, [sessionId]);
 
   // Focus input on mount

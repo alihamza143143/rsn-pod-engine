@@ -356,7 +356,17 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
 }
 
 function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?: string }) {
-  const { localParticipant } = useLocalParticipant();
+  // Bug 11 (13 May live test) — destructure the reactive isMicrophoneEnabled /
+  // isCameraEnabled values from useLocalParticipant directly. Pre-fix the
+  // component relied on manual `localParticipant.on('trackPublished', ...)`
+  // listeners + a stale React state mirror, but in livekit-client v2 the
+  // LocalParticipant emits `localTrackPublished` (not `trackPublished`) for
+  // its own publishes, so the listener never fired and the React state drifted
+  // out of sync with reality — "Cam Off" appeared while the camera was clearly
+  // publishing video. The components-react hook subscribes to the right event
+  // matrix internally, so we use those values as the source of truth and only
+  // mirror them into local state for the optimistic-toggle UX.
+  const { localParticipant, isMicrophoneEnabled: hookMicEnabled, isCameraEnabled: hookCamEnabled } = useLocalParticipant();
   const allParticipants = useParticipants();
   const { hostMuteCommand, setHostMuteCommand } = useSessionStore();
   // Restore camera/mic preference from sessionStorage (FIX 15D — survives refresh)
@@ -416,30 +426,19 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
     }
   }, [localParticipant, isHost]);
 
-  // Phase 7-audit fix — keep local camEnabled / micEnabled in sync with the
-  // actual LiveKit track state. Pre-fix the toggle handlers updated React
-  // state optimistically, but a) the LiveKit auto-publish on join and
-  // b) any external state change (host mute, network reconnect) would
-  // not flow back into the React state. Result: button label said "Cam Off"
-  // while the camera was actually publishing video.
+  // Bug 11 (13 May live test) — sync local optimistic state with the hook's
+  // reactive values. The hook re-renders the parent whenever the underlying
+  // track state changes (any source: user toggle, host mute, network
+  // reconnect, server-side permission update). This replaces the manual
+  // `localParticipant.on('trackPublished', ...)` listeners that were silent
+  // for LocalParticipant in livekit-client v2 (it emits `localTrackPublished`
+  // not `trackPublished` for self publishes).
   useEffect(() => {
-    if (!localParticipant) return;
-    const sync = () => {
-      setCamEnabled(localParticipant.isCameraEnabled);
-      setMicEnabled(localParticipant.isMicrophoneEnabled);
-    };
-    sync();
-    localParticipant.on('trackPublished' as any, sync);
-    localParticipant.on('trackUnpublished' as any, sync);
-    localParticipant.on('trackMuted' as any, sync);
-    localParticipant.on('trackUnmuted' as any, sync);
-    return () => {
-      localParticipant.off('trackPublished' as any, sync);
-      localParticipant.off('trackUnpublished' as any, sync);
-      localParticipant.off('trackMuted' as any, sync);
-      localParticipant.off('trackUnmuted' as any, sync);
-    };
-  }, [localParticipant]);
+    setMicEnabled(hookMicEnabled);
+  }, [hookMicEnabled]);
+  useEffect(() => {
+    setCamEnabled(hookCamEnabled);
+  }, [hookCamEnabled]);
 
   // Guard: prevent user toggle while host mute command is being applied (race condition)
   const [hostMuteProcessing, setHostMuteProcessing] = useState(false);

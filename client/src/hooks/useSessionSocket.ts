@@ -628,9 +628,15 @@ export default function useSessionSocket(sessionId: string) {
     // ── Chat ──
     socket.on('chat:message', (data: any) => store.addChatMessage(data));
     socket.on('chat:history', (data: any) => {
-      if (data.messages && Array.isArray(data.messages)) {
-        store.setChatMessages(data.messages);
-      }
+      if (!data.messages || !Array.isArray(data.messages)) return;
+      // Bug 15 (13 May live test) — an empty server reply must not wipe the
+      // local array. Pre-fix, a race during round transitions could ship
+      // an empty history back and erase the messages the user had just
+      // exchanged. Only replace when the server's authoritative reply is
+      // non-empty; an empty reply means "I have no extra history for you
+      // right now", not "discard what you have".
+      if (data.messages.length === 0) return;
+      store.setChatMessages(data.messages);
     });
     socket.on('chat:reaction_update', (data: any) => {
       if (data.messageId && data.reactions) {

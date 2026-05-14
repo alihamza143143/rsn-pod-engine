@@ -25,6 +25,45 @@ function readClientSource(rel: string): string {
 }
 
 describe('Phase X — 13 May live-test bug fixes', () => {
+  describe('Bug 11 — Cam/Mic labels read from reactive hook values', () => {
+    const src = readClientSource('features/live/Lobby.tsx');
+
+    it('useLocalParticipant destructures isMicrophoneEnabled + isCameraEnabled', () => {
+      // The hook is the single source of truth for the local participant's
+      // track state. Pre-fix the component only pulled localParticipant out
+      // and tried to subscribe to events manually, which silently failed
+      // on LocalParticipant in livekit-client v2.
+      expect(src).toMatch(/isMicrophoneEnabled:\s*hookMicEnabled/);
+      expect(src).toMatch(/isCameraEnabled:\s*hookCamEnabled/);
+    });
+
+    it('does not register manual trackPublished listeners on LocalParticipant', () => {
+      // Forbid the regression to `.on('trackPublished' as any, sync)` style.
+      // The cast-to-any was the giveaway. Scope to call sites, not comments.
+      expect(src).not.toMatch(/localParticipant\.on\(['"]trackPublished['"]\s*as\s+any/);
+      expect(src).not.toMatch(/localParticipant\.on\(['"]trackUnpublished['"]\s*as\s+any/);
+    });
+
+    it('local state mirrors hook values via single-source useEffects', () => {
+      expect(src).toMatch(/setMicEnabled\(hookMicEnabled\)/);
+      expect(src).toMatch(/setCamEnabled\(hookCamEnabled\)/);
+    });
+  });
+
+  describe('Bug 15 — breakout chat persists across panel close/reopen', () => {
+    const panelSrc = readClientSource('features/live/ChatPanel.tsx');
+    const socketSrc = readClientSource('hooks/useSessionSocket.ts');
+
+    it('ChatPanel only fetches history when there are no scope-matching messages', () => {
+      expect(panelSrc).toMatch(/haveScopeMessages/);
+      expect(panelSrc).toMatch(/if\s*\(haveScopeMessages\)\s*return/);
+    });
+
+    it('chat:history handler ignores empty server replies', () => {
+      expect(socketSrc).toMatch(/data\.messages\.length\s*===\s*0\)\s*return/);
+    });
+  });
+
   describe('Feature 17 — DM button on recap pages', () => {
     const sessionComplete = readClientSource('features/live/SessionComplete.tsx');
     const recapPage = readClientSource('features/sessions/RecapPage.tsx');
