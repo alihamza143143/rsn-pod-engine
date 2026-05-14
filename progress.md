@@ -7776,3 +7776,46 @@ This means Stefan (super_admin, opted in) shows as `'cohost'` in HCC — counted
 - Host-initiated demote of a cohost (new endpoint with different permission model).
 
 All 10 items from Stefan's 12 May feedback are now shipped per Ali's clarification, on staging + main, with full RajaSkill verification.
+
+---
+
+## Stefan's 12 May Feedback — Phase Q (host tile elevation) — 2026-05-13
+
+**Status:** Hosts now get the bigger tile automatically in the lobby grid (12 May item 2 / 10 May item 12 — auto behaviour, not opt-in).
+**Why:** Ali's 13 May clarification on Stefan's spec: "the host must be a bigger tile in the main room — right now it's myself or the user self that's bigger, but in the 12th May doc Stefan was asking the host to be bigger. One host → 1 bigger tile, two hosts → 2 bigger tiles, three hosts → 3 bigger tiles. #1 tile is always the main director." Pre-Phase-Q the bigger tile was tied to `isLocal` (Phase 8C.2's self-prominence from 8 May), so every viewer saw their own tile big regardless of role.
+
+### What changed
+
+**`Lobby.tsx` — LobbyMosaic component:**
+- Reads `cohosts` + `actingAsHostOverrides` from the store, builds `hostsSet` with the same shape Phase P uses (director always counted, cohosts added, opt-ins added, opt-outs removed).
+- Sort order rewritten: director (hostUserId match) → other acting hosts → local participant → everyone else (alphabetical within ties).
+- `renderTile` derives `isActingHost = hostsSet.has(trackRef.participant.identity)`.
+- Tile size className flips from `isLocalTile ? '... sm:col-span-2 sm:row-span-2 ...'` to `isActingHost ? '... sm:col-span-2 sm:row-span-2 ...'`. Local-tile-specific overlays (mic / kick / self-controls) still gate on `isLocal` since those are about the viewer's own tile, not role.
+- New `data-acting-host` attribute exposed for E2E selectors; `data-self` kept for the existing overlay logic.
+
+The `big_speaker` visibility mode dropdown (Phase N) remains as a stronger "I dominate the entire stage" override — Phase Q's automatic host elevation is the default for ALL hosts; `big_speaker` is opt-in for "I want to be THE single dominant tile". Both layer cleanly.
+
+### Files
+
+- Modified: `client/src/features/live/Lobby.tsx` — sort, hostsSet, renderTile size logic, data attributes.
+- New: `server/src/__tests__/services/phase-q-host-tile-elevation.test.ts` — 10 pin tests covering hostsSet derivation, sort precedence, size-by-isActingHost, data-attribute wiring, Phase N coexistence.
+- New: `e2e/tests/phase-q-ui-host-tile-elevation.spec.ts` — browser UI tests for the data-attribute wiring against the live deploy.
+- Modified: `progress.md` — this entry.
+
+### Verification
+
+- Server suite: **1337 passed, 1 skipped (pre-existing), 0 failed** across 105 suites (Phase Q added 1 suite, 10 tests).
+- Client TypeScript: clean.
+- Client production build: clean — no bundle growth.
+
+### Decision log
+
+- **Bigger tile auto-elevates for hosts, no manual click needed.** Pre-Phase-Q, the host had to set themselves to `big_speaker` in the dropdown to be the big tile; that's not what Stefan wanted. Phase Q makes the default "host = big".
+- **Director is always #1.** Sort precedence: hostUserId-match wins over every other tiebreaker. Stefan's #1 rule.
+- **Multiple hosts get multiple big tiles.** No clipping or single-pin logic — if 3 hosts are visible, 3 tiles get `sm:col-span-2 sm:row-span-2`.
+- **Local-tile-specific overlays kept tied to `isLocal`** (NOT role). Mute/kick/self-controls are about the viewer's own tile, independent of role.
+
+### What's NOT changed
+
+- VideoRoom (breakout): no change. Phase Q is lobby-only. Breakouts are 2-3 person rooms where size logic doesn't apply.
+- `big_speaker` dropdown: still works the same. Stronger override on top of auto-host elevation.

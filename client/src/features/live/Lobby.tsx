@@ -57,6 +57,24 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
   // Read from the server-authoritative store; the 4 modes drive how each
   // hostly user is rendered in the lobby (and breakout) grid.
   const hostVisibilityModes = useSessionStore(s => s.hostVisibilityModes);
+  // Phase Q (12 May spec item 2 — Ali's clarification): hosts get bigger
+  // tiles automatically (not "self" — that was the wrong pre-Phase-Q
+  // behaviour). Build the acting-host set from director + cohorts +
+  // opt-ins minus opt-outs; the director is always counted regardless
+  // of any stale row. Same shape as HostParticipantPanel uses.
+  const cohosts = useSessionStore(s => s.cohosts);
+  const actingAsHostOverrides = useSessionStore(s => s.actingAsHostOverrides);
+  const hostsSet = (() => {
+    const s = new Set<string>();
+    if (hostUserId) s.add(hostUserId);
+    for (const c of cohosts) s.add(c);
+    for (const [uid, v] of Object.entries(actingAsHostOverrides)) {
+      if (v === true) s.add(uid);
+      if (v === false) s.delete(uid);
+    }
+    if (hostUserId) s.add(hostUserId);
+    return s;
+  })();
   const cameraTracksRaw = tracks.filter(t => t.source === Track.Source.Camera);
 
   // Resolve visibility mode for a single track. Falls back to 'normal' so
@@ -71,8 +89,21 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
       : 'normal';
   }, [hostVisibilityModes]);
 
-  // Sort: host (local) tile always first in the grid
+  // Phase Q sort order: director first, then other acting hosts (cohorts
+  // + opt-ins), then the local user, then everyone else. This guarantees
+  // the #1 tile in the grid is ALWAYS the director's, regardless of
+  // viewer — matching Ali's 13 May clarification on Stefan's spec.
   const cameraTracksSorted = [...cameraTracksRaw].sort((a, b) => {
+    const aId = a.participant.identity;
+    const bId = b.participant.identity;
+    const aIsDirector = aId === hostUserId;
+    const bIsDirector = bId === hostUserId;
+    if (aIsDirector && !bIsDirector) return -1;
+    if (!aIsDirector && bIsDirector) return 1;
+    const aIsHost = !!aId && hostsSet.has(aId);
+    const bIsHost = !!bId && hostsSet.has(bId);
+    if (aIsHost && !bIsHost) return -1;
+    if (!aIsHost && bIsHost) return 1;
     const aIsLocal = a.participant.sid === localParticipant.sid ? 0 : 1;
     const bIsLocal = b.participant.sid === localParticipant.sid ? 0 : 1;
     return aIsLocal - bIsLocal;
@@ -139,19 +170,25 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
     const name = trackRef.participant.name || trackRef.participant.identity || 'User';
     const hasVideo = !!trackRef.publication?.track;
     const isLocal = trackRef.participant.sid === localParticipant.sid;
-    // Phase 8C.2 (8 May spec) — local tile gets self-prominence so each
-    // user clearly sees their own camera in the main room. Stefan #11
-    // is honoured by the sort (host first), so even in compact density
-    // the host always renders in the visible roster.
-    const isLocalTile = isLocal;
     const tileIsHost = trackRef.participant.identity === hostUserId;
+    // Phase Q (12 May spec item 2 — Ali's 13 May clarification) — hosts
+    // get the bigger tile automatically. Pre-Phase-Q this was tied to
+    // `isLocal` (Phase 8C.2 self-prominence rule), which made each user
+    // see THEMSELVES as the big tile regardless of role — exactly the
+    // behaviour Stefan called out in the 12 May test. Now the elevation
+    // follows the host roster (director + cohosts + opt-ins), so every
+    // viewer sees the host(s) as the big tile(s) and #1 is always the
+    // director.
+    const isActingHost = !!trackRef.participant.identity
+      && hostsSet.has(trackRef.participant.identity);
     const isMicOn = trackRef.participant.isMicrophoneEnabled;
     return (
       <div
         key={trackRef.participant.sid}
-        data-self={isLocalTile ? 'true' : undefined}
+        data-self={isLocal ? 'true' : undefined}
         data-host={tileIsHost ? 'true' : undefined}
-        className={`relative rounded-xl overflow-hidden bg-[#3c4043] ${isPinned ? 'h-full w-full' : isLocalTile ? 'aspect-video sm:col-span-2 sm:row-span-2 ring-2 ring-rsn-red/30' : 'aspect-video'} flex items-center justify-center group cursor-pointer`}
+        data-acting-host={isActingHost ? 'true' : undefined}
+        className={`relative rounded-xl overflow-hidden bg-[#3c4043] ${isPinned ? 'h-full w-full' : isActingHost ? 'aspect-video sm:col-span-2 sm:row-span-2 ring-2 ring-rsn-red/30' : 'aspect-video'} flex items-center justify-center group cursor-pointer`}
         onClick={onClick}
       >
         {hasVideo && isTrackReference(trackRef) ? (
