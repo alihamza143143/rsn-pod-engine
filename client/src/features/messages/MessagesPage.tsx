@@ -123,7 +123,17 @@ function clusterMessages(messages: DmMessage[]): MessageCluster[] {
 }
 
 export default function MessagesPage() {
-  const { conversationId: activeId } = useParams();
+  // Feature 18 (13 May spec) — single page renders three modes:
+  //   • /messages                     → inbox only (right pane is empty state)
+  //   • /messages/:conversationId     → existing thread
+  //   • /messages/new/:userId         → compose to a user who isn't in the inbox yet
+  // In compose mode the right pane shows the target user's header and an empty
+  // thread with the same composer; on first send the server creates the
+  // conversation and we replace the URL with the real conversationId.
+  const { conversationId: activeId, userId: composeToUserId } = useParams<{
+    conversationId?: string;
+    userId?: string;
+  }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { user } = useAuthStore();
@@ -159,6 +169,25 @@ export default function MessagesPage() {
     queryFn: () => api.get(`/dm/conversations/${activeId}/messages`).then(r => r.data.data as DmMessage[]),
     enabled: !!activeId,
   });
+
+  // Feature 18 — compose-new mode: fetch the target user's profile for the
+  // header so the composer doesn't show "User" before the conversation exists.
+  const { data: composeTargetUser } = useQuery({
+    queryKey: ['user', composeToUserId],
+    queryFn: () => api.get(`/users/${composeToUserId}`).then(r => r.data.data),
+    enabled: !!composeToUserId,
+  });
+
+  // Feature 18 — if a conversation with this user already exists in the
+  // inbox, redirect to it so the back button and refresh don't get stuck
+  // on /messages/new/:userId after the first send.
+  useEffect(() => {
+    if (!composeToUserId || !inboxData) return;
+    const existing = inboxData.find(c => c.otherUserId === composeToUserId);
+    if (existing) {
+      navigate(`/messages/${existing.conversationId}`, { replace: true });
+    }
+  }, [composeToUserId, inboxData, navigate]);
 
   // Mark-as-read: fire on opening a conversation.
   useEffect(() => {
@@ -223,15 +252,41 @@ export default function MessagesPage() {
 
   const activeConv = inboxData?.find(c => c.conversationId === activeId);
 
+  // Feature 18 — derive an "effective active context" so the thread view and
+  // composer can render uniformly whether we're in an existing thread or
+  // composing a new one. composeTarget supplies the header info when we
+  // don't have a conversation row yet.
+  const isComposeMode = !!composeToUserId && !activeId;
+  const composeTarget = composeToUserId && composeTargetUser
+    ? {
+        otherUserId: composeToUserId,
+        otherDisplayName: composeTargetUser.displayName ?? null,
+        otherAvatarUrl: composeTargetUser.avatarUrl ?? null,
+      }
+    : null;
+  const headerContext: { otherUserId: string; otherDisplayName: string | null; otherAvatarUrl: string | null } | null
+    = activeConv ?? composeTarget;
+
   const sendMutation = useMutation({
-    mutationFn: (content: string) => {
-      if (!activeConv) throw new Error('No active conversation');
-      return api.post('/dm/messages', { toUserId: activeConv.otherUserId, content });
+    mutationFn: async (content: string) => {
+      // Compose-new path: POST creates the conversation; existing path: same
+      // endpoint with the inbox's otherUserId. Server returns the
+      // conversationId either way.
+      const toUserId = activeConv?.otherUserId ?? composeToUserId;
+      if (!toUserId) throw new Error('No recipient');
+      const res = await api.post('/dm/messages', { toUserId, content });
+      return res.data.data as { conversationId: string };
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       setDraft('');
-      qc.invalidateQueries({ queryKey: ['dm-messages', activeId] });
+      qc.invalidateQueries({ queryKey: ['dm-messages', activeId ?? data.conversationId] });
       qc.invalidateQueries({ queryKey: ['dm-conversations'] });
+      // Feature 18 — first send in compose-new mode flips the URL from
+      // /messages/new/:userId to /messages/:conversationId so subsequent
+      // sends use the existing-thread path and the back button works.
+      if (isComposeMode) {
+        navigate(`/messages/${data.conversationId}`, { replace: true });
+      }
     },
     onError: (err: any) => {
       addToast(err?.response?.data?.error?.message || 'Failed to send message', 'error');
@@ -296,10 +351,12 @@ export default function MessagesPage() {
       </div>
 
       {/* Thread view (right) */}
-      <div className={`flex-1 bg-white rounded-xl border border-gray-200 overflow-hidden ${activeId ? 'flex' : 'hidden md:flex'} flex-col`}>
-        {!activeId || !activeConv ? (
+      <div className={`flex-1 bg-white rounded-xl border border-gray-200 overflow-hidden ${(activeId || isComposeMode) ? 'flex' : 'hidden md:flex'} flex-col`}>
+        {!headerContext ? (
           <div className="flex-1 flex items-center justify-center text-sm text-gray-500 px-6 text-center">
-            Select a conversation to start chatting.
+            {composeToUserId
+              ? <Spinner />
+              : 'Select a conversation to start chatting.'}
           </div>
         ) : (
           <>
@@ -312,26 +369,34 @@ export default function MessagesPage() {
               >
                 <ArrowLeft className="h-4 w-4 text-gray-500" />
               </button>
-              <Avatar src={activeConv.otherAvatarUrl || undefined} name={activeConv.otherDisplayName || 'User'} size="sm" />
-              <Link to={`/profile/${activeConv.otherUserId}`} className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-[#1a1a2e] truncate hover:underline">{activeConv.otherDisplayName || 'User'}</p>
+              <Avatar src={headerContext.otherAvatarUrl || undefined} name={headerContext.otherDisplayName || 'User'} size="sm" />
+              <Link to={`/profile/${headerContext.otherUserId}`} className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-[#1a1a2e] truncate hover:underline">{headerContext.otherDisplayName || 'User'}</p>
               </Link>
-              <button
-                onClick={() => {
-                  if (confirm('Delete this conversation from your view? The other person\'s view is unaffected.')) {
-                    deleteMutation.mutate(activeConv.conversationId);
-                  }
-                }}
-                className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500"
-                title="Delete conversation"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
+              {/* Delete is only available for existing conversations (compose-new
+                  mode has nothing to delete yet). */}
+              {activeConv && (
+                <button
+                  onClick={() => {
+                    if (confirm('Delete this conversation from your view? The other person\'s view is unaffected.')) {
+                      deleteMutation.mutate(activeConv.conversationId);
+                    }
+                  }}
+                  className="p-1.5 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500"
+                  title="Delete conversation"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              )}
             </div>
 
-            {/* Messages — clustered by sender + day */}
+            {/* Messages — clustered by sender + day. In compose-new mode there's
+                no conversation yet, so we render the empty-state and let the
+                composer below handle the first send. */}
             <div className="flex-1 overflow-y-auto px-4 py-3">
-              {messagesData === undefined ? (
+              {isComposeMode ? (
+                <div className="text-center py-8 text-sm text-gray-500">No messages yet — say hi!</div>
+              ) : messagesData === undefined ? (
                 <div className="flex items-center justify-center py-8"><Spinner /></div>
               ) : messagesData.length === 0 ? (
                 <div className="text-center py-8 text-sm text-gray-500">No messages yet — say hi!</div>
@@ -369,8 +434,8 @@ export default function MessagesPage() {
                         {!fromMe && (
                           <div className="flex-shrink-0">
                             <Avatar
-                              src={activeConv.otherAvatarUrl || undefined}
-                              name={activeConv.otherDisplayName || 'User'}
+                              src={headerContext.otherAvatarUrl || undefined}
+                              name={headerContext.otherDisplayName || 'User'}
                               size="sm"
                             />
                           </div>

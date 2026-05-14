@@ -143,30 +143,14 @@ export default function PublicProfilePage() {
           {!isOwnProfile && currentUser?.id && !isBlocked && (
             <div className="mt-4">
               {canMessage ? (
+                // Feature 18 (13 May spec) — one-click message. Navigates to
+                // /messages/new/:userId; MessagesPage handles the routing
+                // for both the existing-conversation and compose-new cases.
+                // No prompt; the user types their first message in the
+                // chat panel like any other message.
                 <Button
                   size="sm"
-                  onClick={async () => {
-                    // Send a zero-content "open conversation" by posting an
-                    // empty message? No — just navigate to /messages. The
-                    // first send creates the conversation server-side.
-                    // For better UX, find existing conversation if any.
-                    try {
-                      const list = await api.get('/dm/conversations').then(r => r.data.data as any[]);
-                      const existing = list.find(c => c.otherUserId === userId);
-                      if (existing) {
-                        navigate(`/messages/${existing.conversationId}`);
-                      } else {
-                        // Send an opener so the conversation is created.
-                        const content = prompt(`Send your first message to ${user.displayName || 'this user'}:`);
-                        if (content && content.trim()) {
-                          const res = await api.post('/dm/messages', { toUserId: userId, content: content.trim() });
-                          navigate(`/messages/${res.data.data.conversationId}`);
-                        }
-                      }
-                    } catch (err: any) {
-                      addToast(err?.response?.data?.error?.message || 'Failed to open conversation', 'error');
-                    }
-                  }}
+                  onClick={() => navigate(`/messages/new/${userId}`)}
                   className="text-xs"
                 >
                   <MessageSquare className="h-3.5 w-3.5 mr-1.5" /> Message

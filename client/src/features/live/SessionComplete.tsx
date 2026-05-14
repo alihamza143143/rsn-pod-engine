@@ -6,44 +6,23 @@ import { Spinner } from '@/components/ui/Spinner';
 import { CheckCircle, Users, Star, Handshake, ArrowRight, UserCheck, CircleDot, MessageSquare } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/lib/api';
-import { useToastStore } from '@/stores/toastStore';
 
-// Feature 17 (13 May spec) — DM button on recap rows. Same flow as
-// PublicProfilePage: find an existing conversation with this partner and
-// navigate to it; if none exists, prompt for an opener message and create
-// the conversation. Stays self-contained so both SessionComplete and
-// RecapPage can reuse the click handler.
+// Feature 17 + 18 (13 May spec) — DM button on recap rows. One click lands
+// the user directly in the chat panel with the composer ready; no prompt,
+// no API round-trip from the recap. MessagesPage handles the routing for
+// both the "existing conversation" and "compose new" cases via the
+// /messages/new/:userId route. Same component used by SessionComplete and
+// RecapPage so behaviour is uniform across both recap views.
 function MessagePartnerButton({ userId, displayName }: { userId: string; displayName: string }) {
   const navigate = useNavigate();
-  const addToast = useToastStore(s => s.addToast);
-  const [busy, setBusy] = useState(false);
-  const openConversation = async (e: React.MouseEvent) => {
+  const openConversation = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    if (busy) return;
-    setBusy(true);
-    try {
-      const list = await api.get('/dm/conversations').then(r => r.data.data as any[]);
-      const existing = list.find(c => c.otherUserId === userId);
-      if (existing) {
-        navigate(`/messages/${existing.conversationId}`);
-        return;
-      }
-      const content = prompt(`Send your first message to ${displayName || 'this user'}:`);
-      if (content && content.trim()) {
-        const res = await api.post('/dm/messages', { toUserId: userId, content: content.trim() });
-        navigate(`/messages/${res.data.data.conversationId}`);
-      }
-    } catch (err: any) {
-      addToast(err?.response?.data?.error?.message || 'Could not open conversation', 'error');
-    } finally {
-      setBusy(false);
-    }
+    navigate(`/messages/new/${userId}`);
   };
   return (
     <button
       onClick={openConversation}
-      disabled={busy}
       title={`Message ${displayName || 'this user'}`}
       className="shrink-0 inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 px-2 py-1 rounded-md border border-indigo-200 hover:bg-indigo-50 transition-colors"
       data-testid={`recap-dm-button-${userId}`}

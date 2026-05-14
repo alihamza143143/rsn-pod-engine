@@ -79,6 +79,12 @@ export default function App() {
         <Route path="/sessions/:sessionId/recap" element={<RecapPage />} />
         <Route path="/encounters" element={<EncounterHistoryPage />} />
         <Route path="/messages" element={<MessagesPage />} />
+        {/* Feature 18 (13 May spec) — one-click DM open. The recap, profile,
+            and post-event pages send users to /messages/new/:userId, which
+            renders the same page in "compose new" mode for that target user.
+            Order matters: this must precede /:conversationId so "new" isn't
+            interpreted as a conversation id. */}
+        <Route path="/messages/new/:userId" element={<MessagesPage />} />
         <Route path="/messages/:conversationId" element={<MessagesPage />} />
         <Route path="/invites" element={<InvitesPage />} />
         <Route path="/settings" element={<SettingsPage />} />

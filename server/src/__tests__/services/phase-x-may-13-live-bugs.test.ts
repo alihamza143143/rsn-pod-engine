@@ -64,42 +64,53 @@ describe('Phase X — 13 May live-test bug fixes', () => {
     });
   });
 
-  describe('Feature 17 — DM button on recap pages', () => {
+  describe('Feature 17 + 18 — DM button navigates straight to /messages/new/:userId', () => {
     const sessionComplete = readClientSource('features/live/SessionComplete.tsx');
     const recapPage = readClientSource('features/sessions/RecapPage.tsx');
+    const profile = readClientSource('features/profile/PublicProfilePage.tsx');
+    const app = readClientSource('App.tsx');
+    const messagesPage = readClientSource('features/messages/MessagesPage.tsx');
 
-    it('SessionComplete imports MessageSquare icon and useToastStore', () => {
-      expect(sessionComplete).toMatch(/MessageSquare/);
-      expect(sessionComplete).toMatch(/import\s*\{\s*useToastStore\s*\}/);
+    it('App.tsx declares the /messages/new/:userId route', () => {
+      expect(app).toMatch(/\/messages\/new\/:userId/);
     });
 
-    it('SessionComplete defines MessagePartnerButton helper', () => {
-      expect(sessionComplete).toMatch(/function\s+MessagePartnerButton/);
-      // Click flow: GET /dm/conversations → find existing → navigate, or
-      // POST /dm/messages with content → navigate. Both paths pinned.
-      expect(sessionComplete).toMatch(/api\.get\(['"]\/dm\/conversations['"]\)/);
-      expect(sessionComplete).toMatch(/api\.post\(['"]\/dm\/messages['"]/);
-      expect(sessionComplete).toMatch(/navigate\(`\/messages\/\$\{[\s\S]{0,40}conversationId/);
+    it('SessionComplete + RecapPage navigate directly to /messages/new/:userId — no prompt() flow', () => {
+      // Both helpers should be a simple navigate call. The earlier prompt-
+      // then-create flow is forbidden because it surfaces a jarring native
+      // dialog before the user can type in the actual chat input.
+      expect(sessionComplete).toMatch(/navigate\(`\/messages\/new\/\$\{userId\}`\)/);
+      expect(recapPage).toMatch(/navigate\(`\/messages\/new\/\$\{userId\}`\)/);
+      // Forbid the regression to the prompt() flow.
+      expect(sessionComplete).not.toMatch(/prompt\(`Send your first message/);
+      expect(recapPage).not.toMatch(/prompt\(`Send your first message/);
     });
 
-    it('SessionComplete renders MessagePartnerButton in mutualConnections + per-round rows', () => {
-      // Two render sites: mutual matches list and the round-by-round list.
-      const renders = sessionComplete.match(/<MessagePartnerButton\b/g) || [];
-      expect(renders.length).toBeGreaterThanOrEqual(2);
+    it('PublicProfilePage Message button also uses the new route + drops the prompt', () => {
+      expect(profile).toMatch(/navigate\(`\/messages\/new\/\$\{userId\}`\)/);
+      expect(profile).not.toMatch(/prompt\(`Send your first message/);
     });
 
-    it('RecapPage defines MessagePartnerButton helper too', () => {
-      expect(recapPage).toMatch(/function\s+MessagePartnerButton/);
-      expect(recapPage).toMatch(/api\.get\(['"]\/dm\/conversations['"]\)/);
-      expect(recapPage).toMatch(/api\.post\(['"]\/dm\/messages['"]/);
+    it('MessagesPage reads both conversationId and userId params (dual-mode)', () => {
+      expect(messagesPage).toMatch(/conversationId:\s*activeId,\s*userId:\s*composeToUserId/);
     });
 
-    it('RecapPage renders MessagePartnerButton in mutualConnections + per-round rows', () => {
-      const renders = recapPage.match(/<MessagePartnerButton\b/g) || [];
-      expect(renders.length).toBeGreaterThanOrEqual(2);
+    it('MessagesPage compose-mode redirects to existing thread when one already exists', () => {
+      // Pin the redirect side-effect — when composeToUserId is set AND
+      // inboxData has a conversation with that partner, the page navigates
+      // to /messages/<existing.conversationId> with replace:true so the
+      // back button doesn't get stuck on /messages/new/:userId.
+      expect(messagesPage).toMatch(/if\s*\(!composeToUserId\s*\|\|\s*!inboxData\)\s*return/);
+      expect(messagesPage).toMatch(/inboxData\.find\(\s*c\s*=>\s*c\.otherUserId\s*===\s*composeToUserId\s*\)/);
+      expect(messagesPage).toMatch(/navigate\(`\/messages\/\$\{existing\.conversationId\}`,\s*\{\s*replace:\s*true\s*\}\)/);
     });
 
-    it('Buttons carry data-testid for e2e selection', () => {
+    it('MessagesPage sendMutation POSTs to /dm/messages and replaces URL with new conv id after first send', () => {
+      expect(messagesPage).toMatch(/api\.post\(['"]\/dm\/messages['"]/);
+      expect(messagesPage).toMatch(/isComposeMode[\s\S]{0,200}navigate\(`\/messages\/\$\{data\.conversationId\}`/);
+    });
+
+    it('Recap row buttons keep data-testid for e2e selection', () => {
       expect(sessionComplete).toMatch(/data-testid=\{\s*`recap-dm-button-\$\{userId\}`\s*\}/);
       expect(recapPage).toMatch(/data-testid=\{\s*`recap-dm-button-\$\{userId\}`\s*\}/);
     });
