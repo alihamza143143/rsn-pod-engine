@@ -25,6 +25,46 @@ function readClientSource(rel: string): string {
 }
 
 describe('Phase X — 13 May live-test bug fixes', () => {
+  describe('Bug 1 — mute-all keeps camera alive', () => {
+    const src = readServerSource('services/video/livekit.provider.ts');
+
+    it('imports TrackSource from livekit-server-sdk', () => {
+      expect(src).toMatch(/import\s*\{[\s\S]{0,200}TrackSource[\s\S]{0,200}\}\s*from\s*['"]livekit-server-sdk['"]/);
+    });
+
+    it('setParticipantCanPublishAudio uses canPublishSources whitelist, not canPublish flip', () => {
+      const fnIdx = src.indexOf('async setParticipantCanPublishAudio');
+      expect(fnIdx).toBeGreaterThan(-1);
+      const block = src.slice(fnIdx, fnIdx + 3000);
+      // The permission shape must include canPublishSources and keep
+      // canPublish:true (so we don't kill video alongside audio).
+      expect(block).toMatch(/canPublish:\s*true/);
+      expect(block).toMatch(/canPublishSources:\s*allowedSources/);
+      // No regression to the old "canPublish: canPublishAudio" form.
+      expect(block).not.toMatch(/canPublish:\s*canPublishAudio/);
+    });
+
+    it('whitelist is gated by canPublishAudio with two explicit branches', () => {
+      const fnIdx = src.indexOf('async setParticipantCanPublishAudio');
+      const block = src.slice(fnIdx, fnIdx + 3000);
+      // Locate the actual ternary expression (skip the comment that also
+      // mentions canPublishAudio). The ternary form is
+      //   const allowedSources = canPublishAudio? [...]: [...];
+      const ternaryMatch = block.match(/canPublishAudio\s*\?\s*(\[[^\]]*\])\s*:\s*(\[[^\]]*\])/);
+      expect(ternaryMatch).not.toBeNull();
+      const [, truthyBranch, falsyBranch] = ternaryMatch!;
+
+      // Mute (falsy) branch — no MICROPHONE, but camera + screen share remain.
+      expect(falsyBranch).toMatch(/TrackSource\.CAMERA/);
+      expect(falsyBranch).toMatch(/TrackSource\.SCREEN_SHARE/);
+      expect(falsyBranch).not.toMatch(/TrackSource\.MICROPHONE/);
+
+      // Unmute (truthy) branch — MICROPHONE restored alongside camera.
+      expect(truthyBranch).toMatch(/TrackSource\.MICROPHONE/);
+      expect(truthyBranch).toMatch(/TrackSource\.CAMERA/);
+    });
+  });
+
   describe('Bug 5 — mutual matches dedup by partner_id', () => {
     const src = readServerSource('services/meeting-records/meeting-records.service.ts');
 

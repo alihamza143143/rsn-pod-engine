@@ -38,14 +38,16 @@ describe('Phase U — LiveKit canPublishAudio revocation', () => {
   describe('LiveKitProvider implementation', () => {
     const src = readServer('services/video/livekit.provider.ts');
 
-    it('calls roomService.updateParticipant with permission { canPublish }', () => {
+    it('calls roomService.updateParticipant with a permission object', () => {
       const fnIdx = src.indexOf('setParticipantCanPublishAudio');
       expect(fnIdx).toBeGreaterThan(-1);
       // Window widened for the long explanatory comment block.
       const block = src.slice(fnIdx, fnIdx + 3000);
       expect(block).toMatch(/this\.roomService\.updateParticipant\(/);
-      // The 4th arg to updateParticipant is the permission object.
-      expect(block).toMatch(/canPublish:\s*canPublishAudio/);
+      // Bug 1 fix — canPublish stays TRUE; the mute is enforced via
+      // canPublishSources whitelist so camera + screen-share stay live.
+      expect(block).toMatch(/canPublish:\s*true/);
+      expect(block).toMatch(/canPublishSources/);
     });
 
     it('swallows "not found" / Twirp code 5 — participant not in room is non-fatal', () => {
