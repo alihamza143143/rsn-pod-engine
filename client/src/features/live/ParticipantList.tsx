@@ -1,8 +1,10 @@
 import { Users, X, Crown, Shield, ShieldCheck } from 'lucide-react';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useToastStore } from '@/stores/toastStore';
 import Avatar from '@/components/ui/Avatar';
 import { getSocket } from '@/lib/socket';
+import api from '@/lib/api';
 
 interface Props {
   onClose: () => void;
@@ -30,13 +32,36 @@ export default function ParticipantList({ onClose, sessionId }: Props) {
     return cohosts.has(uid); // default cohost membership
   };
 
-  const toggleCohost = (userId: string) => {
+  const addToast = useToastStore(s => s.addToast);
+  // Bug 3 (13 May live test) — co-host can be promoted via two paths and
+  // the participant-list toggle only walked one of them. When an admin
+  // opted in via the "Join as host" banner (Phase M acting_as_host=true)
+  // they showed the Co-Host badge but clicking the shield button emitted
+  // host:remove_cohost which is a no-op because they were never in
+  // session_cohosts. The badge stuck. Now the demote path clears
+  // whichever path is in effect: session_cohosts via socket AND/OR
+  // acting_as_host=false via the host-initiated REST endpoint. Promote
+  // stays on the formal session_cohosts path because it works for any
+  // role (Phase M acting_as_host requires admin/super_admin base role).
+  const toggleCohost = async (userId: string) => {
     const socket = getSocket();
-    if (!socket) return;
-    if (cohosts.has(userId)) {
-      socket.emit('host:remove_cohost', { sessionId, userId });
+    const formallyACohost = cohosts.has(userId);
+    const optedIn = actingAsHostOverrides[userId] === true;
+    const currentlyACohost = isActingCohost(userId);
+
+    if (currentlyACohost) {
+      if (formallyACohost) {
+        socket?.emit('host:remove_cohost', { sessionId, userId });
+      }
+      if (optedIn) {
+        try {
+          await api.post(`/sessions/${sessionId}/host/acting-as-host-for/${userId}`, { value: false });
+        } catch {
+          addToast("Couldn't demote this co-host. Try again.", 'error');
+        }
+      }
     } else {
-      socket.emit('host:assign_cohost', { sessionId, userId, role: 'co_host' });
+      socket?.emit('host:assign_cohost', { sessionId, userId, role: 'co_host' });
     }
   };
 

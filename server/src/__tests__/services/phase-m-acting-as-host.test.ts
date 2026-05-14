@@ -250,8 +250,11 @@ describe('Phase M — acting-as-host toggle (item 1)', () => {
     const src = readClient('features/live/LiveSessionPage.tsx');
 
     it('renders the banner only when baseIsHost AND user has opted out', () => {
+      // Bug 4 (13 May) — banner is now wrapped in an IIFE that derives
+      // `inBreakout` from phase before rendering, so the gate-to-render
+      // distance grew slightly. Widen the lookahead.
       expect(src).toMatch(
-        /baseIsHost\s*&&\s*myActingAsHost\s*===\s*false[\s\S]{0,80}data-testid="acting-as-host-revert-banner"/,
+        /baseIsHost\s*&&\s*myActingAsHost\s*===\s*false[\s\S]{0,300}data-testid="acting-as-host-revert-banner"/,
       );
     });
 

@@ -178,7 +178,7 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
         data-self={isLocal ? 'true' : undefined}
         data-host={tileIsHost ? 'true' : undefined}
         data-acting-host={isActingHost ? 'true' : undefined}
-        className={`relative rounded-xl overflow-hidden bg-[#3c4043] ${isPinned ? 'h-full w-full' : isActingHost ? 'aspect-video sm:col-span-2 sm:row-span-2 ring-2 ring-rsn-red/30' : 'aspect-video'} flex items-center justify-center group cursor-pointer`}
+        className={`relative rounded-xl overflow-hidden bg-[#3c4043] ${isPinned ? 'h-full w-full' : isActingHost ? 'aspect-video col-span-2 row-span-2 ring-2 ring-rsn-red/30' : 'aspect-video'} flex items-center justify-center group cursor-pointer`}
         onClick={onClick}
       >
         {hasVideo && isTrackReference(trackRef) ? (
@@ -834,11 +834,16 @@ function HostParticipantPanel({ sessionId }: { sessionId?: string }) {
           <Users className="h-4 w-4 text-gray-400" />
           {/* Phase D3 (10 May) — separate counts so "+ Hosts" reads correctly when cohosts present.
               Phase P (Ali's 13 May clarification) — counts now respect
-              acting_as_host opt-ins/opt-outs via hostsSet. */}
+              acting_as_host opt-ins/opt-outs via hostsSet.
+              Bug 7 (13 May live test) — hostsSet is the *registered* roster.
+              The lobby header is about who is in the room *right now*, so
+              intersect with the participants array. Pre-fix it read
+              hostsSet.size which counted a configured cohost even when
+              they hadn't joined yet (showed "2 Hosts" with only 1 present). */}
           <span>
             Participants ({participants.filter(p => !hostsSet.has(p.userId)).length})
             {(() => {
-              const totalHosts = hostsSet.size;
+              const totalHosts = participants.filter(p => hostsSet.has(p.userId)).length;
               return ` · ${totalHosts} ${totalHosts === 1 ? 'Host' : 'Hosts'}`;
             })()}
           </span>

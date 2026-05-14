@@ -65,6 +65,93 @@ describe('Phase X — 13 May live-test bug fixes', () => {
     });
   });
 
+  describe('Bug 3 — participant-list demote walks both promotion paths', () => {
+    const src = readClientSource('features/live/ParticipantList.tsx');
+
+    it('imports api so the acting-as-host-for REST endpoint can be hit', () => {
+      expect(src).toMatch(/import\s+api\s+from\s+['"]@\/lib\/api['"]/);
+    });
+
+    it('toggleCohost is async and checks the opted-in path before demoting via REST', () => {
+      expect(src).toMatch(/const\s+toggleCohost\s*=\s*async/);
+      // Demote branch must conditionally hit /host/acting-as-host-for when the
+      // user is currently a Phase M opt-in (acting_as_host = true), not just
+      // the session_cohosts table.
+      expect(src).toMatch(/optedIn\s*=\s*actingAsHostOverrides\[userId\]\s*===\s*true/);
+      expect(src).toMatch(/api\.post\(\s*[`'"][\s\S]{0,80}\/host\/acting-as-host-for\//);
+    });
+  });
+
+  describe('Bug 4 — switch-back banner button disabled while in breakout', () => {
+    const src = readClientSource('features/live/LiveSessionPage.tsx');
+
+    it('derives inBreakout from phase ∈ {matched, rating}', () => {
+      expect(src).toMatch(/inBreakout\s*=\s*phase\s*===\s*['"]matched['"]\s*\|\|\s*phase\s*===\s*['"]rating['"]/);
+    });
+
+    it('the revert button carries `disabled={inBreakout}` so it stays visible but inert', () => {
+      expect(src).toMatch(/disabled=\{\s*inBreakout\s*\}/);
+    });
+  });
+
+  describe('Bug 6 — encounter_history.times_met increments per match, not per session', () => {
+    const src = readServerSource('services/rating/rating.service.ts');
+
+    it('upsertEncounterHistory accepts matchId as a parameter', () => {
+      expect(src).toMatch(/async\s+function\s+upsertEncounterHistory\(\s*[\s\S]{0,200}matchId:\s*string/);
+    });
+
+    it('isFirstRatingForThisMatch derived from ratings count on the same matchId', () => {
+      // The new guard counts other ratings on the same match_id. Zero
+      // means we're the first rater — increment. ≥1 means partner rated
+      // already — suppress. This kills the old "same session = no
+      // increment" bug.
+      expect(src).toMatch(/isFirstRatingForThisMatch/);
+      expect(src).toMatch(/FROM\s+ratings\s+WHERE\s+match_id\s*=\s*\$1\s+AND\s+from_user_id\s*<>\s*\$2/i);
+    });
+
+    it('UPDATE encounter_history uses isFirstRatingForThisMatch in the times_met expression', () => {
+      const fnStart = src.indexOf('async function upsertEncounterHistory');
+      const fnEnd = src.indexOf('\n}\n', fnStart);
+      const fn = src.slice(fnStart, fnEnd);
+      expect(fn).toMatch(/times_met\s*=\s*\$\{isFirstRatingForThisMatch\s*\?\s*['"]times_met\s*\+\s*1['"]/);
+    });
+  });
+
+  describe('Bug 7 — lobby header counts only present hosts', () => {
+    const src = readClientSource('features/live/Lobby.tsx');
+
+    it('totalHosts intersects hostsSet with the current participants list', () => {
+      // Pre-fix used hostsSet.size which counted registered cohosts whether
+      // they were in the room or not. After fix the count is a filter over
+      // the participants array.
+      expect(src).toMatch(/totalHosts\s*=\s*participants\.filter\(\s*p\s*=>\s*hostsSet\.has\(p\.userId\)\s*\)\.length/);
+    });
+  });
+
+  describe('Bug 8 — host tile elevation works at mobile widths', () => {
+    const src = readClientSource('features/live/Lobby.tsx');
+
+    it('isActingHost branch uses col-span-2 row-span-2 (no sm: prefix)', () => {
+      expect(src).toMatch(/isActingHost\s*\?\s*['"`]aspect-video\s+col-span-2\s+row-span-2/);
+      // Negative guard: forbid the regression to sm:col-span-2.
+      expect(src).not.toMatch(/isActingHost\s*\?\s*['"`]aspect-video\s+sm:col-span-2/);
+    });
+  });
+
+  describe('Bug 9 — axios timeout long enough to ride out Render cold starts', () => {
+    const src = readClientSource('lib/api.ts');
+
+    it('axios.create timeout is at least 60000ms', () => {
+      // Pin the floor — 30000 was failing on cold starts, 60000 is the
+      // working value. A future regression that drops below 60000 will
+      // start surfacing AxiosError timeouts to Sentry again.
+      const m = src.match(/timeout:\s*(\d+)/);
+      expect(m).not.toBeNull();
+      expect(Number(m![1])).toBeGreaterThanOrEqual(60000);
+    });
+  });
+
   describe('Bug 5 — mutual matches dedup by partner_id', () => {
     const src = readServerSource('services/meeting-records/meeting-records.service.ts');
 

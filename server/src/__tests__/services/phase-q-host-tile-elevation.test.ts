@@ -84,12 +84,14 @@ describe('Phase Q — host tile elevation in Lobby grid', () => {
 
     it('grid-span size className uses isActingHost (not isLocalTile)', () => {
       // The className expression for the tile must condition the
-      // sm:col-span-2 sm:row-span-2 class on isActingHost, not isLocal.
-      expect(src).toMatch(/isActingHost\s*\?\s*['"`]aspect-video\s+sm:col-span-2\s+sm:row-span-2/);
+      // col-span-2 row-span-2 class on isActingHost, not isLocal.
+      // Bug 8 (13 May): sm: prefix removed so elevation fires on mobile
+      // widths too (grid is cols-2/cols-3 below the sm breakpoint).
+      expect(src).toMatch(/isActingHost\s*\?\s*['"`]aspect-video\s+col-span-2\s+row-span-2/);
       // Forbid the pre-Phase-Q form that tied size to isLocalTile —
       // anyone re-introducing that regression would silently revert
       // Stefan's spec.
-      expect(src).not.toMatch(/isLocalTile\s*\?\s*['"`]aspect-video\s+sm:col-span-2/);
+      expect(src).not.toMatch(/isLocalTile\s*\?\s*['"`]aspect-video\s+(?:sm:)?col-span-2/);
     });
 
     it('data-acting-host attribute exposed for E2E selectors', () => {

@@ -278,29 +278,42 @@ export default function LiveSessionPage() {
           Visible only to users who have base host capability (super_admin /
           event host / cohost) but have explicitly opted out for this event.
           Without this banner, opting out via HCC would hide the Control
-          Center and leave the user with no path back to host UI. */}
-      {baseIsHost && myActingAsHost === false && (
-        <div
-          data-testid="acting-as-host-revert-banner"
-          className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between gap-3"
-        >
-          <p className="text-sm text-amber-800">
-            You're attending this event as a participant. Host controls hidden.
-          </p>
-          <button
-            onClick={async () => {
-              try {
-                await api.post(`/sessions/${sessionId}/host/acting-as-host`, { value: null });
-              } catch {
-                addToast("Couldn't switch back to host. Try again.", 'error');
-              }
-            }}
-            className="text-xs px-2.5 py-1 rounded-md border border-amber-300 text-amber-800 hover:bg-amber-100"
+          Center and leave the user with no path back to host UI.
+          Bug 4 (13 May live test) — switching back mid-breakout would
+          re-enter the user as a host inside an in-progress breakout, which
+          breaks the round invariants. While in a matched / rating phase
+          the button stays visible (so the user knows the option is there)
+          but disabled until they're back in the main room. */}
+      {baseIsHost && myActingAsHost === false && (() => {
+        const inBreakout = phase === 'matched' || phase === 'rating';
+        return (
+          <div
+            data-testid="acting-as-host-revert-banner"
+            className="bg-amber-50 border-b border-amber-200 px-4 py-2 flex items-center justify-between gap-3"
           >
-            Switch back to host
-          </button>
-        </div>
-      )}
+            <p className="text-sm text-amber-800">
+              {inBreakout
+                ? "You're attending this event as a participant. You can switch back to host once you're out of the breakout."
+                : "You're attending this event as a participant. Host controls hidden."}
+            </p>
+            <button
+              disabled={inBreakout}
+              title={inBreakout ? 'Available once the breakout ends' : undefined}
+              onClick={async () => {
+                if (inBreakout) return;
+                try {
+                  await api.post(`/sessions/${sessionId}/host/acting-as-host`, { value: null });
+                } catch {
+                  addToast("Couldn't switch back to host. Try again.", 'error');
+                }
+              }}
+              className={`text-xs px-2.5 py-1 rounded-md border ${inBreakout ? 'border-amber-200 text-amber-400 cursor-not-allowed' : 'border-amber-300 text-amber-800 hover:bg-amber-100'}`}
+            >
+              Switch back to host
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Transition status: "Wrapping up..." banner removed (April 17 screenshot).
           Host Controls already surface end-of-event state; no need for a second blocking banner. */}
