@@ -43,25 +43,28 @@ describe('Phase L — control center role consistency (item 6)', () => {
   describe('Client — LiveSessionPage canonical isHost form', () => {
     const src = readClient('features/live/LiveSessionPage.tsx');
 
-    it('declares isOriginalHost, isCohost, isSuperAdmin separately', () => {
+    it('declares isOriginalHost, isCohost, isAdminOrSuperAdmin separately', () => {
       expect(src).toMatch(
         /const\s+isOriginalHost\s*=\s*session\?\.hostUserId\s*===\s*user\?\.id/,
       );
       expect(src).toMatch(/const\s+isCohost\s*=/);
+      // Bug D (15 May Ali) — super_admin no longer auto-passes the host
+      // gate. The relevant binding is now isAdminOrSuperAdmin, which gates
+      // the Phase M opt-in toggle, NOT the host UI directly.
       expect(src).toMatch(
-        /const\s+isSuperAdmin\s*=\s*user\?\.role\s*===\s*['"]super_admin['"]/,
+        /const\s+isAdminOrSuperAdmin\s*=\s*user\?\.role\s*===\s*['"]admin['"]\s*\|\|\s*user\?\.role\s*===\s*['"]super_admin['"]/,
       );
     });
 
-    it('baseIsHost is the canonical role-derived disjunction (no broad isAdmin)', () => {
+    it('baseIsHost is the canonical role-derived disjunction (no broad isAdmin, no super_admin auto-pass)', () => {
       // Phase M (12 May item 1) layered an acting-as-host override on top
       // of the base form, so the literal `const isHost = isOriginalHost ||
-      // isCohost || isSuperAdmin` line moved to `baseIsHost`. The base
-      // form (no broad admin) is still the architectural invariant — pin
-      // it under its new name. `isHost` itself composes baseIsHost with
-      // the Phase M override; the override path is checked separately.
+      // isCohost || isSuperAdmin` line moved to `baseIsHost`. Bug D
+      // (15 May Ali) tightened it further: super_admin no longer folds
+      // into baseIsHost either — admin/super_admin now reach host UI
+      // exclusively through the Phase M opt-in pathway.
       expect(src).toMatch(
-        /const\s+baseIsHost\s*=\s*isOriginalHost\s*\|\|\s*isCohost\s*\|\|\s*isSuperAdmin/,
+        /const\s+baseIsHost\s*=\s*isOriginalHost\s*\|\|\s*isCohost\s*;/,
       );
       // The broad isAdmin form (admin || super_admin) must NOT appear in
       // the baseIsHost expression. It can still exist elsewhere on the
@@ -69,6 +72,7 @@ describe('Phase L — control center role consistency (item 6)', () => {
       const baseLine = src.match(/const\s+baseIsHost\s*=[^;]+;/);
       expect(baseLine).toBeTruthy();
       expect(baseLine![0]).not.toMatch(/isAdmin/);
+      expect(baseLine![0]).not.toMatch(/isSuperAdmin/);
       // And isHost composes baseIsHost with the Phase M override —
       // factor that into the assertion so the layering is also pinned.
       expect(src).toMatch(
@@ -203,13 +207,24 @@ describe('Phase L — control center role consistency (item 6)', () => {
       );
     });
 
-    it('client and server both accept super_admin (and only super_admin from the global tier)', () => {
+    it('client and server both accept super_admin via Phase M opt-in (no auto-pass on either side)', () => {
       const clientSrc = readClient('features/live/LiveSessionPage.tsx');
       const serverSrc = readServer('services/roles/effective-role.service.ts');
+      // Bug D (15 May Ali) — client no longer auto-promotes super_admin
+      // to host. The recognition of the global tier is preserved through
+      // isAdminOrSuperAdmin / canToggleActingAsHost, which gates the
+      // Phase M "Join as host" pathway.
       expect(clientSrc).toMatch(
-        /isSuperAdmin\s*=\s*user\?\.role\s*===\s*['"]super_admin['"]/,
+        /isAdminOrSuperAdmin\s*=\s*user\?\.role\s*===\s*['"]admin['"]\s*\|\|\s*user\?\.role\s*===\s*['"]super_admin['"]/,
       );
-      // Server: globalUserRole === SUPER_ADMIN → 'pod_admin' (highest tier).
+      expect(clientSrc).toMatch(
+        /canToggleActingAsHost\s*=\s*isAdminOrSuperAdmin\s*&&\s*!isDirector/,
+      );
+      // Server: globalUserRole === SUPER_ADMIN → 'pod_admin' (highest
+      // tier). The auto-pass at the server is intentionally retained so
+      // a super_admin who DID opt in (acting_as_host=true) is still
+      // accepted; without the auto-pass, the override would have nothing
+      // to elevate from.
       expect(serverSrc).toMatch(
         /globalUserRole\s*===\s*UserRole\.SUPER_ADMIN[\s\S]{0,100}return\s*['"]pod_admin['"]/,
       );

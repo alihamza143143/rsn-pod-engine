@@ -78,21 +78,29 @@ describe('Phase I — narrow auto-host capability to super_admin only', () => {
   describe('client LiveSessionPage — admin no longer in isHost gate', () => {
     const src = readClient('features/live/LiveSessionPage.tsx');
 
-    it('baseIsHost gate uses isSuperAdmin, not isAdmin', () => {
+    it('baseIsHost gate covers only formal roles (director + cohost); admin/super_admin reach host UI via Phase M opt-in', () => {
       // Phase M (12 May) layered an acting-as-host override on top of the
       // base form, so the literal `const isHost = isOriginalHost ||
-      // isCohost || isSuperAdmin` line moved to `baseIsHost`. The
-      // Phase I invariant (admin NOT in the role-derived host gate)
-      // continues to hold on the renamed binding.
-      expect(src).toMatch(/const\s+isSuperAdmin\s*=\s*user\?\.role\s*===\s*['"]super_admin['"]/);
-      expect(src).toMatch(/const\s+baseIsHost\s*=\s*isOriginalHost\s*\|\|\s*isCohost\s*\|\|\s*isSuperAdmin/);
+      // isCohost || isSuperAdmin` line moved to `baseIsHost`. Bug D
+      // (15 May Ali) tightened it further: even SUPER_ADMIN must now
+      // explicitly pick "Join as host" before host UI surfaces. The Phase I
+      // invariant (admin NOT in the role-derived host gate) continues to
+      // hold and is in fact strengthened — super_admin no longer auto-
+      // passes either; both reach host UI only via Phase M opt-in.
+      expect(src).toMatch(/const\s+baseIsHost\s*=\s*isOriginalHost\s*\|\|\s*isCohost\s*;/);
       // Forbid the broad form — admin should no longer fold into the
       // role-derived host gate. (The old `const isAdmin = role === 'admin'
       // || role === 'super_admin'` expression must not appear in the
-      // baseIsHost calculation.)
+      // baseIsHost calculation, and neither does super_admin now.)
       const baseLine = src.match(/const\s+baseIsHost\s*=[^;]+;/);
       expect(baseLine).toBeTruthy();
       expect(baseLine![0]).not.toMatch(/isAdmin/);
+      expect(baseLine![0]).not.toMatch(/isSuperAdmin/);
+      // Phase M opt-in path: canToggleActingAsHost is the gate that lets
+      // admins/super_admins toggle into host UI for THIS event.
+      expect(src).toMatch(
+        /isAdminOrSuperAdmin\s*=\s*user\?\.role\s*===\s*['"]admin['"]\s*\|\|\s*user\?\.role\s*===\s*['"]super_admin['"]/,
+      );
     });
   });
 });

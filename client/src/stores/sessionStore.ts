@@ -97,6 +97,11 @@ interface SessionLiveState {
       displayName: string;
       email: string | null;
       role: 'host' | 'cohost' | 'participant';
+      // Bug J (15 May Ali) — global platform role used by HCC to gate
+      // Make / Remove co-host and Kick. `globalRole` is OPTIONAL so older
+      // payloads (pre-Bug-J server) still parse; the client treats a
+      // missing value as 'user' (i.e. fully manageable).
+      globalRole?: 'user' | 'admin' | 'super_admin';
       state: 'in_main_room' | 'in_room' | 'disconnected' | 'left';
       currentMatchId: string | null;
       currentRoomId: string | null;

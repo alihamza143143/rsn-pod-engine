@@ -345,35 +345,6 @@ export default function HostControlCenter({
   // only accepts the caller's own userId, so this toggle is wired to
   // hostUserId (the user themselves) — the per-row UI gates display to
   // the user's own row.
-  // Phase S — host-initiated demote / promote for ANOTHER user. Same
-  // semantics as the self-toggle but targets a different userId via the
-  // per-user REST endpoint. Server gates: caller must have host
-  // capability, target cannot be the director, target cannot be self
-  // (use the self-toggle for that).
-  const setActingAsHostFor = (targetUserId: string, value: boolean | null) =>
-    runLocked(`set_acting_as_host_for:${targetUserId}`, async () => {
-      const prev = actingAsHostOverrides[targetUserId];
-      // Optimistic update so the row badge flips immediately; revert on
-      // failure. Server's permissions:updated emit to the TARGET (not
-      // the caller) eventually drives the canonical state via the snapshot.
-      const next = { ...actingAsHostOverrides };
-      if (value === null) delete next[targetUserId];
-      else next[targetUserId] = value;
-      setActingAsHostOverrides(next);
-      try {
-        await api.post(
-          `/sessions/${sessionId}/host/acting-as-host-for/${targetUserId}`,
-          { value },
-        );
-      } catch {
-        const reverted = { ...actingAsHostOverrides };
-        if (prev === undefined) delete reverted[targetUserId];
-        else reverted[targetUserId] = prev;
-        setActingAsHostOverrides(reverted);
-        addToast("Couldn't change that person's role. Try again.", 'error');
-      }
-    });
-
   const setMyActingAsHost = (value: boolean | null) =>
     runLocked(`set_acting_as_host`, async () => {
       if (!currentUserId) return;
@@ -393,12 +364,7 @@ export default function HostControlCenter({
         if (prev === undefined) delete reverted[currentUserId];
         else reverted[currentUserId] = prev;
         setActingAsHostOverrides(reverted);
-        addToast(
-          value === false
-            ? "Couldn't switch to participant. Try again."
-            : "Couldn't switch role. Try again.",
-          'error',
-        );
+        addToast("Couldn't switch role. Try again.", 'error');
       }
     });
 
@@ -639,20 +605,22 @@ export default function HostControlCenter({
                           <RowActions
                             isCohost={p.role === 'cohost'}
                             state={p.state}
+                            // Bug J (15 May Ali) — disable Make/Remove
+                            // co-host and Kick when the target is a
+                            // platform admin or super_admin. They manage
+                            // their own per-event role via the Phase M
+                            // banner; directors cannot promote / demote /
+                            // kick them. Server's refuseIfAdminTarget is
+                            // the defence-in-depth gate.
+                            targetIsAdmin={
+                              p.globalRole === 'admin' || p.globalRole === 'super_admin'
+                            }
                             onMakeCohost={() => makeCohost(p.userId)}
                             onRemoveCohost={() => removeCohost(p.userId)}
                             onReassign={() => reassign(p.userId)}
                             onMoveToRoom={() => setMoveTargetUserId(p.userId)}
                             onKick={() => kick(p.userId, p.displayName)}
                             activeRoomsAvailable={activeRoomsForMove.length > 0}
-                            // Phase S — per-event role switch. Demote a
-                            // cohost to participant just for THIS event
-                            // (clears via acting_as_host override; does
-                            // NOT remove their permanent cohost grant —
-                            // that's onRemoveCohost above).
-                            onDemoteToParticipant={() => setActingAsHostFor(p.userId, false)}
-                            onPromoteToHost={() => setActingAsHostFor(p.userId, true)}
-                            actingAsHostValue={actingAsHostOverrides[p.userId]}
                           />
                         )}
                       </div>
@@ -981,69 +949,64 @@ function StateBadge({
 function RowActions({
   isCohost,
   state,
+  targetIsAdmin,
   onMakeCohost,
   onRemoveCohost,
   onReassign,
   onMoveToRoom,
   onKick,
   activeRoomsAvailable,
-  onDemoteToParticipant,
-  onPromoteToHost,
-  actingAsHostValue,
 }: {
   isCohost: boolean;
   state: 'in_main_room' | 'in_room' | 'disconnected' | 'left';
+  // Bug J (15 May Ali) — TRUE when target's global platform role is
+  // admin or super_admin. Disables Make/Remove co-host + Kick with an
+  // explanatory tooltip; admins manage their own role via Phase M.
+  targetIsAdmin: boolean;
   onMakeCohost: () => void;
   onRemoveCohost: () => void;
   onReassign: () => void;
   onMoveToRoom: () => void;
   onKick: () => void;
   activeRoomsAvailable: boolean;
-  // Phase S — per-event role switch. Separate from Make/Remove co-host
-  // (which manage the PERMANENT session_cohosts grant).
-  onDemoteToParticipant: () => void;
-  onPromoteToHost: () => void;
-  actingAsHostValue: boolean | undefined;
 }) {
+  // Bug J — single tooltip string surfaced on every disabled button so
+  // the host understands WHY the action is gated, not just that it's
+  // unclickable.
+  const adminBlockedTitle =
+    "Admins manage their own per-event role from the banner — directors can't promote, demote, or kick them.";
   return (
     <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-      {/* Phase 7-audit fix — allow promoting/demoting a recently disconnected
-          participant. The host might want to assign co-host preemptively
-          before the user reconnects (e.g. a known co-host whose Wi-Fi
-          dropped). Server-side state checks still gate the action. */}
+      {/* Bug K (15 May Ali) — consolidated. Pre-fix there were TWO
+          buttons for what looked like the same action: the formal
+          session_cohosts grant and the per-event Phase M opt-in. Both
+          ended up granting host UI for THIS event (session_cohosts is
+          per-session anyway), and the duplication confused users. We
+          keep the formal Make / Remove co-host path only; the per-event
+          opt-in pathway remains available to admins via the Phase M
+          banner on their own row.
+          Phase 7-audit fix — allow promoting/demoting a recently
+          disconnected participant. The host might want to assign co-host
+          preemptively before the user reconnects (e.g. a known co-host
+          whose Wi-Fi dropped). Server-side state checks still gate the
+          action. */}
       {state !== 'left' && (
         isCohost ? (
-          <ActionButton onClick={onRemoveCohost} title="Remove co-host role">
+          <ActionButton
+            onClick={onRemoveCohost}
+            disabled={targetIsAdmin}
+            title={targetIsAdmin ? adminBlockedTitle : 'Remove co-host role'}
+          >
             Remove co-host
           </ActionButton>
         ) : (
-          <ActionButton onClick={onMakeCohost} title="Make this person a co-host" tone="brand">
-            Make co-host
-          </ActionButton>
-        )
-      )}
-      {/* Phase S — per-event role switch. "Switch to participant" is
-          shown when the target is currently acting as host (cohost
-          membership OR opt-in). "Switch to host" is shown when they're
-          currently acting as participant (no cohost membership AND not
-          opted in). Excluded: a session_cohosts entry that's already
-          opted out — "Switch to host" would only restore them, which
-          is what they want. */}
-      {state !== 'left' && (
-        isCohost && actingAsHostValue !== false ? (
           <ActionButton
-            onClick={onDemoteToParticipant}
-            title="Have them attend as a participant for this event (does NOT remove their permanent co-host role)"
-          >
-            Switch to participant
-          </ActionButton>
-        ) : (
-          <ActionButton
-            onClick={onPromoteToHost}
-            title="Have them attend as a host for this event"
+            onClick={onMakeCohost}
+            disabled={targetIsAdmin}
+            title={targetIsAdmin ? adminBlockedTitle : 'Make this person a co-host'}
             tone="brand"
           >
-            Switch to host
+            Make co-host
           </ActionButton>
         )
       )}
@@ -1058,7 +1021,12 @@ function RowActions({
         </ActionButton>
       )}
       {state !== 'left' && (
-        <ActionButton onClick={onKick} title="Remove from the event" tone="danger">
+        <ActionButton
+          onClick={onKick}
+          disabled={targetIsAdmin}
+          title={targetIsAdmin ? adminBlockedTitle : 'Remove from the event'}
+          tone="danger"
+        >
           Kick
         </ActionButton>
       )}
@@ -1071,31 +1039,39 @@ function ActionButton({
   children,
   title,
   tone = 'normal',
+  disabled = false,
 }: {
   onClick: () => void;
   children: React.ReactNode;
   title?: string;
   tone?: 'normal' | 'danger' | 'brand';
+  // Bug J (15 May Ali) — disabled buttons stay visible but inert so the
+  // host can hover for the tooltip explaining WHY the action is gated.
+  disabled?: boolean;
 }) {
   // Bug C2 (15 May Shraddha) — palette + tones:
-  //   brand  → red (rsn-red). Used for Make co-host / Switch to host so the
-  //            primary host-elevation action stands out. Was indistinguishable
+  //   brand  → red (rsn-red). Used for Make co-host so the primary
+  //            host-elevation action stands out. Was indistinguishable
   //            grey on grey.
   //   danger → slate. Was red; Shraddha asked Kick to look different from
   //            the brand red so the destructive action doesn't blend with
   //            the positive "main room" state pill.
   //   normal → grey (unchanged).
-  const cls =
+  const baseCls =
     tone === 'brand'
       ? 'border-rsn-red/30 text-rsn-red hover:bg-rsn-red/10 font-medium'
       : tone === 'danger'
       ? 'border-slate-300 text-slate-700 hover:bg-slate-100'
       : 'border-gray-200 text-gray-700 hover:bg-gray-50';
+  // Bug J — disabled state strips hover affordances and dims the text
+  // so the button reads as inert at a glance.
+  const disabledCls = 'border-gray-200 text-gray-300 cursor-not-allowed';
   return (
     <button
-      onClick={onClick}
+      onClick={disabled ? undefined : onClick}
+      disabled={disabled}
       title={title}
-      className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${cls}`}
+      className={`text-[11px] px-2 py-1 rounded-md border transition-colors ${disabled ? disabledCls : baseCls}`}
     >
       {children}
     </button>

@@ -225,6 +225,27 @@ describe('Phase M — acting-as-host toggle (item 1)', () => {
       // FALSE override → false; TRUE override → true; else → baseIsHost.
       expect(src).toMatch(/const\s+isHost\s*=[\s\S]{0,180}myActingAsHost[\s\S]{0,80}baseIsHost/);
     });
+
+    it('Bug D — when admin/super_admin has not picked, content area is blocked behind must-pick-role gate', () => {
+      // Bug D (15 May Ali) — toggle-eligible users (admins/super_admins
+      // not directing the event) must explicitly pick "Join as host" or
+      // "Join as participant" BEFORE the lobby/video/chat/participant-list
+      // surfaces render. Pin the gating expression + the blocker UI so a
+      // future refactor can't accidentally drop the requirement.
+      expect(src).toMatch(
+        /mustPickRole\s*=\s*canToggleActingAsHost\s*&&\s*myActingAsHost\s*===\s*undefined/,
+      );
+      expect(src).toMatch(/data-testid="must-pick-role-blocker"/);
+    });
+
+    it('Bug D — mirror banner persists for users currently opted in (acting as host)', () => {
+      // The opt-in user gets a "Switch to participant" banner so they can
+      // flip back without leaving the event. Symmetric to the opt-out
+      // revert banner. Bug D mandate: toggle remains visible throughout.
+      expect(src).toMatch(
+        /canToggleActingAsHost\s*&&\s*myActingAsHost\s*===\s*true[\s\S]{0,300}data-testid="acting-as-participant-banner"/,
+      );
+    });
   });
 
   describe('Client — HostControlCenter toggle button', () => {
@@ -249,18 +270,24 @@ describe('Phase M — acting-as-host toggle (item 1)', () => {
   describe('Client — LiveSessionPage revert banner for opted-out users', () => {
     const src = readClient('features/live/LiveSessionPage.tsx');
 
-    it('renders the banner only when baseIsHost AND user has opted out', () => {
-      // Bug 4 (13 May) — banner is now wrapped in an IIFE that derives
-      // `inBreakout` from phase before rendering, so the gate-to-render
-      // distance grew slightly. Widen the lookahead.
+    it('renders the banner when toggle-eligible AND user has opted out', () => {
+      // Bug 4 (13 May) — banner is wrapped in an IIFE that derives
+      // `inBreakout` from phase before rendering. Bug D (15 May) widened
+      // the condition to (canToggleActingAsHost || baseIsHost) so formal
+      // cohosts who opt out also see the path back. Pin both arms.
       expect(src).toMatch(
-        /baseIsHost\s*&&\s*myActingAsHost\s*===\s*false[\s\S]{0,300}data-testid="acting-as-host-revert-banner"/,
+        /\(canToggleActingAsHost\s*\|\|\s*baseIsHost\)\s*&&\s*myActingAsHost\s*===\s*false[\s\S]{0,300}data-testid="acting-as-host-revert-banner"/,
       );
     });
 
-    it('the banner button POSTs value:null to revert to role default', () => {
+    it('the banner button POSTs value:true to switch back to host', () => {
+      // Bug D (15 May) — Switch back to host is now an EXPLICIT opt-in
+      // (value:true), not a clear-to-default (value:null). This keeps the
+      // toggle behaviour symmetric with the mirror banner ("Switch to
+      // participant" posts value:false), so the user's choice persists
+      // throughout the event and across reconnects.
       expect(src).toMatch(
-        /api\.post\(\s*[`'"]\/sessions\/\$\{sessionId\}\/host\/acting-as-host[`'"]\s*,\s*\{\s*value:\s*null\s*\}/,
+        /api\.post\(\s*[`'"]\/sessions\/\$\{sessionId\}\/host\/acting-as-host[`'"]\s*,\s*\{\s*value:\s*true\s*\}/,
       );
     });
   });

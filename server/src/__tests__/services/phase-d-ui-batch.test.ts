@@ -64,24 +64,32 @@ describe('Phase D — UI bug batch', () => {
   describe('D3 — participant count format (item 10)', () => {
     const src = readClient('features/live/Lobby.tsx');
 
-    it('formatParticipantHeader helper exists and excludes co-hosts from participant count', () => {
+    it('formatParticipantHeader helper exists and counts acting hosts (cohosts + Phase M opt-ins)', () => {
       const fnStart = src.indexOf('function formatParticipantHeader');
       expect(fnStart).toBeGreaterThan(-1);
       const fnEnd = src.indexOf('\nfunction ', fnStart + 1);
       const fn = src.slice(fnStart, fnEnd);
-      // Participant count subtracts both host AND cohosts.
-      expect(fn).toMatch(/cohostsPresent/);
-      expect(fn).toMatch(/participants\.length\s*\n?\s*-\s*\(hostInList\s*\?\s*1\s*:\s*0\)\s*\n?\s*-\s*cohostsPresent/);
+      // Bug E (15 May Ali) — count must derive `hostsSet` from director +
+      // cohosts + Phase M opt-ins (minus opt-outs), then take the
+      // intersection with the present participants. Pre-Bug-E it just
+      // used cohosts + hostUserId, which under-counted when an admin used
+      // the "Join as host" toggle (their acting_as_host=true didn't roll
+      // up into the count).
+      expect(fn).toMatch(/hostsSet/);
+      expect(fn).toMatch(/actingAsHostOverrides/);
+      expect(fn).toMatch(/hostsPresent\s*=\s*participants\.filter\(\s*p\s*=>\s*hostsSet\.has\(p\.userId\)\s*\)\.length/);
       // Output uses "+ N hosts" not "+ host" lump.
       expect(fn).toMatch(/totalHosts === 1\s*\?\s*['"]host['"]\s*:\s*['"]hosts['"]/);
     });
 
-    it('LobbyStatusOverlay uses the helper (no inline duplicate logic)', () => {
+    it('LobbyStatusOverlay uses the helper with actingAsHostOverrides (no inline duplicate logic)', () => {
       const fnStart = src.indexOf('function LobbyStatusOverlay');
       expect(fnStart).toBeGreaterThan(-1);
       const fnEnd = src.indexOf('\nfunction ', fnStart + 1);
       const fn = src.slice(fnStart, fnEnd);
-      expect(fn).toMatch(/formatParticipantHeader\(participants,\s*hostUserId,\s*cohosts,\s*hostOnline\)/);
+      expect(fn).toMatch(
+        /formatParticipantHeader\(\s*participants,\s*hostUserId,\s*cohosts,\s*actingAsHostOverrides,\s*hostOnline\s*\)/,
+      );
       // No inline `+ host` string concatenation should remain in this fn.
       expect(fn).not.toMatch(/\?\s*['"][^'"]*\+\s*host['"]/);
     });
@@ -91,7 +99,9 @@ describe('Phase D — UI bug batch', () => {
       expect(fnStart).toBeGreaterThan(-1);
       const fnEnd = src.indexOf('\nfunction ', fnStart + 1);
       const fn = src.slice(fnStart, fnEnd);
-      expect(fn).toMatch(/formatParticipantHeader\(participants,\s*hostUserId,\s*cohosts,\s*hostOnline\)/);
+      expect(fn).toMatch(
+        /formatParticipantHeader\(\s*participants,\s*hostUserId,\s*cohosts,\s*actingAsHostOverrides,\s*hostOnline\s*\)/,
+      );
     });
 
     it('HostParticipantPanel header counts hosts separately from participants', () => {

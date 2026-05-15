@@ -156,6 +156,38 @@ export async function verifyHost(socket: Socket, sessionId: string): Promise<boo
   return true;
 }
 
+/**
+ * Bug J (15 May Ali) — defence-in-depth gate that refuses Make / Remove
+ * co-host and Kick when the TARGET is a platform admin or super_admin.
+ * The host of an event cannot promote, demote, or kick a platform admin
+ * via these controls; admins choose their own per-event role through the
+ * Phase M banner. The HCC disables the buttons client-side; this guard
+ * stops a forged socket frame from bypassing the rule.
+ *
+ * Returns true if the action is permitted (target is a regular user),
+ * false if it must be refused. Emits an error frame on refusal so the
+ * caller's UI can surface it.
+ */
+async function refuseIfAdminTarget(
+  socket: Socket,
+  targetUserId: string,
+): Promise<boolean> {
+  const targetRow = await query<{ role: string }>(
+    `SELECT role::text AS role FROM users WHERE id = $1`,
+    [targetUserId],
+  );
+  const targetRole = targetRow.rows[0]?.role;
+  if (targetRole === 'admin' || targetRole === 'super_admin') {
+    socket.emit('error', {
+      code: 'ADMIN_TARGET',
+      message:
+        "Admins manage their own per-event role from the banner — directors can't promote, demote, or kick them.",
+    });
+    return false;
+  }
+  return true;
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 // HOST CONTROLS
 // ═════════════════════════════════════════════════════════════════════════════
@@ -621,6 +653,9 @@ export async function handleHostRemoveParticipant(
   return withSessionGuard(data.sessionId, async () => {
   try {
     if (!await verifyHost(socket, data.sessionId)) return;
+    // Bug J (15 May Ali) — admins cannot be kicked from an event by a
+    // director or co-host. They can only leave themselves.
+    if (!await refuseIfAdminTarget(socket, data.userId)) return;
 
     await sessionService.updateParticipantStatus(
       data.sessionId, data.userId, ParticipantStatus.REMOVED
@@ -1605,6 +1640,9 @@ export async function handleAssignCohost(
     // routes through canActAsHost which accepts cohost + super_admin
     // (Phase I narrowed regular admin out of the auto-host set).
     if (!await verifyHost(socket, sessionId)) return;
+    // Bug J (15 May Ali) — directors cannot make a platform admin a co-host;
+    // admins manage their per-event role themselves via the Phase M banner.
+    if (!await refuseIfAdminTarget(socket, userId)) return;
 
     await query(
       `INSERT INTO session_cohosts (session_id, user_id, role, granted_by)
@@ -1663,6 +1701,10 @@ export async function handleRemoveCohost(
     // Same pattern as handleAssignCohost above. Only handlePromoteCohost
     // (ownership transfer) remains original-host-only.
     if (!await verifyHost(socket, sessionId)) return;
+    // Bug J (15 May Ali) — directors cannot demote a platform admin. The
+    // session_cohosts row only exists if the admin opted in themselves
+    // via the Phase M banner; only the admin can revoke it.
+    if (!await refuseIfAdminTarget(socket, userId)) return;
 
     await query(
       `DELETE FROM session_cohosts WHERE session_id = $1 AND user_id = $2`,

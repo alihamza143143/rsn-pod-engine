@@ -684,6 +684,8 @@ function useHostPresence(gracePeriodMs = 15000): boolean | null {
 
 function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
   const { participants, isByeRound, transitionStatus, sessionStatus, hostUserId, leftCurrentRound, cohosts } = useSessionStore();
+  // Bug E (15 May Ali) — header count needs acting-as-host opt-ins.
+  const actingAsHostOverrides = useSessionStore(s => s.actingAsHostOverrides);
   const hostOnline = useHostPresence();
 
   // Session hasn't been started yet by host
@@ -765,7 +767,7 @@ function LobbyStatusOverlay({ isHost }: { isHost: boolean }) {
       <div className="flex items-center justify-center gap-1.5 text-gray-500 text-xs">
         <Users className="h-3 w-3" />
         <span>
-          {formatParticipantHeader(participants, hostUserId, cohosts, hostOnline)}
+          {formatParticipantHeader(participants, hostUserId, cohosts, actingAsHostOverrides, hostOnline)}
         </span>
       </div>
     </div>
@@ -784,19 +786,35 @@ function formatParticipantHeader(
   participants: { userId: string }[],
   hostUserId: string | null,
   cohosts: Set<string>,
+  actingAsHostOverrides: Record<string, boolean | null>,
   hostOnline: boolean | null,
 ): string {
+  // Bug E (15 May Ali) — count must reflect EVERYONE acting as host this
+  // event, not just formal session_cohosts. Build the same hostsSet the
+  // HostParticipantPanel + HostControls use: director + cohosts + opt-ins
+  // (acting_as_host=true) − opt-outs (acting_as_host=false), with the
+  // director always re-added. Image 21 reported "1 host" while Raja was
+  // acting as host via the Phase M toggle (NOT in session_cohosts), so
+  // the header undercounted.
+  const hostsSet = (() => {
+    const s = new Set<string>();
+    if (hostUserId) s.add(hostUserId);
+    for (const c of cohosts) s.add(c);
+    for (const [uid, v] of Object.entries(actingAsHostOverrides)) {
+      if (v === true) s.add(uid);
+      if (v === false) s.delete(uid);
+    }
+    if (hostUserId) s.add(hostUserId);
+    return s;
+  })();
+  const hostsPresent = participants.filter(p => hostsSet.has(p.userId)).length;
   const hostInList = !!hostUserId && participants.some(p => p.userId === hostUserId);
-  const cohostsPresent = participants.filter(p => cohosts.has(p.userId)).length;
-  // Headline count excludes BOTH the host and any co-hosts.
-  const participantCount = participants.length
-    - (hostInList ? 1 : 0)
-    - cohostsPresent;
-  // "Hosts" includes the original host if online OR present, plus any
-  // co-hosts in the room. We collapse to a single count so the string
-  // stays compact and doesn't say "+ host + 2 cohosts" — Stefan asked
-  // for "X participants and Y hosts" specifically.
-  const totalHosts = (hostOnline || hostInList ? 1 : 0) + cohostsPresent;
+  // Headline count excludes everyone acting as host.
+  const participantCount = participants.length - hostsPresent;
+  // "Hosts" reflects who is currently present + acting as host. The
+  // hostOnline branch keeps the OG host counted when they're connected
+  // but not yet in the participants array (e.g. the snapshot lags).
+  const totalHosts = (hostInList || hostOnline ? Math.max(1, hostsPresent) : hostsPresent);
   const safeCount = Math.max(0, participantCount);
   const partWord = `${safeCount} participant${safeCount !== 1 ? 's' : ''}`;
   if (totalHosts === 0) return partWord;
@@ -1013,6 +1031,8 @@ function DeviceTest() {
  */
 function PreLobbyWaitingRoom({ isHost = false }: { isHost?: boolean }) {
   const { participants, hostUserId, cohosts } = useSessionStore();
+  // Bug E (15 May Ali) — count acting hosts (Phase M opt-ins) too.
+  const actingAsHostOverrides = useSessionStore(s => s.actingAsHostOverrides);
   const hostOnline = useHostPresence();
 
   return (
@@ -1050,7 +1070,7 @@ function PreLobbyWaitingRoom({ isHost = false }: { isHost?: boolean }) {
               <div className="flex items-center gap-2 text-gray-500 text-xs">
                 <Users className="h-3.5 w-3.5" />
                 <span>
-                  {formatParticipantHeader(participants, hostUserId, cohosts, hostOnline)} waiting
+                  {formatParticipantHeader(participants, hostUserId, cohosts, actingAsHostOverrides, hostOnline)} waiting
                 </span>
               </div>
             )}

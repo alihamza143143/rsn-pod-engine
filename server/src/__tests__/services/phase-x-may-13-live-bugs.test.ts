@@ -271,7 +271,13 @@ describe('Phase X — 13 May live-test bug fixes', () => {
     });
 
     it('acting-as-host revert banner gated by phase !== complete', () => {
-      expect(src).toMatch(/baseIsHost\s*&&\s*myActingAsHost\s*===\s*false\s*&&\s*phase\s*!==\s*['"]complete['"]/);
+      // Bug D (15 May Ali) — revert banner widened to also cover toggle-
+      // eligible admins/super_admins (canToggleActingAsHost) so the path
+      // back to host is visible even for users whose baseIsHost is false
+      // but who opted in then back out. Pin the new conjunction order.
+      expect(src).toMatch(
+        /phase\s*!==\s*['"]complete['"]\s*&&\s*\(canToggleActingAsHost\s*\|\|\s*baseIsHost\)\s*&&\s*myActingAsHost\s*===\s*false/,
+      );
     });
   });
 

@@ -70,18 +70,16 @@ export default function LiveSessionPage() {
   const actingAsHostOverrides = useSessionStore(s => s.actingAsHostOverrides);
   const isOriginalHost = session?.hostUserId === user?.id;
   const isCohost = !!user?.id && cohosts.has(user.id);
-  // Phase I (10 May spec item 18 — refined) — only super_admin auto-sees
-  // host UI when joining as a participant. Regular admins join as normal
-  // participants; they can be promoted to cohost by the host or super
-  // admin if intervention is needed. Matches the new server-side
-  // canActAsHost gate (effective-role.service.ts:67) which also narrowed
-  // from admin+ to super_admin only.
-  const isSuperAdmin = user?.role === 'super_admin';
-  // Phase L (12 May item 6) canonical base form — single disjunction of
-  // the three role-derived states that grant host UI. Kept as a named
-  // binding so the Phase L role-consistency pin stays valid AND so
-  // Phase M's override layer composes against a stable base value.
-  const baseIsHost = isOriginalHost || isCohost || isSuperAdmin;
+  // Bug D (15 May Ali) — super_admins no longer auto-default to host.
+  // Pre-fix they saw Start/End Event buttons and host controls the moment
+  // they opened the page, but the server-side hostsSet only counted them
+  // as host once they explicitly opted in via the "Join as host" banner.
+  // The mismatch produced screens where the count said "1 host" while a
+  // super_admin had host controls — confusing for everyone in the lobby.
+  // Now baseIsHost only reflects FORMAL roles (director + session_cohosts);
+  // super_admin and admin both pass through Phase M (explicit pick + per-
+  // event override) just like everyone else with the toggle.
+  const baseIsHost = isOriginalHost || isCohost;
   // Phase M (12 May item 1) — per-event acting-as-host override. The
   // current user's own override (if any) trumps the base role gate:
   // FALSE means they explicitly chose to attend as a participant; TRUE
@@ -109,6 +107,13 @@ export default function LiveSessionPage() {
   // nudge, not a dismissable toast.
   const showJoinAsBanner =
     canToggleActingAsHost && myActingAsHost === undefined;
+  // Bug D (15 May Ali) — when a toggle-eligible user hasn't picked yet,
+  // BLOCK the content area entirely. The banner stays at the top, the
+  // header stays, but the lobby / video / rating / complete views and the
+  // side panels all hide until they choose. Pre-fix the lobby rendered
+  // immediately and admins saw host controls implicitly, which felt like
+  // "auto-promoted" even though the count didn't agree.
+  const mustPickRole = canToggleActingAsHost && myActingAsHost === undefined;
 
   useSessionSocket(sessionId!);
 
@@ -276,17 +281,20 @@ export default function LiveSessionPage() {
         </div>
       )}
 
-      {/* Phase M (12 May item 1) — "Switch back to host" banner.
-          Visible only to users who have base host capability (super_admin /
-          event host / cohost) but have explicitly opted out for this event.
-          Without this banner, opting out via HCC would hide the Control
-          Center and leave the user with no path back to host UI.
-          Bug 4 (13 May live test) — switching back mid-breakout would
-          re-enter the user as a host inside an in-progress breakout, which
-          breaks the round invariants. While in a matched / rating phase
-          the button stays visible (so the user knows the option is there)
-          but disabled until they're back in the main room. */}
-      {baseIsHost && myActingAsHost === false && phase !== 'complete' && (() => {
+      {/* Persistent acting-as-host toggle banner.
+          Bug D (15 May Ali) — toggle stays visible throughout the event
+          so the admin/super_admin can switch direction at any time. Two
+          variants, both gated on phase !== 'complete' (recap is the only
+          thing on screen post-event) and on a non-empty pick (undefined
+          → showJoinAsBanner above handles that path).
+            • opted out (myActingAsHost === false) → "Switch back to host"
+            • opted in  (myActingAsHost === true)  → "Switch to participant"
+          Mid-breakout (matched / rating) the button stays visible but is
+          disabled — switching mid-round would either drag a host into an
+          in-progress breakout or pull a participant out of one.
+          The "Switch back to host" path also covers formal cohosts who
+          opted out (baseIsHost via isCohost + myActingAsHost === false). */}
+      {phase !== 'complete' && (canToggleActingAsHost || baseIsHost) && myActingAsHost === false && (() => {
         const inBreakout = phase === 'matched' || phase === 'rating';
         return (
           <div
@@ -304,7 +312,7 @@ export default function LiveSessionPage() {
               onClick={async () => {
                 if (inBreakout) return;
                 try {
-                  await api.post(`/sessions/${sessionId}/host/acting-as-host`, { value: null });
+                  await api.post(`/sessions/${sessionId}/host/acting-as-host`, { value: true });
                 } catch {
                   addToast("Couldn't switch back to host. Try again.", 'error');
                 }
@@ -312,6 +320,40 @@ export default function LiveSessionPage() {
               className={`text-xs px-2.5 py-1 rounded-md border ${inBreakout ? 'border-amber-200 text-amber-400 cursor-not-allowed' : 'border-amber-300 text-amber-800 hover:bg-amber-100'}`}
             >
               Switch back to host
+            </button>
+          </div>
+        );
+      })()}
+      {/* Bug D (15 May Ali) — mirror banner for users currently acting as
+          host so they can flip back to participant. Persists throughout
+          the event; same in-breakout disable so they can't drop host role
+          mid-round and orphan the breakout. */}
+      {phase !== 'complete' && canToggleActingAsHost && myActingAsHost === true && (() => {
+        const inBreakout = phase === 'matched' || phase === 'rating';
+        return (
+          <div
+            data-testid="acting-as-participant-banner"
+            className="bg-indigo-50 border-b border-indigo-200 px-4 py-2 flex items-center justify-between gap-3"
+          >
+            <p className="text-sm text-indigo-800">
+              {inBreakout
+                ? "You're attending this event as a host. You can switch to participant once you're out of the breakout."
+                : "You're attending this event as a host. Host controls visible."}
+            </p>
+            <button
+              disabled={inBreakout}
+              title={inBreakout ? 'Available once the breakout ends' : undefined}
+              onClick={async () => {
+                if (inBreakout) return;
+                try {
+                  await api.post(`/sessions/${sessionId}/host/acting-as-host`, { value: false });
+                } catch {
+                  addToast("Couldn't switch to participant. Try again.", 'error');
+                }
+              }}
+              className={`text-xs px-2.5 py-1 rounded-md border ${inBreakout ? 'border-indigo-200 text-indigo-400 cursor-not-allowed' : 'border-indigo-300 text-indigo-800 hover:bg-indigo-100'}`}
+            >
+              Switch to participant
             </button>
           </div>
         );
@@ -353,34 +395,62 @@ export default function LiveSessionPage() {
         </div>
       )}
 
-      {/* Main content + chat panel layout */}
+      {/* Main content + chat panel layout.
+          Bug D (15 May Ali) — when an admin/super_admin hasn't picked a
+          role yet, block the entire content area (no lobby, no video,
+          no chat, no participant list, no host controls) so the choice
+          is unambiguously the first thing they do. The Join-as banner
+          above is the only thing that can move them out of this state. */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Session content */}
-        <div className={`flex-1 flex flex-col overflow-hidden ${chatOpen ? 'hidden sm:flex' : ''}`}>
-          {phase === 'lobby' && <SectionErrorBoundary name="Lobby"><Lobby isHost={isHost} sessionId={sessionId} /></SectionErrorBoundary>}
-          {phase === 'matched' && <SectionErrorBoundary name="Video"><VideoRoom isHost={isHost} /></SectionErrorBoundary>}
-          {phase === 'rating' && <SectionErrorBoundary name="Rating"><RatingPrompt sessionId={sessionId} /></SectionErrorBoundary>}
-          {phase === 'complete' && <SessionComplete sessionId={sessionId} />}
-        </div>
-
-        {/* Participant list panel — Bug 10: hidden once event is complete. */}
-        {participantListOpen && !chatOpen && phase !== 'complete' && (
-          <div className="w-full sm:w-72 sm:min-w-[288px] flex-shrink-0 h-full border-l border-white/10">
-            <ParticipantList onClose={() => setParticipantListOpen(false)} sessionId={sessionId} />
+        {mustPickRole && (
+          <div
+            className="flex-1 flex items-center justify-center px-6 py-12 text-center"
+            data-testid="must-pick-role-blocker"
+          >
+            <div className="max-w-md">
+              <p className="text-base font-medium text-gray-800 mb-1.5">
+                Pick how you're joining first
+              </p>
+              <p className="text-sm text-gray-500">
+                Use <span className="font-medium text-indigo-700">Join as host</span> or
+                <span className="font-medium text-indigo-700"> Join as participant</span> at
+                the top to enter the event. You can switch later from the same banner.
+              </p>
+            </div>
           </div>
         )}
+        {/* Session content + side panels — hidden until the admin/super_admin
+            has picked a role (Bug D). Pre-pick screen above takes the whole
+            content area so the choice is unambiguous. */}
+        {!mustPickRole && (
+          <>
+            <div className={`flex-1 flex flex-col overflow-hidden ${chatOpen ? 'hidden sm:flex' : ''}`}>
+              {phase === 'lobby' && <SectionErrorBoundary name="Lobby"><Lobby isHost={isHost} sessionId={sessionId} /></SectionErrorBoundary>}
+              {phase === 'matched' && <SectionErrorBoundary name="Video"><VideoRoom isHost={isHost} /></SectionErrorBoundary>}
+              {phase === 'rating' && <SectionErrorBoundary name="Rating"><RatingPrompt sessionId={sessionId} /></SectionErrorBoundary>}
+              {phase === 'complete' && <SessionComplete sessionId={sessionId} />}
+            </div>
 
-        {/* Chat panel -- side panel on desktop, full overlay on mobile.
-            Bug 10: hidden once event is complete. */}
-        {chatOpen && phase !== 'complete' && (
-          <div className="w-full sm:w-80 sm:min-w-[320px] flex-shrink-0 h-full">
-            <SectionErrorBoundary name="Chat"><ChatPanel sessionId={sessionId} onClose={() => setChatOpen(false)} /></SectionErrorBoundary>
-          </div>
-        )}
+            {/* Participant list panel — Bug 10: hidden once event is complete. */}
+            {participantListOpen && !chatOpen && phase !== 'complete' && (
+              <div className="w-full sm:w-72 sm:min-w-[288px] flex-shrink-0 h-full border-l border-white/10">
+                <ParticipantList onClose={() => setParticipantListOpen(false)} sessionId={sessionId} />
+              </div>
+            )}
 
-        {/* Reaction bar — toggleable, bottom-left */}
-        {phase !== 'complete' && phase !== 'rating' && sessionId && (
-          <ReactionBar sessionId={sessionId} />
+            {/* Chat panel -- side panel on desktop, full overlay on mobile.
+                Bug 10: hidden once event is complete. */}
+            {chatOpen && phase !== 'complete' && (
+              <div className="w-full sm:w-80 sm:min-w-[320px] flex-shrink-0 h-full">
+                <SectionErrorBoundary name="Chat"><ChatPanel sessionId={sessionId} onClose={() => setChatOpen(false)} /></SectionErrorBoundary>
+              </div>
+            )}
+
+            {/* Reaction bar — toggleable, bottom-left */}
+            {phase !== 'complete' && phase !== 'rating' && sessionId && (
+              <ReactionBar sessionId={sessionId} />
+            )}
+          </>
         )}
 
         {/* Chat toggle button. Phase C2 (10 May spec) — bottom offset accounts

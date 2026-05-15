@@ -120,44 +120,139 @@ describe('Phase S — host-initiated demote/promote endpoint', () => {
     });
   });
 
-  describe('HostControlCenter — Switch to participant / Switch to host buttons', () => {
+  describe('HostControlCenter — RowActions consolidated cohost controls', () => {
     const src = readClient('features/live/HostControlCenter.tsx');
 
-    it('declares setActingAsHostFor handler that posts to the per-user REST endpoint', () => {
-      expect(src).toMatch(/const\s+setActingAsHostFor\s*=/);
+    // Bug K (15 May Ali) — pre-fix there were TWO buttons per row that
+    // looked like the same action: "Make co-host" (permanent session_
+    // cohosts grant) and "Switch to host" (per-event Phase M override).
+    // Both granted host UI for THIS event (session_cohosts is per-
+    // session anyway), so the duplication confused users. We consolidated
+    // to the formal Make / Remove co-host path only. Admins keep the
+    // per-event opt-in pathway through the Phase M banner on their own
+    // row — director-initiated per-event role flips are no longer
+    // possible (and weren't a real workflow anyway).
+    //
+    // Bug J (15 May Ali) — Make / Remove co-host + Kick are now disabled
+    // for admin / super_admin targets with an explanatory tooltip;
+    // admins manage their own per-event role through the Phase M
+    // banner. handleAssignCohost / handleRemoveCohost /
+    // handleHostRemoveParticipant enforce the same rule server-side via
+    // refuseIfAdminTarget.
+
+    it('does NOT declare the old setActingAsHostFor handler (consolidated away)', () => {
+      expect(src).not.toMatch(/const\s+setActingAsHostFor\s*=/);
+    });
+
+    it('does NOT render the duplicate "Switch to participant" / "Switch to host" buttons in RowActions', () => {
+      const rowActionsIdx = src.indexOf('function RowActions(');
+      expect(rowActionsIdx).toBeGreaterThan(-1);
+      const block = src.slice(rowActionsIdx);
+      expect(block).not.toMatch(/Switch to participant/);
+      expect(block).not.toMatch(/Switch to host/);
+    });
+
+    it('RowActions accepts targetIsAdmin and disables Make/Remove co-host + Kick for admin targets', () => {
+      expect(src).toMatch(/targetIsAdmin:\s*boolean/);
+      // Make co-host is gated by targetIsAdmin via the disabled prop.
       expect(src).toMatch(
-        /api\.post\(\s*[`'"]\/sessions\/\$\{sessionId\}\/host\/acting-as-host-for\/\$\{targetUserId\}[`'"]\s*,\s*\{\s*value\s*\}/,
+        /onMakeCohost[\s\S]{0,200}disabled=\{targetIsAdmin\}/,
+      );
+      // Remove co-host is gated by targetIsAdmin via the disabled prop.
+      expect(src).toMatch(
+        /onRemoveCohost[\s\S]{0,200}disabled=\{targetIsAdmin\}/,
+      );
+      // Kick is gated by targetIsAdmin via the disabled prop.
+      expect(src).toMatch(
+        /onKick[\s\S]{0,200}disabled=\{targetIsAdmin\}/,
       );
     });
 
-    it('optimistic local update + revert on failure', () => {
-      const fnStart = src.indexOf('const setActingAsHostFor');
-      expect(fnStart).toBeGreaterThan(-1);
-      const fnEnd = src.indexOf('\n  };', fnStart) + 5;
-      const fn = src.slice(fnStart, fnEnd);
-      // Captures previous, applies new, reverts in catch.
-      expect(fn).toMatch(/const\s+prev\s*=\s*actingAsHostOverrides\[targetUserId\]/);
-      expect(fn).toMatch(/setActingAsHostOverrides\(next\)/);
-      expect(fn).toMatch(/setActingAsHostOverrides\(reverted\)/);
-      // Toast on failure (Phase R).
-      expect(fn).toMatch(/addToast\([^)]+['"]error['"]\)/);
-    });
-
-    it('RowActions component receives the new onDemoteToParticipant + onPromoteToHost callbacks', () => {
-      expect(src).toMatch(/onDemoteToParticipant:\s*\(\)\s*=>\s*void/);
-      expect(src).toMatch(/onPromoteToHost:\s*\(\)\s*=>\s*void/);
-      expect(src).toMatch(/actingAsHostValue:\s*boolean\s*\|\s*undefined/);
-    });
-
-    it('RowActions renders "Switch to participant" for cohorts (acting as host)', () => {
-      // The render condition: isCohost && actingAsHostValue !== false →
-      // show the demote button. Otherwise (participant) → show promote.
+    it('RowActions surfaces an explanatory tooltip when blocked', () => {
       const rowActionsIdx = src.indexOf('function RowActions(');
-      expect(rowActionsIdx).toBeGreaterThan(-1);
-      const block = src.slice(rowActionsIdx, src.length);
-      expect(block).toMatch(/isCohost\s*&&\s*actingAsHostValue\s*!==\s*false/);
-      expect(block).toMatch(/Switch to participant/);
-      expect(block).toMatch(/Switch to host/);
+      const block = src.slice(rowActionsIdx);
+      // The shared tooltip string explains WHY the action is gated —
+      // admins manage their own per-event role from the Phase M banner.
+      expect(block).toMatch(
+        /Admins manage their own per-event role[\s\S]{0,150}directors\s+can'?t\s+promote/i,
+      );
+    });
+
+    it('ActionButton supports a disabled prop that strips the click handler and dims the button', () => {
+      const fnIdx = src.indexOf('function ActionButton(');
+      expect(fnIdx).toBeGreaterThan(-1);
+      const fn = src.slice(fnIdx, fnIdx + 1500);
+      expect(fn).toMatch(/disabled\s*\??:\s*boolean/);
+      // The handler is short-circuited when disabled; the disabled
+      // attribute is also forwarded to the DOM <button>.
+      expect(fn).toMatch(/onClick=\{\s*disabled\s*\?\s*undefined\s*:\s*onClick\s*\}/);
+      expect(fn).toMatch(/<button[\s\S]{0,200}disabled=\{disabled\}/);
+    });
+  });
+
+  describe('Server — refuseIfAdminTarget defence-in-depth on admin promote/demote/kick', () => {
+    const src = readServer('services/orchestration/handlers/host-actions.ts');
+
+    it('declares refuseIfAdminTarget helper that emits ADMIN_TARGET on platform admin or super_admin targets', () => {
+      // Bug J (15 May Ali) — defence in depth. The HCC disables the
+      // buttons client-side, but a forged socket frame would still
+      // succeed without this gate.
+      expect(src).toMatch(/async function refuseIfAdminTarget\(/);
+      // Reads the global role from users.role.
+      expect(src).toMatch(
+        /SELECT\s+role[\s\S]{0,50}FROM\s+users\s+WHERE\s+id\s*=\s*\$1/i,
+      );
+      // Refuses on either tier.
+      expect(src).toMatch(
+        /targetRole\s*===\s*['"]admin['"]\s*\|\|\s*targetRole\s*===\s*['"]super_admin['"]/,
+      );
+      // Emits an error frame so the caller's UI can surface the refusal.
+      expect(src).toMatch(/code:\s*['"]ADMIN_TARGET['"]/);
+    });
+
+    it('handleAssignCohost calls refuseIfAdminTarget on the target userId', () => {
+      const fnStart = src.indexOf('export async function handleAssignCohost');
+      expect(fnStart).toBeGreaterThan(-1);
+      const fnEnd = src.indexOf('\nexport ', fnStart + 1);
+      const fn = src.slice(fnStart, fnEnd);
+      expect(fn).toMatch(/refuseIfAdminTarget\(socket,\s*userId\)/);
+    });
+
+    it('handleRemoveCohost calls refuseIfAdminTarget on the target userId', () => {
+      const fnStart = src.indexOf('export async function handleRemoveCohost');
+      expect(fnStart).toBeGreaterThan(-1);
+      const fnEnd = src.indexOf('\nexport ', fnStart + 1);
+      const fn = src.slice(fnStart, fnEnd);
+      expect(fn).toMatch(/refuseIfAdminTarget\(socket,\s*userId\)/);
+    });
+
+    it('handleHostRemoveParticipant calls refuseIfAdminTarget on the target userId', () => {
+      const fnStart = src.indexOf('export async function handleHostRemoveParticipant');
+      expect(fnStart).toBeGreaterThan(-1);
+      const fnEnd = src.indexOf('\nexport ', fnStart + 1);
+      const fn = src.slice(fnStart, fnEnd);
+      expect(fn).toMatch(/refuseIfAdminTarget\(socket,\s*data\.userId\)/);
+    });
+  });
+
+  describe('Server — buildHostParticipantsView surfaces globalRole for HCC gating', () => {
+    const src = readServer('services/orchestration/handlers/host-participants-view.ts');
+
+    it('declares HostParticipantGlobalRole union with user | admin | super_admin', () => {
+      expect(src).toMatch(
+        /HostParticipantGlobalRole\s*=\s*['"]user['"]\s*\|\s*['"]admin['"]\s*\|\s*['"]super_admin['"]/,
+      );
+    });
+
+    it('HostParticipantSummary includes globalRole alongside the per-event role', () => {
+      expect(src).toMatch(/globalRole:\s*HostParticipantGlobalRole/);
+    });
+
+    it('SELECT pulls u.role::text as user_role and the mapper produces globalRole', () => {
+      expect(src).toMatch(/u\.role::text AS user_role/);
+      expect(src).toMatch(
+        /globalRole[\s\S]{0,200}r\.user_role\s*===\s*['"]super_admin['"]/,
+      );
     });
   });
 });

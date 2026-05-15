@@ -26,11 +26,21 @@ export type HostParticipantState =
 
 export type HostParticipantRole = 'host' | 'cohost' | 'participant';
 
+/**
+ * Global platform role pulled from users.role. Used by the Host Control
+ * Center to disable Make/Remove co-host / Kick on admin + super_admin
+ * targets (Bug J — 15 May Ali). The host of an event cannot promote or
+ * demote an admin to a co-host role; admins toggle their own per-event
+ * role via the Phase M banner instead.
+ */
+export type HostParticipantGlobalRole = 'user' | 'admin' | 'super_admin';
+
 export interface HostParticipantSummary {
   userId: string;
   displayName: string;
   email: string | null;
   role: HostParticipantRole;
+  globalRole: HostParticipantGlobalRole;
   state: HostParticipantState;
   currentMatchId: string | null;
   currentRoomId: string | null;
@@ -62,6 +72,13 @@ interface ParticipantRow {
    * this column entirely.
    */
   acting_as_host: boolean | null;
+  /**
+   * Bug J (15 May Ali) — global platform role, used by HCC to disable
+   * Make/Remove co-host and Kick on admin/super_admin targets. The host
+   * of an event cannot change an admin's role via these controls;
+   * admins manage their own per-event role through the Phase M banner.
+   */
+  user_role: string | null;
 }
 
 export async function buildHostParticipantsView(opts: {
@@ -79,7 +96,7 @@ export async function buildHostParticipantsView(opts: {
   // status='in_main_room' for synthetic rows; presenceMap drives the
   // final state below (in_room/disconnected/in_main_room).
   const rows = await query<ParticipantRow>(
-    `SELECT user_id, display_name, email, status, joined_at, is_cohost, acting_as_host FROM (
+    `SELECT user_id, display_name, email, status, joined_at, is_cohost, acting_as_host, user_role FROM (
        SELECT
          sp.user_id,
          u.display_name,
@@ -87,7 +104,8 @@ export async function buildHostParticipantsView(opts: {
          sp.status::text AS status,
          sp.joined_at,
          (sc.user_id IS NOT NULL) AS is_cohost,
-         sp.acting_as_host
+         sp.acting_as_host,
+         u.role::text AS user_role
        FROM session_participants sp
        LEFT JOIN users u ON u.id = sp.user_id
        LEFT JOIN session_cohosts sc
@@ -101,7 +119,8 @@ export async function buildHostParticipantsView(opts: {
          'in_lobby'::text AS status,
          NULL::timestamptz AS joined_at,
          FALSE AS is_cohost,
-         NULL::boolean AS acting_as_host
+         NULL::boolean AS acting_as_host,
+         u.role::text AS user_role
        FROM sessions s
        LEFT JOIN users u ON u.id = s.host_user_id
        WHERE s.id = $1
@@ -118,7 +137,8 @@ export async function buildHostParticipantsView(opts: {
          'in_lobby'::text AS status,
          NULL::timestamptz AS joined_at,
          TRUE AS is_cohost,
-         NULL::boolean AS acting_as_host
+         NULL::boolean AS acting_as_host,
+         u.role::text AS user_role
        FROM session_cohosts sc
        LEFT JOIN users u ON u.id = sc.user_id
        WHERE sc.session_id = $1
@@ -179,11 +199,23 @@ export async function buildHostParticipantsView(opts: {
     }
 
     const fallback = r.email ? r.email.split('@')[0] : 'Participant';
+    // Bug J (15 May Ali) — surface the global platform role so the HCC can
+    // disable Make/Remove co-host / Kick on admin and super_admin targets.
+    // Defence in depth: handleAssignCohost / handleRemoveCohost reject
+    // the same combinations server-side, so a forged socket frame cannot
+    // bypass the rule.
+    const globalRole: HostParticipantGlobalRole =
+      r.user_role === 'super_admin'
+        ? 'super_admin'
+        : r.user_role === 'admin'
+        ? 'admin'
+        : 'user';
     return {
       userId: r.user_id,
       displayName: r.display_name || fallback,
       email: r.email,
       role,
+      globalRole,
       state,
       currentMatchId: inMatch?.matchId ?? null,
       currentRoomId: inMatch?.roomId ?? null,
