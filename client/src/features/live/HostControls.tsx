@@ -522,7 +522,13 @@ export default function HostControls({ sessionId }: Props) {
             </div>
             {matchPreview.byeParticipants.length > 0 && (
               <p className="text-xs text-amber-400 mt-2">
-                Not matched: {matchPreview.byeParticipants.map(p => p.displayName).join(', ')}
+                Not matched: {matchPreview.byeParticipants.map(p => {
+                  // Bug B (15 May Shraddha) — surface the exclusion reason
+                  // inline so the host sees WHY someone wasn't matched
+                  // (typically: they're a co-host / acting as host).
+                  const reason = (p as any).reason;
+                  return reason ? `${p.displayName} (${reason})` : p.displayName;
+                }).join(', ')}
               </p>
             )}
             <p className="text-[10px] text-gray-500 mt-1.5">

@@ -31,9 +31,14 @@ export default function ReactionBar({ sessionId }: { sessionId: string }) {
   const hostUserId = useSessionStore(s => s.hostUserId);
   const phase = useSessionStore(s => s.phase);
   const cohosts = useSessionStore(s => s.cohosts);
+  const participants = useSessionStore(s => s.participants);
   const { user } = useAuthStore();
   const isHostOrCohost = user?.id === hostUserId || (!!user?.id && cohosts.has(user.id));
-  const reactionsDisabled = phase === 'lobby' && !hostInLobby && !isHostOrCohost;
+  // Bug A (15 May Shraddha) — same fix as ChatPanel: treat the host as
+  // present when they're either flagged in lobby or appear in participants.
+  const hostInParticipants = !!hostUserId && participants.some(p => p.userId === hostUserId);
+  const hostPresent = hostInLobby || hostInParticipants;
+  const reactionsDisabled = phase === 'lobby' && !hostPresent && !isHostOrCohost;
 
   // Listen for incoming reactions
   useEffect(() => {

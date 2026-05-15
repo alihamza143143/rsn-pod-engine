@@ -26,14 +26,24 @@ export default function ChatPanel({ sessionId, onClose }: ChatPanelProps) {
   const hostInLobby = useSessionStore(s => s.hostInLobby);
   const hostUserId = useSessionStore(s => s.hostUserId);
   const cohosts = useSessionStore(s => s.cohosts);
+  const participants = useSessionStore(s => s.participants);
   const { user } = useAuthStore();
 
   // Determine scope based on current phase
   const scope: 'lobby' | 'room' = phase === 'matched' ? 'room' : 'lobby';
 
-  // Chat disabled in lobby when host is not present (host/co-hosts always allowed)
+  // Chat disabled in lobby when host is not present (host/co-hosts always allowed).
+  // Bug A (15 May Shraddha) — the lobby banner uses useHostPresence() which
+  // treats the host as present if `hostInLobby` OR they appear in the
+  // participants array. The chat gate previously only checked the raw flag,
+  // so the banner could say "Host is here — event starting soon" while chat
+  // stayed greyed out (the server's hostInLobby flag doesn't always flip the
+  // moment the host renders in the participants snapshot). Align the gate
+  // with the same derived check.
+  const hostInParticipants = !!hostUserId && participants.some(p => p.userId === hostUserId);
+  const hostPresent = hostInLobby || hostInParticipants;
   const isHostOrCohost = user?.id === hostUserId || (!!user?.id && cohosts.has(user.id));
-  const chatDisabled = scope === 'lobby' && !hostInLobby && !isHostOrCohost;
+  const chatDisabled = scope === 'lobby' && !hostPresent && !isHostOrCohost;
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {

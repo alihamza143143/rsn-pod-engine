@@ -766,15 +766,53 @@ export async function sendMatchPreview(
       nameMap.set(r.id, resolveDisplayName(r.id, r.displayName, r.email));
     }
   }
-  const byeParticipants = byeUserIds.map(uid => ({
-    userId: uid,
-    displayName: safeName(uid),
-  }));
+  // Bug B (15 May Shraddha) — surface WHY a participant was excluded from
+  // matching. Acting cohosts (session_cohosts member OR Phase M opt-in via
+  // session_participants.acting_as_host = true) are filtered out of the
+  // matching engine by policy, not because no partner was available. The
+  // host UI used to just list their name with no reason, which looked like a
+  // matching failure. Now each bye row carries an optional reason string so
+  // the host sees "Shradha's Personal A/C (acting as host)".
+  const cohostRoleRows = byeUserIds.length > 0
+    ? await query<{ user_id: string; acting_as_host: boolean | null; is_cohost: boolean }>(
+        `SELECT sp.user_id,
+                sp.acting_as_host,
+                EXISTS (
+                  SELECT 1 FROM session_cohosts sc
+                   WHERE sc.session_id = sp.session_id AND sc.user_id = sp.user_id
+                ) AS is_cohost
+           FROM session_participants sp
+          WHERE sp.session_id = $1 AND sp.user_id = ANY($2)`,
+        [sessionId, byeUserIds],
+      )
+    : { rows: [] };
+  const roleByUserId = new Map<string, { actingAsHost: boolean | null; isCohost: boolean }>();
+  for (const r of cohostRoleRows.rows) {
+    roleByUserId.set(r.user_id, { actingAsHost: r.acting_as_host, isCohost: r.is_cohost });
+  }
+  const byeParticipants = byeUserIds.map(uid => {
+    const role = roleByUserId.get(uid);
+    // Resolution mirrors the snapshot's hostsSet: opt-out beats cohost role,
+    // opt-in beats no-cohost-row. Anyone landing here as "acting as host" was
+    // excluded by the matching engine on purpose.
+    const actingAsHost =
+      role?.actingAsHost === false ? false
+      : role?.actingAsHost === true ? true
+      : !!role?.isCohost;
+    return {
+      userId: uid,
+      displayName: safeName(uid),
+      reason: actingAsHost ? 'acting as host' : undefined,
+    };
+  });
 
-  // Generate warnings when multiple participants have byes (unique pairs likely exhausted)
+  // Generate warnings when multiple participants have byes (unique pairs likely exhausted).
+  // Filter out acting-host byes since their exclusion is intentional — they
+  // shouldn't trigger the "no fresh pairs available" warning.
   const roundWarnings: string[] = [];
-  if (byeParticipants.length > 1) {
-    roundWarnings.push(`All participants have already met — ${byeParticipants.length} will sit this round out. Need new participants for fresh matches.`);
+  const policyByes = byeParticipants.filter(p => !p.reason);
+  if (policyByes.length > 1) {
+    roundWarnings.push(`All participants have already met — ${policyByes.length} will sit this round out. Need new participants for fresh matches.`);
   }
 
   socket.emit('host:match_preview', {

@@ -45,6 +45,7 @@ import {
   X,
   Crown,
   Shield,
+  ShieldCheck,
   User as UserIcon,
   Wifi,
   WifiOff,
@@ -164,6 +165,11 @@ export default function HostControlCenter({
   // the permissions:updated → fetchSessionStateSnapshot flow.
   const actingAsHostOverrides = useSessionStore((s) => s.actingAsHostOverrides);
   const setActingAsHostOverrides = useSessionStore((s) => s.setActingAsHostOverrides);
+  // Bug C1 (15 May Shraddha) — live cohost Set, updated immediately by the
+  // `cohost:assigned` socket event. The role on roundDashboard.participants
+  // only refreshes every ~5s; reading the store's Set as a fallback lets the
+  // HCC reflect the new role within milliseconds of the click.
+  const cohostsSet = useSessionStore((s) => s.cohosts);
   // Phase M — current user's identity, used to gate the per-row toggle to
   // the viewer's OWN row (server only accepts a self-toggle).
   const authUser = useAuthStore((s) => s.user);
@@ -225,9 +231,27 @@ export default function HostControlCenter({
   if (incomingParticipants && incomingParticipants.length > 0) {
     lastParticipantsRef.current = incomingParticipants;
   }
-  const participants = (incomingParticipants && incomingParticipants.length > 0)
+  const rawParticipants = (incomingParticipants && incomingParticipants.length > 0)
     ? incomingParticipants
     : (lastParticipantsRef.current ?? []);
+  // Bug C1 (15 May Shraddha) — overlay the live cohorts Set + acting-as-host
+  // overrides onto each participant's role so the HCC reflects a fresh
+  // assign/remove within milliseconds, not after the next 5s dashboard
+  // emit. Director keeps 'host' role unconditionally.
+  const participants = useMemo(() => {
+    return rawParticipants.map((p) => {
+      if (p.role === 'host') return p;
+      const override = actingAsHostOverrides[p.userId];
+      const isCohost = cohostsSet.has(p.userId);
+      // Opt-out wins; opt-in wins over no-cohost-row; otherwise the formal
+      // cohost membership decides.
+      const acting =
+        override === false ? false
+        : override === true ? true
+        : isCohost;
+      return { ...p, role: acting ? ('cohost' as const) : ('participant' as const) };
+    });
+  }, [rawParticipants, cohostsSet, actingAsHostOverrides]);
   const rooms = roundDashboard?.rooms ?? [];
 
   const counts = useMemo(() => {
@@ -572,11 +596,24 @@ export default function HostControlCenter({
                       <div className="flex items-start gap-3 min-w-0">
                         <RoleBadge role={p.role} />
                         <div className="min-w-0">
-                          <div className="text-sm font-medium text-gray-900 truncate">
-                            {p.displayName}
+                          <div className="text-sm font-medium text-gray-900 truncate flex items-center gap-1.5 flex-wrap">
+                            <span>{p.displayName}</span>
                             {p.userId === hostUserId && (
-                              <span className="ml-1.5 text-[10px] uppercase tracking-wide text-amber-600">
+                              <span className="text-[10px] uppercase tracking-wide text-amber-600">
                                 you
+                              </span>
+                            )}
+                            {/* Bug C3 (15 May Shraddha) — visible role pill
+                                next to the name so the host role is
+                                obvious at a glance, not just an icon. */}
+                            {p.role === 'host' && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-700 bg-amber-100 border border-amber-200 rounded-full px-1.5 py-px">
+                                <Crown className="h-2.5 w-2.5" /> Host
+                              </span>
+                            )}
+                            {p.role === 'cohost' && (
+                              <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-indigo-700 bg-indigo-50 border border-indigo-200 rounded-full px-1.5 py-px">
+                                <ShieldCheck className="h-2.5 w-2.5" /> Co-Host
                               </span>
                             )}
                           </div>
@@ -902,10 +939,17 @@ function StateBadge({
   state: 'in_main_room' | 'in_room' | 'disconnected' | 'left';
   matchId: string | null;
 }) {
+  // Bug C2 (15 May Shraddha) — palette swap:
+  //   in_main_room → RED (rsn brand). Was blue.
+  //   disconnected → BLUE. Was red — Shraddha said red should be reserved
+  //     for the brand-positive "in main room" state, not for the
+  //     warning "disconnected" state.
+  //   in_room (active breakout) stays emerald (positive but distinct).
+  //   left stays neutral grey.
   const map: Record<typeof state, { label: string; cls: string; Icon: any }> = {
     in_main_room: {
       label: 'In main room',
-      cls: 'bg-blue-50 text-blue-700 border-blue-200',
+      cls: 'bg-rsn-red/10 text-rsn-red border-rsn-red/30',
       Icon: Sofa,
     },
     in_room: {
@@ -915,7 +959,7 @@ function StateBadge({
     },
     disconnected: {
       label: 'Disconnected',
-      cls: 'bg-red-50 text-red-700 border-red-200',
+      cls: 'bg-blue-50 text-blue-700 border-blue-200',
       Icon: WifiOff,
     },
     left: {
@@ -973,7 +1017,7 @@ function RowActions({
             Remove co-host
           </ActionButton>
         ) : (
-          <ActionButton onClick={onMakeCohost} title="Make this person a co-host">
+          <ActionButton onClick={onMakeCohost} title="Make this person a co-host" tone="brand">
             Make co-host
           </ActionButton>
         )
@@ -997,6 +1041,7 @@ function RowActions({
           <ActionButton
             onClick={onPromoteToHost}
             title="Have them attend as a host for this event"
+            tone="brand"
           >
             Switch to host
           </ActionButton>
@@ -1030,11 +1075,21 @@ function ActionButton({
   onClick: () => void;
   children: React.ReactNode;
   title?: string;
-  tone?: 'normal' | 'danger';
+  tone?: 'normal' | 'danger' | 'brand';
 }) {
+  // Bug C2 (15 May Shraddha) — palette + tones:
+  //   brand  → red (rsn-red). Used for Make co-host / Switch to host so the
+  //            primary host-elevation action stands out. Was indistinguishable
+  //            grey on grey.
+  //   danger → slate. Was red; Shraddha asked Kick to look different from
+  //            the brand red so the destructive action doesn't blend with
+  //            the positive "main room" state pill.
+  //   normal → grey (unchanged).
   const cls =
-    tone === 'danger'
-      ? 'border-red-200 text-red-700 hover:bg-red-50'
+    tone === 'brand'
+      ? 'border-rsn-red/30 text-rsn-red hover:bg-rsn-red/10 font-medium'
+      : tone === 'danger'
+      ? 'border-slate-300 text-slate-700 hover:bg-slate-100'
       : 'border-gray-200 text-gray-700 hover:bg-gray-50';
   return (
     <button
