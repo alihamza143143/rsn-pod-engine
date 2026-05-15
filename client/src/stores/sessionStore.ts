@@ -41,6 +41,13 @@ interface SessionLiveState {
   sessionStatus: SessionStatus;
   hostInLobby: boolean;
   hostUserId: string | null;
+  // Bug I (15 May Ali) — TRUE once applyFullState has run at least once
+  // for this session. UIs that decide things based on an absent override
+  // (e.g. the "Join as host / participant" banner that gates content
+  // for admins who haven't picked yet) should wait until snapshot hydration
+  // completes before rendering, otherwise refresh flickers the banner on
+  // for a frame while the snapshot is in-flight.
+  sessionStateLoaded: boolean;
   totalRounds: number;
   participants: Participant[];
   currentMatch: MatchPartner | null;
@@ -264,6 +271,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   transitionStatus: null,
   sessionStatus: 'scheduled',
   hostInLobby: false, hostUserId: null,
+  sessionStateLoaded: false,
   totalRounds: 5,
   participants: [],
   currentMatch: null,
@@ -446,6 +454,10 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
       actingAsHostOverrides: snapshot.actingAsHostOverrides || {},
       hostMutedUserIds: new Set(snapshot.hostMutedUserIds || []),
       timerVisibility: (snapshot.timerVisibility as any) || 'last_10s',
+      // Bug I (15 May Ali) — mark snapshot hydration complete so any UI
+      // gated on "have we heard from the server yet" can render without
+      // flickering between empty-state and hydrated state on refresh.
+      sessionStateLoaded: true,
     };
   }),
   updateRoomStatus: (matchId, status, participants) => set((s) => {
@@ -461,7 +473,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   }),
   reset: () => set({
     phase: 'lobby', connectionStatus: 'connecting', transitionStatus: null,
-    sessionStatus: 'scheduled', hostInLobby: false, hostUserId: null, totalRounds: 5,
+    sessionStatus: 'scheduled', hostInLobby: false, hostUserId: null, sessionStateLoaded: false, totalRounds: 5,
     participants: [], currentMatch: null, currentPartners: [], currentMatchId: null,
     timerSeconds: 0, timerEndsAt: null, currentRound: 0, broadcasts: [], error: null, tileReactions: {},
     isReconnecting: false, isByeRound: false, liveKitToken: null, livekitUrl: null, currentRoomId: null,

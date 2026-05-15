@@ -1136,7 +1136,14 @@ async function emitHostDashboardImmediate(io: SocketServer, sessionId: string): 
       logger.warn({ err, sessionId }, 'Failed to build host participants view');
     }
 
-    io.to(userRoom(activeSession.hostUserId)).emit('host:round_dashboard', {
+    // Bug F (15 May Ali) — fan out the dashboard to EVERY acting host, not
+    // just the original director. Pre-fix `io.to(userRoom(hostUserId))`
+    // only delivered to the event director; co-hosts and admins who opted
+    // in via Phase M never received the 5-second refresh, so opening HCC
+    // showed an empty roster + "0 host" headline until they reloaded the
+    // tab. getAllHostIds returns director + session_cohosts + opt-ins
+    // minus opt-outs — the same set canActAsHost accepts.
+    const dashboardPayload = {
       roundNumber: activeSession.currentRound,
       rooms,
       byeParticipants,
@@ -1150,7 +1157,13 @@ async function emitHostDashboardImmediate(io: SocketServer, sessionId: string): 
       presentMainRoomCount,
       reassignmentInProgress: false,
       participants,
-    });
+    };
+    const hostIds = await getAllHostIds(sessionId, activeSession.hostUserId).catch(() => [
+      activeSession.hostUserId,
+    ]);
+    for (const hostId of hostIds) {
+      io.to(userRoom(hostId)).emit('host:round_dashboard', dashboardPayload);
+    }
   } catch (err) {
     logger.warn({ err, sessionId }, 'Failed to emit host dashboard');
   }

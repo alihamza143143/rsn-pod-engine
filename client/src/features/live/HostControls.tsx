@@ -343,7 +343,13 @@ export default function HostControls({ sessionId }: Props) {
   }
 
   return (
-    <div className="border-t border-gray-200 bg-white">
+    // Bug G (15 May Ali) — host bottom bar must render ABOVE the floating
+    // reaction emojis (z-30, fixed). Without `relative z-40` the host bar
+    // sits in normal flow and a fixed-positioned reaction floats over the
+    // Event Plan strip. Promoting the bar to its own stacking context with
+    // a higher z-index keeps reactions tucked behind the EP strip + button
+    // row instead of obscuring the round status badges.
+    <div className="relative z-40 border-t border-gray-200 bg-white">
       <HostControlCenter
         sessionId={sessionId}
         open={showControlCenter}

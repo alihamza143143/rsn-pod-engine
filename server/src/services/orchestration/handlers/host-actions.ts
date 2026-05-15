@@ -1677,6 +1677,13 @@ export async function handleAssignCohost(
       logger.warn({ err, sessionId }, 'Cohost-change plan repair failed (non-fatal)')
     );
 
+    // Bug F (15 May Ali) — immediately re-emit the host dashboard so the
+    // newly-promoted co-host sees the full HCC roster without waiting for
+    // the next 5-second tick. matching-flow's _emitHostDashboard now fans
+    // out to every acting host, so this single call refreshes the entire
+    // host audience including the new cohost.
+    if (_emitHostDashboard) await _emitHostDashboard(sessionId).catch(() => {});
+
     logger.info({ sessionId, userId, role, grantedBy: hostId }, 'Co-host assigned');
   } catch (err) {
     logger.error({ err }, 'Error assigning co-host');
@@ -1726,6 +1733,11 @@ export async function handleRemoveCohost(
     maybeRepairFutureRounds(io, sessionId).catch(err =>
       logger.warn({ err, sessionId }, 'Cohost-change plan repair failed (non-fatal)')
     );
+
+    // Bug F (15 May Ali) — re-emit the host dashboard so the remaining
+    // hosts see the updated participant role within the same tick instead
+    // of having to wait for the next 5-second refresh.
+    if (_emitHostDashboard) await _emitHostDashboard(sessionId).catch(() => {});
 
     logger.info({ sessionId, userId, removedBy: hostId }, 'Co-host removed');
   } catch (err) {

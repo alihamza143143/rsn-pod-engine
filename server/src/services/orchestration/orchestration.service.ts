@@ -367,6 +367,19 @@ export async function notifyPermissionsUpdated(
     userId,
     cause,
   });
+  // Bug F + I (15 May Ali) — when an admin opts in/out via the Phase M
+  // banner (or a host promotes someone via /acting-as-host-for/:userId),
+  // the host set changes. Re-emit the HCC dashboard so every acting host
+  // sees the new role layout immediately, without waiting for the next
+  // 5-second refresh and without anyone needing to reload the tab.
+  // matching-flow's emitHostDashboard fans out to every acting host
+  // already (Bug F fan-out fix); we just kick it off here.
+  try {
+    const { emitHostDashboard } = await import('./handlers/matching-flow');
+    await emitHostDashboard(io, sessionId);
+  } catch {
+    /* opportunistic refresh — non-fatal if the helper isn't ready */
+  }
 }
 
 // ── Get Active Session State (used by REST routes) ─────────────────────────
