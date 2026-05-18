@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { connectSocket, disconnectSocket, getSocket } from '@/lib/socket';
 
 // Backward-compat: old invite emails (pre-cbcef30) pointed users at
 // `/sessions/:id/live` (plural). The actual route is `/session/:id/live`
@@ -50,10 +51,39 @@ import OnboardingPage from '@/features/onboarding/OnboardingPage';
 
 export default function App() {
   const { checkSession } = useAuthStore();
+  // Bug 32 (19 May Ali) — keep ONE Socket.IO connection alive for the
+  // user's whole authenticated session. Pre-fix the socket was created
+  // with autoConnect:false and only connectSocket()-ed by
+  // useSessionSocket inside live event pages. On every other page
+  // (Home, Pods, Invites, etc.) the WebSocket was never opened — so the
+  // server's pod:membership_updated / entity:changed broadcasts had
+  // nowhere to land in the browser. NotificationBell registered
+  // listeners on a socket that wasn't connected; nothing fired. Connect
+  // here on app boot whenever a token is present, refresh when it
+  // changes, disconnect on logout. Live-event pages call connectSocket
+  // again, which is a no-op when already connected.
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   useEffect(() => {
     checkSession();
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated && accessToken) {
+      connectSocket(accessToken);
+    } else {
+      disconnectSocket();
+    }
+    // Best-effort: on hot reload / token rotation, the existing socket's
+    // auth needs to be refreshed so the next reconnect uses the new
+    // token. Updating auth on the existing instance covers reconnect
+    // cycles initiated by the server / network layer.
+    if (accessToken) {
+      const s = getSocket();
+      s.auth = { token: accessToken };
+    }
+  }, [accessToken, isAuthenticated]);
 
   return (
     <Routes>

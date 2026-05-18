@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { connectSocket, disconnectSocket, getSocket } from '@/lib/socket';
+import { connectSocket, getSocket } from '@/lib/socket';
 import { useSessionStore } from '@/stores/sessionStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useToastStore } from '@/stores/toastStore';
@@ -895,9 +895,13 @@ export default function useSessionSocket(sessionId: string) {
       socket.io.off('reconnect_attempt', onReconnectAttempt);
       socket.io.off('reconnect_failed', onReconnectFailed);
 
-      // Leave the session room and disconnect
+      // Leave the session room only — do NOT disconnect the global
+      // socket. Bug 32 (19 May Ali): the socket is now an app-lifetime
+      // connection owned by App.tsx so realtime works on every page,
+      // not just the live event. Disconnecting here would kill
+      // notifications + pod / session list updates on every page the
+      // user navigates to after leaving an event.
       socket.emit('session:leave', { sessionId });
-      disconnectSocket();
 
       // Allow re-initialization if this effect re-runs
       initializedRef.current = null;
