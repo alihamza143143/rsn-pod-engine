@@ -187,19 +187,28 @@ export default function HostControlCenter({
   // Default-large bounds: fill ~92vw × 88vh capped at 1280×900, centred.
   // Persisted bounds win after the user resizes/moves once.
   const [bounds, setBounds] = useState<PersistedBounds>(() => {
-    const persisted = readPersistedBounds();
-    if (persisted) return persisted;
     if (typeof window === 'undefined') {
       return { x: 100, y: 100, width: HCC_DEFAULT_W, height: HCC_DEFAULT_H };
     }
-    const w = Math.min(HCC_DEFAULT_W, Math.floor(window.innerWidth * 0.92));
-    const h = Math.min(HCC_DEFAULT_H, Math.floor(window.innerHeight * 0.88));
-    return {
-      x: Math.max(8, Math.floor((window.innerWidth - w) / 2)),
-      y: Math.max(8, Math.floor((window.innerHeight - h) / 2)),
-      width: w,
-      height: h,
-    };
+    // Bug 39 (19 May Ali) — persisted bounds from a previous session
+    // (different window size, different monitor, accidental drag into
+    // a corner) could load with the title bar partly off-screen and
+    // no way to grab the drag handle. Clamp every loaded value into
+    // the current viewport: width/height capped, x/y kept inside the
+    // visible area so the title bar is always reachable.
+    const persisted = readPersistedBounds();
+    const defaultW = Math.min(HCC_DEFAULT_W, Math.floor(window.innerWidth * 0.92));
+    const defaultH = Math.min(HCC_DEFAULT_H, Math.floor(window.innerHeight * 0.88));
+    const defaultX = Math.max(8, Math.floor((window.innerWidth - defaultW) / 2));
+    const defaultY = Math.max(8, Math.floor((window.innerHeight - defaultH) / 2));
+    if (persisted) {
+      const clampedW = Math.min(Math.max(HCC_MIN_W, persisted.width), window.innerWidth);
+      const clampedH = Math.min(Math.max(HCC_MIN_H, persisted.height), window.innerHeight);
+      const clampedX = Math.max(0, Math.min(persisted.x, window.innerWidth - clampedW));
+      const clampedY = Math.max(0, Math.min(persisted.y, window.innerHeight - clampedH));
+      return { x: clampedX, y: clampedY, width: clampedW, height: clampedH };
+    }
+    return { x: defaultX, y: defaultY, width: defaultW, height: defaultH };
   });
   const [isMaximized, setIsMaximized] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
