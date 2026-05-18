@@ -128,15 +128,21 @@ export default function ParticipantList({ onClose, sessionId }: Props) {
                 const isFormalCohost = cohosts.has(p.userId);
                 const isViaPhaseM = !isFormalCohost && actingAsHostOverrides[p.userId] === true;
                 if (!isOriginalHost || isPHost || isSelf || isViaPhaseM) return null;
+                // Bug 38 (19 May Ali) — was opacity-0 group-hover:opacity-100,
+                // which hid the toggle entirely on mobile (no hover) and made
+                // it easy to miss on desktop. Now always visible so the
+                // director can demote/promote cohosts directly from the
+                // Participants drawer without opening the full HCC modal.
                 return (
                   <button
                     onClick={() => toggleCohost(p.userId)}
                     title={isCohost ? 'Remove co-host' : 'Make co-host'}
-                    className={`p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-all shrink-0 ${
-                      isCohost ? 'text-blue-400 hover:bg-blue-500/10' : 'text-gray-500 hover:bg-gray-100'
+                    aria-label={isCohost ? `Remove ${p.displayName || 'user'} as co-host` : `Make ${p.displayName || 'user'} a co-host`}
+                    className={`p-1.5 rounded-lg transition-colors shrink-0 ${
+                      isCohost ? 'text-blue-400 hover:bg-blue-500/10' : 'text-gray-400 hover:bg-white/10'
                     }`}
                   >
-                    <Shield className="h-3.5 w-3.5" />
+                    <Shield className="h-4 w-4" />
                   </button>
                 );
               })()}
