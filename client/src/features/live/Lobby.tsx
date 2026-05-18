@@ -1,4 +1,4 @@
-import { Users, Loader2, Video, VideoOff, Sparkles, ChevronDown, ChevronUp, Mic, MicOff, Volume2, VolumeX, UserX, Camera, X } from 'lucide-react';
+import { Users, Loader2, Video, VideoOff, Sparkles, ChevronDown, ChevronUp, Mic, MicOff, Volume2, VolumeX, UserX, Camera, X, Pin, PinOff } from 'lucide-react';
 import HostRoundDashboard from './HostRoundDashboard';
 
 // Lazy-load track processors (may not be available in all environments)
@@ -228,14 +228,33 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
             ) : null}
           </div>
         )}
-        {isPinned && (
-          <div className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded-full">
-            Pinned · click to unpin
-          </div>
-        )}
-        {/* Host mute/unmute + kick buttons on remote participant tiles */}
+        {/* 18 May (Stefan) — explicit pin / unpin button on every tile.
+            The whole-tile click still pins (legacy behaviour), but this
+            visible affordance makes the feature discoverable and gives
+            users a clear "spotlight this person" control instead of a
+            hidden interaction. Toggles between Pin / PinOff icons; stops
+            propagation so it doesn't double-fire with the tile click.
+            Sits bottom-right so it never collides with the name plate
+            (bottom-left), mic-off badge (top-left), or host mute/kick
+            controls (top-right, hover-revealed). */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setPinnedSid(isPinned ? null : trackRef.participant.sid);
+          }}
+          title={isPinned ? `Unpin ${name}` : `Pin ${name} as spotlight`}
+          aria-label={isPinned ? `Unpin ${name}` : `Pin ${name}`}
+          data-testid={isPinned ? 'tile-unpin-button' : 'tile-pin-button'}
+          className={`absolute ${isLocal ? 'top-1.5' : 'top-1.5'} right-1.5 z-10 bg-black/55 hover:bg-black/75 backdrop-blur-sm rounded-full p-1.5 text-white transition-colors ${isPinned ? 'ring-1 ring-amber-300/70 text-amber-200' : ''}`}
+        >
+          {isPinned ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+        </button>
+        {/* Host mute/unmute + kick buttons on remote participant tiles.
+            18 May — shifted left to right-10 so the always-visible pin
+            button (right-1.5) doesn't get covered when the host hovers. */}
         {isHost && !isLocal && (
-          <div className="absolute top-1.5 right-1.5 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+          <div className="absolute top-1.5 right-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
             <button
               onClick={() => handleHostMute(trackRef.participant.identity, !!isMicOn)}
               className="bg-black/50 backdrop-blur-sm rounded-full p-1.5 text-white hover:bg-black/70"
