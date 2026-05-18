@@ -54,6 +54,12 @@ interface SessionLiveState {
   // pin (Lobby's pinnedSid useState) still exists but is overridden by
   // this value whenever it's set.
   serverPinnedUserId: string | null;
+  // Bug 26 (19 May Ali) — director's visual tile demote list. User IDs
+  // here are cohosts whose lobby tile renders at participant size with
+  // no host-ring. Privileges unchanged. Updated live via
+  // `tile:size_changed` socket event; snapshot bundles the current set
+  // so refreshes don't flicker through a host-tile state first.
+  tileDemotedUserIds: string[];
   // Bug 68 (18 May Stefan) — HCC participants list bundled on the
   // session snapshot. The HCC drawer prefers this when the live
   // host:round_dashboard event hasn't arrived yet (e.g. cohost was just
@@ -242,6 +248,8 @@ interface SessionLiveState {
   setHostMutedUserIds: (ids: string[]) => void;
   // Bug 1 (18 May Stefan) — set/clear the server-broadcast pin.
   setServerPinnedUserId: (userId: string | null) => void;
+  // Bug 26 (19 May Ali) — replace the director's tile demote list.
+  setTileDemotedUserIds: (ids: string[]) => void;
   setLeftCurrentRound: (v: boolean) => void;
   setLastRatedRound: (r: number) => void;
   setIsPaused: (v: boolean) => void;
@@ -297,6 +305,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   hostInLobby: false, hostUserId: null,
   sessionStateLoaded: false,
   serverPinnedUserId: null,
+  tileDemotedUserIds: [],
   hccParticipants: [],
   totalRounds: 5,
   participants: [],
@@ -436,6 +445,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   setActingAsHostOverrides: (overrides) => set({ actingAsHostOverrides: overrides }),
   setHostMutedUserIds: (ids) => set({ hostMutedUserIds: new Set(ids) }),
   setServerPinnedUserId: (userId) => set({ serverPinnedUserId: userId }),
+  setTileDemotedUserIds: (ids) => set({ tileDemotedUserIds: Array.isArray(ids) ? ids : [] }),
   setLeftCurrentRound: (leftCurrentRound) => set({ leftCurrentRound }),
   setLastRatedRound: (lastRatedRound) => set({ lastRatedRound }),
   setIsPaused: (isPaused) => set({ isPaused }),
@@ -486,6 +496,12 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
       // everyone else who's been here longer. Snapshot returns null when
       // no global pin is set.
       serverPinnedUserId: (snapshot as any).pinnedUserId ?? null,
+      // Bug 26 (19 May Ali) — apply the director's tile demote list on
+      // hydrate so refreshing clients render correct tile sizes from
+      // the first frame.
+      tileDemotedUserIds: Array.isArray((snapshot as any).tileDemotedUserIds)
+        ? (snapshot as any).tileDemotedUserIds
+        : [],
       // Bug 68 (18 May Stefan) — bundle the HCC participants list on
       // every snapshot. A newly-promoted cohost's snapshot fetch (fired
       // by permissions:updated) populates the drawer in the same tick
@@ -510,7 +526,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   }),
   reset: () => set({
     phase: 'lobby', connectionStatus: 'connecting', transitionStatus: null,
-    sessionStatus: 'scheduled', hostInLobby: false, hostUserId: null, sessionStateLoaded: false, serverPinnedUserId: null, hccParticipants: [], totalRounds: 5,
+    sessionStatus: 'scheduled', hostInLobby: false, hostUserId: null, sessionStateLoaded: false, serverPinnedUserId: null, tileDemotedUserIds: [], hccParticipants: [], totalRounds: 5,
     participants: [], currentMatch: null, currentPartners: [], currentMatchId: null,
     timerSeconds: 0, timerEndsAt: null, currentRound: 0, broadcasts: [], error: null, tileReactions: {},
     isReconnecting: false, isByeRound: false, liveKitToken: null, livekitUrl: null, currentRoomId: null,

@@ -32,6 +32,9 @@ const SOCKET_EVENTS = [
   // participant; everyone's lobby re-renders with that user as the big
   // tile.
   'pin:changed',
+  // Bug 26 (19 May Ali) — director's visual tile demote list changed.
+  // Every client recomputes which tiles render at participant size.
+  'tile:size_changed',
   // Bug 68 (18 May Stefan) — server tells every client in the session
   // room to refetch their snapshot because the roster mutated (cohost
   // assigned/removed, acting-as-host toggled, kick, etc). One event
@@ -193,6 +196,16 @@ export default function useSessionSocket(sessionId: string) {
     socket.on('pin:changed', (data: any) => {
       const next = typeof data?.pinnedUserId === 'string' ? data.pinnedUserId : null;
       store.setServerPinnedUserId(next);
+    });
+
+    // ── Bug 26 (19 May Ali) — director's visual tile demote list ──
+    // Whenever the director resizes a cohost's tile, the server broadcasts
+    // the FULL updated list to the session room. Every viewer's Lobby
+    // re-renders with the new sizes — demoted cohosts drop the host-tile
+    // ring + col-span and become regular participant tiles.
+    socket.on('tile:size_changed', (data: any) => {
+      const ids = Array.isArray(data?.tileDemotedUserIds) ? data.tileDemotedUserIds : [];
+      store.setTileDemotedUserIds(ids);
     });
 
     // ── Bug 68 (18 May Stefan) — universal "no refresh needed" path ──
@@ -614,6 +627,17 @@ export default function useSessionSocket(sessionId: string) {
       const tp = typeof data?.totalPairs === 'number' ? data.totalPairs : null;
       if (rc !== null && tp !== null) {
         store.setEventPlanSummary?.({ roundCount: rc, totalPairs: tp });
+      }
+      // Bug 27 (19 May Ali) — Bug 22 closed the DB persistence + plan-strip
+      // gap but left `totalRounds` in the client store stale between
+      // "Another Round" click and the next round_started event. Every
+      // surface that reads totalRounds ("Round N of M" in main room, host
+      // controls, breakout rooms, rating prompt last-round logic) stuck
+      // on the pre-bump number for the rating-window duration. Pushing
+      // the fresh count here closes that window — every UI updates the
+      // moment the bump broadcast lands.
+      if (rc !== null) {
+        store.setTotalRounds(rc);
       }
       const range = rounds.length === 1
         ? `round ${rounds[0]}`

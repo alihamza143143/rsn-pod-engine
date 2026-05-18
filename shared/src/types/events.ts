@@ -127,6 +127,12 @@ export interface ServerToClientEvents {
   // pinned (or unpinned, with pinnedUserId=null) a participant. Every
   // viewer renders that user as the big tile.
   'pin:changed': (data: { sessionId: string; pinnedUserId: string | null }) => void;
+  // Bug 26 (19 May Ali) — director's per-user visual tile override has
+  // changed. Visual-only: the listed users keep all cohost privileges,
+  // but their tile renders at participant size with no host-ring.
+  // Broadcast to every viewer; clients update local tileDemotedUserIds
+  // and the next Lobby render flattens the affected tiles.
+  'tile:size_changed': (data: { sessionId: string; tileDemotedUserIds: string[] }) => void;
   // Bug 68 (18 May Stefan) — generic "session roster mutated" signal.
   // Server emits to the session room on cohost assign/remove, acting-as-
   // host toggle (self or director-initiated), kick, participant join/leave.
@@ -230,6 +236,15 @@ export interface ClientToServerEvents {
   // Bug 1 (18 May Stefan) — global pin. Only acting hosts pass verifyHost;
   // pinnedUserId=null clears the pin.
   'host:set_pin': (data: { sessionId: string; pinnedUserId: string | null }) => void;
+
+  // Bug 26 (19 May Ali) — director-only visual demote for a cohost's tile.
+  // size='participant' shrinks; size='host' restores. Server verifies the
+  // caller is the event director (not just any acting host).
+  'host:set_tile_size': (data: {
+    sessionId: string;
+    targetUserId: string;
+    size: 'participant' | 'host';
+  }) => void;
 
   // Reactions
   'reaction:send': (data: { sessionId: string; type: string; matchId?: string }) => void;

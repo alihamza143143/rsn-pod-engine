@@ -58,6 +58,15 @@ export interface ActiveSession {
    * survives server restarts within the Redis TTL window.
    */
   pinnedUserId?: string | null;
+  /**
+   * Bug 26 (19 May Ali) — event-director visual demote list. User IDs in
+   * this set keep all their cohost privileges (HCC access, mute-other,
+   * etc.) but their tile renders at participant size with no host-ring.
+   * Director-only authority; cohosts cannot mutate this. Persists in
+   * Redis so a refresh / server restart doesn't reset the visual layout
+   * mid-event.
+   */
+  tileDemotedUserIds?: string[];
 }
 
 export interface ChatMessage {
@@ -167,6 +176,9 @@ async function persistToRedis(sessionId: string, session: ActiveSession): Promis
       // Bug 1 (18 May Stefan) — survive server restart so the global pin
       // doesn't reset to null when the API process recycles mid-event.
       pinnedUserId: session.pinnedUserId ?? null,
+      // Bug 26 (19 May Ali) — director's visual demote list survives the
+      // same way the pin does. Empty array if unset.
+      tileDemotedUserIds: session.tileDemotedUserIds ?? [],
     });
     await redis.setex(`${REDIS_SESSION_PREFIX}${sessionId}`, REDIS_TTL, serialized);
   } catch (err) {

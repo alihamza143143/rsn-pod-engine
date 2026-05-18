@@ -32,7 +32,7 @@ import {
   handleHostMuteParticipant, handleHostMuteAll, handleHostRemoveFromRoom,
   handleHostMoveToRoom, handleAssignCohost, handleRemoveCohost, handlePromoteCohost, handleHostExtendRound,
   handleHostExtendBreakoutRoom, handleHostCreateBreakout,
-  handleHostSetPin,
+  handleHostSetPin, handleHostSetTileSize,
   startSession, pauseSession, resumeSession, endSession, broadcastMessage,
   setHostVisibility,
   setHostActionsIo, injectHostActionDeps,
@@ -268,6 +268,9 @@ export function initOrchestration(socketServer: SocketServer): void {
     // Bug 1 (18 May Stefan) — global pin broadcast. Acting hosts can set
     // a pin that every participant's lobby honours.
     wrapHandler('host:set_pin', socket, handleHostSetPin);
+    // Bug 26 (19 May Ali) — director can flatten a cohost's tile to
+    // participant size (visual only; cohost keeps all privileges).
+    wrapHandler('host:set_tile_size', socket, handleHostSetTileSize);
     // T1-5 — host can pass the baton to an existing co-host
     wrapHandler('host:promote_cohost', socket, handlePromoteCohost);
     wrapHandler('host:extend_round', socket, handleHostExtendRound);

@@ -236,6 +236,10 @@ export default function HostControlCenter({
   // still wins when it's present — it carries timer + room state the
   // snapshot doesn't.
   const snapshotHccParticipants = useSessionStore(s => s.hccParticipants);
+  // Bug 26 (19 May Ali) — director's visual demote list; drives the
+  // "Small tile" / "Restore tile" button label per cohost row.
+  const tileDemotedUserIds = useSessionStore(s => s.tileDemotedUserIds);
+  const tileDemotedSet = new Set(tileDemotedUserIds);
   const lastParticipantsRef = useRef<NonNullable<typeof roundDashboard>['participants']>(undefined);
   const incomingParticipants = roundDashboard?.participants;
   if (incomingParticipants && incomingParticipants.length > 0) {
@@ -306,6 +310,13 @@ export default function HostControlCenter({
   const removeCohost = (userId: string) =>
     runLocked(`remove_cohost:${userId}`, () => {
       socket?.emit('host:remove_cohost', { sessionId, userId });
+    });
+  // Bug 26 (19 May Ali) — director-only visual tile resize for a cohost.
+  // Visual only: cohost keeps every privilege; only their lobby tile size
+  // changes. Server verifies the caller is the actual event director.
+  const setCohostTileSize = (userId: string, size: 'participant' | 'host') =>
+    runLocked(`set_tile_size:${userId}:${size}`, () => {
+      socket?.emit('host:set_tile_size', { sessionId, targetUserId: userId, size });
     });
   // Phase 7-audit fix — confirm() lives outside runLocked so a Cancel
   // doesn't burn the lock on a no-op. Lock acquisition only happens
@@ -626,6 +637,37 @@ export default function HostControlCenter({
                             value={(hostVisibilityModes[p.userId] as HostVisibilityMode) || 'normal'}
                             onChange={(mode) => setVisibility(p.userId, mode)}
                           />
+                        )}
+                        {/* Bug 26 (19 May Ali) — director-only toggle to
+                            shrink a cohost's lobby tile to participant size.
+                            Visual-only: cohost keeps every privilege. Hidden
+                            for everyone except the actual event director
+                            (super_admin acting as host doesn't qualify) and
+                            for non-cohost rows. */}
+                        {p.role === 'cohost'
+                          && currentUserId === hostUserId
+                          && p.userId !== hostUserId && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCohostTileSize(
+                                p.userId,
+                                tileDemotedSet.has(p.userId) ? 'host' : 'participant',
+                              )
+                            }
+                            className={`text-[10px] font-medium px-2 py-0.5 rounded border transition-colors ${
+                              tileDemotedSet.has(p.userId)
+                                ? 'text-indigo-700 bg-indigo-50 border-indigo-200 hover:bg-indigo-100'
+                                : 'text-gray-600 bg-white border-gray-300 hover:bg-gray-50'
+                            }`}
+                            title={
+                              tileDemotedSet.has(p.userId)
+                                ? 'Restore this co-host to a host-sized tile'
+                                : 'Show this co-host with a participant-sized tile (cohost privileges unchanged)'
+                            }
+                          >
+                            {tileDemotedSet.has(p.userId) ? 'Restore tile' : 'Small tile'}
+                          </button>
                         )}
                         {p.userId !== hostUserId && (
                           <RowActions

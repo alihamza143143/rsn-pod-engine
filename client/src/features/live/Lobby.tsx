@@ -152,6 +152,10 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
   // named user becomes the big tile for everyone. The server pin is
   // userId-based (canonical), so we resolve it to a LiveKit sid here.
   const serverPinnedUserId = useSessionStore(s => s.serverPinnedUserId);
+  // Bug 26 (19 May Ali) — director's visual demote list. Cohosts whose
+  // userId appears here render at participant tile size even though
+  // hostsSet still contains them (privileges unchanged).
+  const tileDemotedSet = useSessionStore(s => new Set(s.tileDemotedUserIds));
   const serverPinnedSid = (() => {
     if (!serverPinnedUserId) return null;
     const t = cameraTracksSorted.find(
@@ -223,8 +227,13 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
     // follows the host roster (director + cohosts + opt-ins), so every
     // viewer sees the host(s) as the big tile(s) and #1 is always the
     // director.
-    const isActingHost = !!trackRef.participant.identity
-      && hostsSet.has(trackRef.participant.identity);
+    // Bug 26 (19 May Ali) — if the director has demoted this cohost's
+    // tile, we strip the host-tile treatment here while keeping every
+    // server-side privilege intact (mute-others, HCC, etc. still work).
+    const identity = trackRef.participant.identity;
+    const isActingHost = !!identity
+      && hostsSet.has(identity)
+      && !tileDemotedSet.has(identity);
     const isMicOn = trackRef.participant.isMicrophoneEnabled;
     return (
       <div

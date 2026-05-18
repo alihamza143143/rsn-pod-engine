@@ -2655,3 +2655,70 @@ export async function handleHostSetPin(
     }
   });
 }
+
+// Bug 26 (19 May Ali) — director can flatten a cohost's tile to participant
+// size without revoking any privilege. Visual-only override: cohost keeps
+// HCC, mute-other, etc. — only their tile-grid sizing changes. Director-only
+// authority (super_admin acting as host does NOT count as director here).
+export async function handleHostSetTileSize(
+  io: SocketServer,
+  socket: Socket,
+  data: { sessionId: string; targetUserId: string; size: 'participant' | 'host' },
+): Promise<void> {
+  return withSessionGuard(data.sessionId, async () => {
+    try {
+      const { sessionId, targetUserId, size } = data;
+      const callerId = getUserIdFromSocket(socket);
+      const activeSession = activeSessions.get(sessionId);
+      if (!activeSession) {
+        socket.emit('error', { code: 'SESSION_NOT_ACTIVE', message: 'No active session for tile resize' });
+        return;
+      }
+      // Director-only: hostUserId is THE event director (cohosts are
+      // separate). Even super_admin acting as host does NOT pass here —
+      // tile flattening is the director's prerogative.
+      if (!callerId || callerId !== activeSession.hostUserId) {
+        socket.emit('error', { code: 'NOT_DIRECTOR', message: 'Only the event director can resize tiles' });
+        return;
+      }
+      if (!targetUserId || typeof targetUserId !== 'string') {
+        socket.emit('error', { code: 'INVALID_TARGET', message: 'targetUserId required' });
+        return;
+      }
+      if (size !== 'participant' && size !== 'host') {
+        socket.emit('error', { code: 'INVALID_SIZE', message: "size must be 'participant' or 'host'" });
+        return;
+      }
+      // Don't let the director demote themselves — they can't be a
+      // "cohost" of their own event by definition.
+      if (targetUserId === activeSession.hostUserId) {
+        socket.emit('error', { code: 'INVALID_TARGET', message: 'Director cannot demote their own tile' });
+        return;
+      }
+
+      const current = new Set(activeSession.tileDemotedUserIds ?? []);
+      const before = current.size;
+      if (size === 'participant') current.add(targetUserId);
+      else current.delete(targetUserId);
+      const after = current.size;
+      // No-op if unchanged — saves a broadcast.
+      if (before === after) return;
+
+      activeSession.tileDemotedUserIds = Array.from(current);
+      persistSessionState(sessionId, activeSession).catch(() => {});
+
+      io.to(sessionRoom(sessionId)).emit('tile:size_changed', {
+        sessionId,
+        tileDemotedUserIds: activeSession.tileDemotedUserIds,
+      });
+
+      logger.info(
+        { sessionId, targetUserId, size, by: callerId, total: after },
+        'Director set cohost tile size override',
+      );
+    } catch (err: any) {
+      logger.error({ err }, 'Error in handleHostSetTileSize');
+      socket.emit('error', { code: 'SET_TILE_SIZE_FAILED', message: err.message || 'Failed to resize tile' });
+    }
+  });
+}

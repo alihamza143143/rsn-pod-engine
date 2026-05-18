@@ -123,6 +123,16 @@ export interface SessionStateSnapshot {
   pinnedUserId: string | null;
 
   /**
+   * Bug 26 (19 May Ali) — director's visual tile-demote list. User IDs
+   * whose tile renders at participant size instead of host size. Cohost
+   * privileges are unaffected. Empty array means no demotions in effect.
+   * Bundled on the snapshot so a refreshing client immediately renders
+   * the right tile sizes without waiting for the next tile:size_changed
+   * socket event.
+   */
+  tileDemotedUserIds: string[];
+
+  /**
    * Bug 68 (18 May Stefan) — Host Control Center participants list, sourced
    * from buildHostParticipantsView. Previously HCC was populated solely by
    * the `host:round_dashboard` socket emit, which created a race when an
@@ -436,6 +446,9 @@ export async function buildSessionStateSnapshot(
     // Missing on a fresh DB-only fetch (session not yet loaded into memory),
     // which is correct: there is no live pin when nobody's running it.
     pinnedUserId: activeSession?.pinnedUserId ?? null,
+    // Bug 26 (19 May Ali) — director's tile demote list. Same staleness
+    // rule as pinnedUserId: empty array when activeSession not loaded.
+    tileDemotedUserIds: activeSession?.tileDemotedUserIds ?? [],
     // Bug 68 (18 May Stefan) — HCC drawer data bundled directly with the
     // snapshot so a newly-promoted cohost can render their drawer in the
     // same tick as their isHost flips.
