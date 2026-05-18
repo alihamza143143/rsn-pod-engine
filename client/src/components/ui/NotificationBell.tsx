@@ -99,19 +99,26 @@ export default function NotificationBell() {
     // all repaint on the next render. Hooking it on the globally-mounted
     // NotificationBell means every page in the app gets the live update,
     // not just whichever page happens to have its own socket listener.
+    // Bug 31 (19 May Ali) — the complete inventory of every query key the
+    // pod / session pages USE for their lists, counts, and pending-invite
+    // surfaces. Grepped directly from PodDetailPage / SessionDetailPage /
+    // PodsPage / HomePage to avoid the "I'll guess what keys to invalidate"
+    // mistake that left the pending-invites badge stale on send-invite.
+    // Every key here is a real key used in the codebase.
     const membershipHandler = () => {
+      // Pod listing + detail surfaces.
       qc.invalidateQueries({ queryKey: ['my-pods'] });
       qc.invalidateQueries({ queryKey: ['pod'] });
+      qc.invalidateQueries({ queryKey: ['pod-members'] });
+      qc.invalidateQueries({ queryKey: ['pod-member-counts'] });
       qc.invalidateQueries({ queryKey: ['pod-pending-members'] });
-      // Bug 30 (19 May Ali) — every invite mutation (send / accept /
-      // decline / revoke / mark-accepted / bulk) now fires
-      // pod:membership_updated for the affected pod. The pending-invites
-      // count, the received-invites list, and the inviter's "my-invites"
-      // tab all need to repaint. Adding these invalidations means each
-      // surface refetches in the same tick the broadcast lands.
+      qc.invalidateQueries({ queryKey: ['pod-pending-invites'] });
+      qc.invalidateQueries({ queryKey: ['pod-session-count'] });
+      qc.invalidateQueries({ queryKey: ['pod-sessions'] });
+      qc.invalidateQueries({ queryKey: ['pod-members-for-invite'] });
+      // Inviter + invitee invite-list surfaces.
       qc.invalidateQueries({ queryKey: ['received-invites'] });
       qc.invalidateQueries({ queryKey: ['my-invites'] });
-      qc.invalidateQueries({ queryKey: ['pod-invites'] });
       // Refetch the notification list so the approval/rejection notification
       // appears in the bell without waiting for the 30-second poll.
       fetchNotifications();
@@ -122,15 +129,19 @@ export default function NotificationBell() {
     // page so the my-sessions list, pod-sessions list, and session
     // detail all stay live without per-page socket wiring.
     const sessionListHandler = () => {
+      // Session listing + detail surfaces.
       qc.invalidateQueries({ queryKey: ['my-sessions'] });
       qc.invalidateQueries({ queryKey: ['pod-sessions'] });
+      qc.invalidateQueries({ queryKey: ['pod-session-count'] });
+      qc.invalidateQueries({ queryKey: ['session'] });
       qc.invalidateQueries({ queryKey: ['session-detail'] });
       qc.invalidateQueries({ queryKey: ['session-participants'] });
+      qc.invalidateQueries({ queryKey: ['session-participant-counts'] });
+      qc.invalidateQueries({ queryKey: ['session-pending-invites'] });
       // Bug 30 (19 May Ali) — session invites mutate via the same socket
-      // event for session-typed invites; cover their list keys too.
+      // event for session-typed invites; cover the invite-list keys too.
       qc.invalidateQueries({ queryKey: ['received-invites'] });
       qc.invalidateQueries({ queryKey: ['my-invites'] });
-      qc.invalidateQueries({ queryKey: ['session-invites'] });
     };
     socket.on('session:list_changed', sessionListHandler);
     return () => {

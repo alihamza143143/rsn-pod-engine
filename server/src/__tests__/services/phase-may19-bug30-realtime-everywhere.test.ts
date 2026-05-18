@@ -198,22 +198,34 @@ describe('Bug 30 — realtime fanout on every invite / pod / session mutation', 
   describe('Client — NotificationBell invalidates invite query keys on socket events', () => {
     const bellSrc = readClient('components/ui/NotificationBell.tsx');
 
-    it('pod:membership_updated handler invalidates received-invites, my-invites, pod-invites', () => {
+    it('pod:membership_updated handler invalidates every pod + invite list query key', () => {
       const handlerIdx = bellSrc.indexOf('const membershipHandler');
       const end = bellSrc.indexOf("socket.on('pod:membership_updated'", handlerIdx);
-      const fn = bellSrc.slice(handlerIdx, end > -1 ? end : handlerIdx + 1500);
+      const fn = bellSrc.slice(handlerIdx, end > -1 ? end : handlerIdx + 2500);
+      // Bug 31 (19 May Ali) — complete inventory grepped from PodDetailPage
+      // / PodsPage / HomePage. Every key the pod surfaces actually use
+      // must be invalidated, not just a guessed subset.
+      expect(fn).toMatch(/queryKey:\s*\[\s*['"]my-pods['"]\s*\]/);
+      expect(fn).toMatch(/queryKey:\s*\[\s*['"]pod['"]\s*\]/);
+      expect(fn).toMatch(/queryKey:\s*\[\s*['"]pod-members['"]\s*\]/);
+      expect(fn).toMatch(/queryKey:\s*\[\s*['"]pod-member-counts['"]\s*\]/);
+      expect(fn).toMatch(/queryKey:\s*\[\s*['"]pod-pending-invites['"]\s*\]/);
+      expect(fn).toMatch(/queryKey:\s*\[\s*['"]pod-session-count['"]\s*\]/);
       expect(fn).toMatch(/queryKey:\s*\[\s*['"]received-invites['"]\s*\]/);
       expect(fn).toMatch(/queryKey:\s*\[\s*['"]my-invites['"]\s*\]/);
-      expect(fn).toMatch(/queryKey:\s*\[\s*['"]pod-invites['"]\s*\]/);
     });
 
-    it('session:list_changed handler invalidates session-invite + invite query keys', () => {
+    it('session:list_changed handler invalidates every session + invite query key', () => {
       const handlerIdx = bellSrc.indexOf('const sessionListHandler');
       const end = bellSrc.indexOf("socket.on('session:list_changed'", handlerIdx);
-      const fn = bellSrc.slice(handlerIdx, end > -1 ? end : handlerIdx + 1500);
+      const fn = bellSrc.slice(handlerIdx, end > -1 ? end : handlerIdx + 2500);
+      expect(fn).toMatch(/queryKey:\s*\[\s*['"]my-sessions['"]\s*\]/);
+      expect(fn).toMatch(/queryKey:\s*\[\s*['"]session-detail['"]\s*\]/);
+      expect(fn).toMatch(/queryKey:\s*\[\s*['"]session-participants['"]\s*\]/);
+      expect(fn).toMatch(/queryKey:\s*\[\s*['"]session-participant-counts['"]\s*\]/);
+      expect(fn).toMatch(/queryKey:\s*\[\s*['"]session-pending-invites['"]\s*\]/);
       expect(fn).toMatch(/queryKey:\s*\[\s*['"]received-invites['"]\s*\]/);
       expect(fn).toMatch(/queryKey:\s*\[\s*['"]my-invites['"]\s*\]/);
-      expect(fn).toMatch(/queryKey:\s*\[\s*['"]session-invites['"]\s*\]/);
     });
 
     it('notification:new handler invalidates received-invites for the invitee', () => {
