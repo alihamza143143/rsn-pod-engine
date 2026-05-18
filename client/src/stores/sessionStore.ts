@@ -77,6 +77,10 @@ interface SessionLiveState {
     joinedAt: string;
   }>;
   totalRounds: number;
+  // Bug 28 (19 May Ali + Stefan) — count of "Another Round" bumps for
+  // this event. Drives the "Bonus" badge on the round header for any
+  // round beyond (totalRounds - bonusRoundsAdded). Default 0.
+  bonusRoundsAdded: number;
   participants: Participant[];
   currentMatch: MatchPartner | null;
   currentPartners: MatchPartner[];  // All partners (1 for pair, 2 for trio)
@@ -196,6 +200,8 @@ interface SessionLiveState {
   setHostInLobby: (inLobby: boolean) => void;
   setHostUserId: (hostUserId: string | null) => void;
   setTotalRounds: (total: number) => void;
+  // Bug 28 (19 May Ali + Stefan) — replace the bonus-round count.
+  setBonusRoundsAdded: (count: number) => void;
   setParticipants: (p: Participant[]) => void;
   addParticipant: (p: Participant) => void;
   removeParticipant: (userId: string) => void;
@@ -308,6 +314,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   tileDemotedUserIds: [],
   hccParticipants: [],
   totalRounds: 5,
+  bonusRoundsAdded: 0,
   participants: [],
   currentMatch: null,
   currentPartners: [],
@@ -355,6 +362,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   setHostInLobby: (hostInLobby) => set({ hostInLobby }),
   setHostUserId: (hostUserId) => set({ hostUserId }),
   setTotalRounds: (totalRounds) => set({ totalRounds }),
+  setBonusRoundsAdded: (bonusRoundsAdded) => set({ bonusRoundsAdded: typeof bonusRoundsAdded === 'number' && bonusRoundsAdded >= 0 ? bonusRoundsAdded : 0 }),
   setParticipants: (participants) => set({ participants }),
   addParticipant: (p) => set((s) => ({
     participants: s.participants.some(x => x.userId === p.userId) ? s.participants : [...s.participants, p],
@@ -477,6 +485,12 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
       sessionStatus: snapshot.sessionStatus,
       currentRound: snapshot.currentRound,
       totalRounds: snapshot.totalRounds,
+      // Bug 28 (19 May Ali + Stefan) — snapshot carries the bonus count
+      // so cold-start clients render the "Bonus" badge immediately on
+      // any post-bump round.
+      bonusRoundsAdded: typeof (snapshot as any).bonusRoundsAdded === 'number'
+        ? (snapshot as any).bonusRoundsAdded
+        : 0,
       isPaused: snapshot.isPaused,
       timerEndsAt: endsAt,
       timerSeconds,
@@ -526,7 +540,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   }),
   reset: () => set({
     phase: 'lobby', connectionStatus: 'connecting', transitionStatus: null,
-    sessionStatus: 'scheduled', hostInLobby: false, hostUserId: null, sessionStateLoaded: false, serverPinnedUserId: null, tileDemotedUserIds: [], hccParticipants: [], totalRounds: 5,
+    sessionStatus: 'scheduled', hostInLobby: false, hostUserId: null, sessionStateLoaded: false, serverPinnedUserId: null, tileDemotedUserIds: [], hccParticipants: [], totalRounds: 5, bonusRoundsAdded: 0,
     participants: [], currentMatch: null, currentPartners: [], currentMatchId: null,
     timerSeconds: 0, timerEndsAt: null, currentRound: 0, broadcasts: [], error: null, tileReactions: {},
     isReconnecting: false, isByeRound: false, liveKitToken: null, livekitUrl: null, currentRoomId: null,

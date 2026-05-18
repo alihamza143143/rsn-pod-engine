@@ -318,6 +318,11 @@ export async function getPeopleMet(
     ? JSON.parse(session.config as unknown as string)
     : session.config;
   const totalRounds = config?.numberOfRounds || session.currentRound || 0;
+  // Bug 28 (19 May Ali + Stefan) — pass the bonus count through so the
+  // recap can show "3 rounds + 1 bonus" instead of just "4 rounds".
+  const bonusRoundsAdded = typeof config?.bonusRoundsAdded === 'number'
+    ? config.bonusRoundsAdded
+    : 0;
 
   // Get rounds attended count — include all states where user actually participated
   // (completed, active, no_show, reassigned all mean the user was in that round)
@@ -449,6 +454,7 @@ export async function getPeopleMet(
     sessionDate: session.scheduledAt,
     totalRounds,
     roundsAttended,
+    bonusRoundsAdded,
     // connections stays per-match so the per-round breakdown is intact.
     connections,
     mutualConnections: dedupedMutual,

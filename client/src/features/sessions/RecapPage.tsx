@@ -41,6 +41,9 @@ interface PeopleMetData {
   sessionDate: string;
   totalRounds: number;
   roundsAttended: number;
+  // Bug 28 (19 May Ali + Stefan) — count of bonus rounds added during the
+  // event. Recap line below splits `totalRounds` into "original + bonus".
+  bonusRoundsAdded?: number;
   connections: Connection[];
   mutualConnections: Connection[];
   // Phase 2 (1 May spec) — deterministic counts from server's meeting_records.
@@ -305,6 +308,19 @@ export default function RecapPage() {
           <CircleDot className="h-4 w-4 text-rsn-red shrink-0" />
           <p className="text-sm text-gray-600">
             You attended <span className="font-semibold text-[#1a1a2e]">{data.roundsAttended}</span> round{data.roundsAttended !== 1 ? 's' : ''} out of <span className="font-semibold text-[#1a1a2e]">{data.totalRounds}</span> total
+            {/* Bug 28 (19 May Ali + Stefan) — honestly split the total
+                into "original rounds + bonus" so the report reads
+                "3 + 1 bonus = 4" instead of just "4". Only renders
+                when at least one bonus round was added. */}
+            {(data.bonusRoundsAdded ?? 0) > 0 && (
+              <>
+                {' '}
+                <span className="text-xs text-gray-500">
+                  ({data.totalRounds - (data.bonusRoundsAdded ?? 0)} original + {data.bonusRoundsAdded}
+                  {' '}bonus)
+                </span>
+              </>
+            )}
           </p>
         </div>
       )}

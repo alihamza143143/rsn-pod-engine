@@ -27,6 +27,14 @@ export interface SessionStateSnapshot {
   sessionStatus: SessionStatus;
   currentRound: number;
   totalRounds: number;
+  /**
+   * Bug 28 (19 May Ali + Stefan) — count of "Another Round" presses that
+   * extended the event past its originally-configured rounds. UI uses
+   * `currentRound > (totalRounds - bonusRoundsAdded)` to flag a round
+   * as a "Bonus" round in the header. 0 for events that never got an
+   * Another Round press.
+   */
+  bonusRoundsAdded: number;
   isPaused: boolean;
   /** Server-side wall-clock end of the current segment (ISO 8601). null when paused or no timer running. */
   timerEndsAt: string | null;
@@ -416,6 +424,10 @@ export async function buildSessionStateSnapshot(
     sessionStatus: activeSession?.status ?? session.status,
     currentRound: activeSession?.currentRound ?? session.currentRound,
     totalRounds: config.numberOfRounds || 5,
+    // Bug 28 (19 May Ali + Stefan) — surface the bonus-round count so
+    // refresh / cold-fetch clients can render the "Bonus" badge on
+    // round headers without waiting for a host:event_plan_repaired emit.
+    bonusRoundsAdded: (config as any)?.bonusRoundsAdded ?? 0,
     isPaused: activeSession?.isPaused ?? false,
     timerEndsAt: activeSession?.timerEndsAt?.toISOString() ?? null,
     pausedTimeRemainingMs: activeSession?.pausedTimeRemaining ?? null,

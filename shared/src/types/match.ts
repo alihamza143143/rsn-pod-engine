@@ -78,6 +78,11 @@ export interface PeopleMet {
   sessionDate: Date;
   totalRounds: number;
   roundsAttended: number;
+  // Bug 28 (19 May Ali + Stefan) — how many of `totalRounds` were added
+  // mid-event via "Another Round". Recap uses this to render an honest
+  // "3 rounds + 1 bonus" split. Defaults to 0 for events that ran their
+  // original plan.
+  bonusRoundsAdded?: number;
   connections: ConnectionResult[];
   mutualConnections: ConnectionResult[];
   // Phase 2 (1 May spec) — deterministic stored counts from meeting_records.

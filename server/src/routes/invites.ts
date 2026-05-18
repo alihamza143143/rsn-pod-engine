@@ -6,6 +6,7 @@ import { authenticate, optionalAuth } from '../middleware/auth';
 import { inviteLimiter } from '../middleware/rateLimit';
 import { auditMiddleware } from '../middleware/audit';
 import * as inviteService from '../services/invite/invite.service';
+import * as orchestrationService from '../services/orchestration/orchestration.service';
 import { query } from '../db';
 import { ApiResponse, InviteType, InviteStatus } from '@rsn/shared';
 
@@ -443,6 +444,29 @@ router.post(
         req.user!.userId,
         req.user!.email,
       );
+      // Bug 29 (19 May Ali) — pod/session-list realtime fanout was missing
+      // on the invite-accept path. Sister mutations in routes/pods.ts
+      // (add/remove/role-change/approve/reject) already call
+      // notifyPodChanged + notifySessionListChanged, but invites had no
+      // wiring of its own — Waseem's pod page kept showing "Pending
+      // Invite" for Raja even after Raja accepted, because no
+      // pod:membership_updated event ever fanned out to the other
+      // members. Fan out the same events here so accepting feels live
+      // for every member, not just the accepter.
+      if (result.registeredFor?.podId) {
+        orchestrationService
+          .notifyPodChanged(result.registeredFor.podId, 'invite_accepted')
+          .catch(() => {});
+      }
+      if (result.registeredFor?.sessionId) {
+        orchestrationService
+          .notifySessionListChanged(
+            result.registeredFor.podId ?? null,
+            result.registeredFor.sessionId,
+            'invite_accepted',
+          )
+          .catch(() => {});
+      }
       const response: ApiResponse = {
         success: true,
         data: {

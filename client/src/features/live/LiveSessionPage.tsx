@@ -32,6 +32,7 @@ export default function LiveSessionPage() {
   const sessionStatus = useSessionStore(s => s.sessionStatus);
   const currentRound = useSessionStore(s => s.currentRound);
   const totalRounds = useSessionStore(s => s.totalRounds);
+  const bonusRoundsAdded = useSessionStore(s => s.bonusRoundsAdded);
   const chatOpen = useSessionStore(s => s.chatOpen);
   const unreadChatCount = useSessionStore(s => s.unreadChatCount);
   const matchingOverlay = useSessionStore(s => s.matchingOverlay);
@@ -199,7 +200,7 @@ export default function LiveSessionPage() {
 
       {/* Persistent event state banner — hidden during breakout/rating (they have own UI) */}
       {connectionStatus === 'connected' && phase !== 'matched' && phase !== 'rating' && (
-        <EventStateBanner sessionStatus={sessionStatus} currentRound={currentRound} totalRounds={totalRounds} phase={phase} />
+        <EventStateBanner sessionStatus={sessionStatus} currentRound={currentRound} totalRounds={totalRounds} bonusRoundsAdded={bonusRoundsAdded} phase={phase} />
       )}
 
       {/* Broadcast banner */}
@@ -545,7 +546,7 @@ function TestModeBanner() {
   );
 }
 
-function EventStateBanner({ sessionStatus, currentRound, totalRounds }: { sessionStatus: string; currentRound: number; totalRounds: number; phase?: string }) {
+function EventStateBanner({ sessionStatus, currentRound, totalRounds, bonusRoundsAdded }: { sessionStatus: string; currentRound: number; totalRounds: number; bonusRoundsAdded?: number; phase?: string }) {
   const config = STATE_CONFIG[sessionStatus] || STATE_CONFIG.scheduled;
   const label = config.label.replace('{round}', String(currentRound || 1));
   const roundInfo = totalRounds > 0 && sessionStatus !== 'completed' && sessionStatus !== 'scheduled'
@@ -559,10 +560,27 @@ function EventStateBanner({ sessionStatus, currentRound, totalRounds }: { sessio
     ? `${label} · ${roundInfo}`
     : label || (showRoundInfo ? roundInfo : '');
 
+  // Bug 28 (19 May Ali + Stefan) — flag the current round as bonus when
+  // it falls past the originally-configured numberOfRounds. Example:
+  // event configured for 3, "Another Round" pressed once → totalRounds=4,
+  // bonusRoundsAdded=1 → originalRounds=3 → round 4 is a bonus round.
+  const bonusCount = bonusRoundsAdded ?? 0;
+  const originalRounds = totalRounds - bonusCount;
+  const isBonusRound = bonusCount > 0
+    && currentRound > 0
+    && currentRound > originalRounds
+    && sessionStatus !== 'completed'
+    && sessionStatus !== 'scheduled';
+
   return (
     <div className={`px-4 py-1.5 flex items-center justify-center gap-2 text-xs font-medium ${config.color}`}>
       {config.icon}
       <span>{display}</span>
+      {isBonusRound && (
+        <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-amber-900 bg-amber-100 border border-amber-300 rounded-full px-1.5 py-px">
+          Bonus
+        </span>
+      )}
     </div>
   );
 }

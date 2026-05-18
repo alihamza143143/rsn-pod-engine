@@ -177,7 +177,10 @@ describe('Phase M — acting-as-host toggle (item 1)', () => {
       // its top-level fields (alongside hostVisibilityModes).
       const returnIdx = src.indexOf('return {');
       expect(returnIdx).toBeGreaterThan(-1);
-      const returnSlice = src.slice(returnIdx, returnIdx + 1200);
+      // Bug 26 + 28 (19 May) — return shape grew (tileDemotedUserIds,
+      // bonusRoundsAdded). Widen the slice so the actingAsHostOverrides
+      // pin still lands.
+      const returnSlice = src.slice(returnIdx, returnIdx + 2400);
       expect(returnSlice).toMatch(/actingAsHostOverrides[,\s}]/);
     });
   });

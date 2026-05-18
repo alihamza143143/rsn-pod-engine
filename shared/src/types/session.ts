@@ -77,6 +77,16 @@ export interface SessionConfig {
    * server matching.registry.ts and pick a different ID here.
    */
   matchingAlgorithmId?: string;
+  /**
+   * Bug 28 (19 May Ali + Stefan) — count of "Another Round" presses that
+   * extended the event past its originally-configured numberOfRounds.
+   * Stefan called these "bonus rounds". UI uses this to:
+   *   • render a small "Bonus" badge on the round header for any round
+   *     beyond (numberOfRounds - bonusRoundsAdded)
+   *   • report the total honestly in the recap ("3 rounds + 1 bonus")
+   * Default 0; bumped by +1 every successful "Another Round" click.
+   */
+  bonusRoundsAdded?: number;
 }
 
 export const DEFAULT_SESSION_CONFIG: SessionConfig = {

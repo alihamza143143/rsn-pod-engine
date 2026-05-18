@@ -109,28 +109,38 @@ export async function handleHostGenerateMatches(
       const sessionService = await import('../../session/session.service');
       clearSessionTimers(data.sessionId);
       const bumpedRounds = (activeSession.config.numberOfRounds || 5) + 1;
+      // Bug 28 (19 May Ali + Stefan) — track bonus-round count alongside
+      // the bumped total so UI can render "Bonus" badges and recap can
+      // report "3 + 1 bonus" honestly.
+      const bonusRoundsAdded = (activeSession.config.bonusRoundsAdded ?? 0) + 1;
       activeSession.config = {
         ...activeSession.config,
         numberOfRounds: bumpedRounds,
+        bonusRoundsAdded,
       };
       activeSession.status = SessionStatus.ROUND_TRANSITION;
       await sessionService.updateSessionStatus(data.sessionId, SessionStatus.ROUND_TRANSITION);
-      // Bug 22 — durable persistence so a restart / recap / cold REST
-      // fetch sees the bumped round cap. jsonb_set rewrites only the
-      // numberOfRounds key; the rest of the config blob stays intact.
+      // Bug 22 + Bug 28 — durable persistence of BOTH the new total and
+      // the bonus count so a restart / recap / cold REST fetch sees them.
+      // Nested jsonb_set rewrites the two keys; the rest of the config
+      // blob stays intact.
       try {
         await query(
           `UPDATE sessions
-             SET config = jsonb_set(config, '{numberOfRounds}', to_jsonb($2::int), true)
+             SET config = jsonb_set(
+               jsonb_set(config, '{numberOfRounds}', to_jsonb($2::int), true),
+               '{bonusRoundsAdded}', to_jsonb($3::int), true
+             )
              WHERE id = $1`,
-          [data.sessionId, bumpedRounds],
+          [data.sessionId, bumpedRounds, bonusRoundsAdded],
         );
       } catch (err) {
-        logger.warn({ err, sessionId: data.sessionId, bumpedRounds }, 'Failed to persist bumped numberOfRounds to DB — non-fatal (in-memory + Redis still hold the bump)');
+        logger.warn({ err, sessionId: data.sessionId, bumpedRounds, bonusRoundsAdded }, 'Failed to persist bumped numberOfRounds/bonusRoundsAdded to DB — non-fatal (in-memory + Redis still hold the bump)');
       }
-      // Bug 22 — broadcast so EventPlanStrip + any UI showing the round
-      // count refetches and renders "N+1 rounds" instead of the old
-      // configured value.
+      // Bug 22 + Bug 28 — broadcast so EventPlanStrip + any UI showing
+      // the round count refetches and renders the new total. The
+      // bonusRoundsAdded field lets clients flag bonus rounds without
+      // a snapshot refetch.
       io.to(sessionRoom(data.sessionId)).emit('host:event_plan_repaired', {
         sessionId: data.sessionId,
         reason: 'host_request',
@@ -139,6 +149,7 @@ export async function handleHostGenerateMatches(
         // totalPairs will catch up on the next plan refetch from EventPlanStrip
         // — the per-round badge query reads matches directly.
         totalPairs: 0,
+        bonusRoundsAdded,
       });
       io.to(sessionRoom(data.sessionId)).emit('session:status_changed', {
         sessionId: data.sessionId,

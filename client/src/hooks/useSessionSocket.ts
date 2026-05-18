@@ -639,6 +639,15 @@ export default function useSessionSocket(sessionId: string) {
       if (rc !== null) {
         store.setTotalRounds(rc);
       }
+      // Bug 28 (19 May Ali + Stefan) — track bonus-round count so the
+      // header shows a "Bonus" pill on any round past the originally-
+      // configured count. Server sends the cumulative total in every
+      // event_plan_repaired emit with reason='host_request' (the
+      // Another Round path); late-joiner / left repairs leave it
+      // untouched (the field stays undefined for those, so we skip).
+      if (typeof data?.bonusRoundsAdded === 'number') {
+        store.setBonusRoundsAdded(data.bonusRoundsAdded);
+      }
       const range = rounds.length === 1
         ? `round ${rounds[0]}`
         : `rounds ${rounds[0]}–${rounds[rounds.length - 1]}`;

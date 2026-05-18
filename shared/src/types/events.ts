@@ -70,6 +70,12 @@ export interface ServerToClientEvents {
     // when missing the client just doesn't touch the summary store.
     roundCount?: number;
     totalPairs?: number;
+    // Bug 28 (19 May Ali + Stefan) — cumulative count of "Another Round"
+    // presses for this event. Only sent on reason='host_request' (the
+    // bump path); late-joiner / left repairs leave it undefined. UI
+    // uses it to render a "Bonus" pill on rounds past the originally-
+    // configured count.
+    bonusRoundsAdded?: number;
   }) => void;
 
   // Host round dashboard (breakout room monitoring).
