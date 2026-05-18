@@ -87,7 +87,24 @@ export async function handleHostGenerateMatches(
     // config so every downstream consumer — recap, REST /sessions/:id,
     // post-event analytics, server restart recovery — agrees the
     // event ran for N+1 rounds.
-    if (activeSession.status === SessionStatus.CLOSING_LOBBY) {
+    //
+    // Bug 23 (18 May Ali) — idempotency. Pre-fix the bump fired any time
+    // status === CLOSING_LOBBY, so if cancel-preview / a future flow ever
+    // reverted status back to CLOSING_LOBBY after the first bump, a second
+    // "Another Round" click would push numberOfRounds to N+2 even though
+    // the extra round had not actually been run. The new guard adds an
+    // explicit numberOfRounds check: bump ONLY when the configured round
+    // count is still <= currentRound (i.e. nothing has been bumped yet
+    // for THIS attempt). After the first bump, numberOfRounds = currentRound
+    // + 1 so the guard rejects every subsequent click until the new round
+    // actually completes — clicking "Another Round" three times in a row
+    // still adds exactly one round.
+    const alreadyBumpedForThisAttempt =
+      (activeSession.config.numberOfRounds || 5) > activeSession.currentRound;
+    if (
+      activeSession.status === SessionStatus.CLOSING_LOBBY
+      && !alreadyBumpedForThisAttempt
+    ) {
       const { clearSessionTimers } = await import('./timer-manager');
       const sessionService = await import('../../session/session.service');
       clearSessionTimers(data.sessionId);
