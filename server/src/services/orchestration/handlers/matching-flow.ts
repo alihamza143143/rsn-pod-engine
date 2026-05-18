@@ -246,8 +246,12 @@ export async function handleHostGenerateMatches(
     // Legacy path — fires for sessions that started before pre-planning was
     // wired in 2.5A, or when the pre-plan failed at event start. Generates
     // matches on-the-fly for this round only.
+    //
+    // Bug 25 (18 May): 'cancelled' rows are the forensic audit trail from
+    // earlier cancel-preview clicks for THIS same round — never wipe them.
+    // Only clear pending 'scheduled' state from a prior failed attempt.
     await query(
-      `DELETE FROM matches WHERE session_id = $1 AND round_number = $2 AND status IN ('scheduled', 'cancelled')`,
+      `DELETE FROM matches WHERE session_id = $1 AND round_number = $2 AND status = 'scheduled'`,
       [data.sessionId, nextRound]
     );
 
@@ -273,8 +277,9 @@ export async function handleHostGenerateMatches(
       const generatedMatches = await matchingService.getMatchesByRound(data.sessionId, nextRound);
       if (generatedMatches.length === 0) {
         // Clean up the empty round so the next attempt starts fresh.
+        // Bug 25: keep 'cancelled' history; only clear pending 'scheduled'.
         await query(
-          `DELETE FROM matches WHERE session_id = $1 AND round_number = $2 AND status IN ('scheduled', 'cancelled')`,
+          `DELETE FROM matches WHERE session_id = $1 AND round_number = $2 AND status = 'scheduled'`,
           [data.sessionId, nextRound]
         );
         socket.emit('error', {
@@ -675,10 +680,19 @@ export async function handleHostCancelPreview(
     const roundNumber = activeSession.pendingRoundNumber;
     activeSession.pendingRoundNumber = null;
 
-    // Clean up scheduled matches for cancelled preview
+    // Bug 25 (18 May Ali) — soft-delete on cancel so the proposed round
+    // stays in the DB for forensic audit ("what did the engine propose
+    // for round N before the host bailed?"). Pre-fix this was a HARD
+    // DELETE which destroyed all evidence — Stefan's 18 May test event
+    // had a round 4 preview with "met 1x" badges, host cancelled, and
+    // nothing remained to debug. Migration 060 widened mig 057's unique
+    // pair index to exclude cancelled+no_show so a future regenerate
+    // of the same round can re-INSERT the same pair without colliding.
     if (roundNumber) {
       await query(
-        `DELETE FROM matches WHERE session_id = $1 AND round_number = $2 AND status IN ('scheduled', 'cancelled')`,
+        `UPDATE matches
+           SET status = 'cancelled', ended_at = NOW()
+         WHERE session_id = $1 AND round_number = $2 AND status = 'scheduled'`,
         [data.sessionId, roundNumber]
       );
     }
