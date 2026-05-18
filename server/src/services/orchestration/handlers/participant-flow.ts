@@ -339,17 +339,31 @@ export async function handleJoinSession(
         void maybeRepairFutureRounds(io, data.sessionId, 'late_joiner');
       }
 
-      // Update participant status based on current session state
+      // Update participant status based on current session state.
+      //
+      // Bug 37.1 (19 May Ali) — accept-invite redirect → /session/.../live
+      // must NOT auto-flip status to CHECKED_IN when the event is still
+      // SCHEDULED (hasn't started). Status should stay 'registered' until
+      // the host actually starts the event. Pre-fix, viewing the live page
+      // a day early would jump everyone to CHECKED_IN, breaking pre-event
+      // counts ("Will attend" vs "Checked in") in the HCC and reports.
+      // Once status flips past SCHEDULED (LOBBY_OPEN / ROUND_*), the
+      // auto-checkin is correct: arriving means "actually showed up".
       try {
+        const effectiveStatus = (activeSession?.status ?? session.status) as SessionStatus;
         if (activeSession && activeSession.status === SessionStatus.ROUND_ACTIVE) {
           // Will be updated to IN_ROUND below if they have an active match
           await sessionService.updateParticipantStatus(
             data.sessionId, userId, ParticipantStatus.IN_LOBBY
           );
+        } else if (effectiveStatus === SessionStatus.SCHEDULED) {
+          // Pre-start: do NOT auto-checkin. registerParticipant above
+          // already inserted a 'registered' row if the user was new;
+          // existing rows keep whatever status they had.
         } else {
           await sessionService.updateParticipantStatus(
             data.sessionId, userId,
-            session.status === SessionStatus.LOBBY_OPEN ? ParticipantStatus.IN_LOBBY : ParticipantStatus.CHECKED_IN
+            effectiveStatus === SessionStatus.LOBBY_OPEN ? ParticipantStatus.IN_LOBBY : ParticipantStatus.CHECKED_IN
           );
         }
       } catch {
@@ -383,7 +397,43 @@ export async function handleJoinSession(
             [data.sessionId, userId],
           );
           const currentStatus = currentRow.rows[0]?.status;
-          if (currentStatus === 'disconnected' || currentStatus === 'in_round') {
+          // Bug 36 (19 May Ali) — host/cohost LEFT carve-out. The director
+          // (sessions.host_user_id) and any session_cohosts row must never
+          // be stuck in LEFT on their own event: they navigated away (or
+          // a stale disconnect-timeout fired against them pre-fix) but
+          // reconnecting must put them straight back in the main room.
+          // The state machine allows LEFT → IN_MAIN_ROOM as "explicit
+          // re-entry only" (participant-state-machine.ts) which maps the
+          // DB enum value to 'in_lobby' and clears left_at. Regular
+          // participants who explicitly Leave still keep LEFT — only
+          // hosts/cohosts get the reset here.
+          if (currentStatus === 'left') {
+            const isHostOrCohost = await query<{ is_host: boolean; is_cohost: boolean }>(
+              `SELECT
+                 (s.host_user_id = $2) AS is_host,
+                 EXISTS(SELECT 1 FROM session_cohosts sc
+                         WHERE sc.session_id = $1 AND sc.user_id = $2) AS is_cohost
+               FROM sessions s WHERE s.id = $1`,
+              [data.sessionId, userId],
+            );
+            const row = isHostOrCohost.rows[0];
+            if (row && (row.is_host || row.is_cohost)) {
+              const result = await transitionParticipant(
+                data.sessionId, userId, ParticipantState.IN_MAIN_ROOM,
+              );
+              if (result.ok) {
+                logger.info(
+                  { sessionId: data.sessionId, userId, isHost: row.is_host, isCohost: row.is_cohost },
+                  'Bug 36: reset host/cohost from LEFT → in_main_room on reconnect (audit)',
+                );
+              } else {
+                logger.warn(
+                  { sessionId: data.sessionId, userId, reason: result.reason, fromState: result.fromState, isHost: row.is_host, isCohost: row.is_cohost },
+                  'Bug 36: state-machine refused host/cohost LEFT → in_main_room reset',
+                );
+              }
+            }
+          } else if (currentStatus === 'disconnected' || currentStatus === 'in_round') {
             const result = await transitionParticipant(
               data.sessionId, userId, ParticipantState.IN_MAIN_ROOM,
             );
@@ -566,6 +616,25 @@ export async function handleJoinSession(
 
       // If host reconnects mid-round, send them the dashboard
       if (activeSession && activeSession.status === SessionStatus.ROUND_ACTIVE && isHost) {
+        emitHostDashboard(data.sessionId);
+      }
+
+      // Bug 44 (19 May Ali) — emit host:round_dashboard on every host
+      // join, not just ROUND_ACTIVE. Pre-fix, the host's
+      // `roundDashboard.eligibleMainRoomCount` was only populated after
+      // round 1 became active, so Match People button label and HCC
+      // counts fell back to local computation that didn't account for
+      // Phase M cohost opt-ins. Calling emitHostDashboard on join
+      // fans the dashboard (with the post-Phase-M eligibility count) to
+      // every acting host's room immediately, so even pre-round-1 the
+      // host strip + Match People badge are accurate. Covers LOBBY_OPEN,
+      // ROUND_RATING, ROUND_TRANSITION, CLOSING_LOBBY — ROUND_ACTIVE is
+      // already handled by the block above; this branch fires only when
+      // that one didn't, so the dashboard isn't emitted twice.
+      if (
+        activeSession && isHost &&
+        activeSession.status !== SessionStatus.ROUND_ACTIVE
+      ) {
         emitHostDashboard(data.sessionId);
       }
 
@@ -1490,13 +1559,38 @@ export async function handleDisconnect(
                 // upcoming pre-planned rounds. Best-effort: failures are
                 // logged and the reassignment attempt below still runs so
                 // the partner gets a new pair / bye for THIS round.
+                //
+                // Bug 36 (19 May Ali) — host/cohost guard. The director and
+                // any cohost must NEVER be auto-transitioned to LEFT on
+                // their own event; they're a navigation-away, not a quit.
+                // Pre-fix this fired and the host showed up as "Left" in
+                // their own HCC, with no path back without a manual DB
+                // reset. The plan-repair fanout is skipped too — a host
+                // disappearing for a few seconds doesn't change the pool.
+                let isHostOrCohostDc = false;
                 try {
-                  await transitionParticipant(sessionId, userId, ParticipantState.LEFT);
-                } catch (transErr) {
-                  logger.warn({ err: transErr, sessionId, userId },
-                    'Phase 2.7: state-machine LEFT transition failed in disconnect timeout (continuing with reassignment)');
+                  const hcRow = await query<{ host_user_id: string; is_cohost: boolean }>(
+                    `SELECT s.host_user_id,
+                            EXISTS(SELECT 1 FROM session_cohosts sc
+                                    WHERE sc.session_id = $1 AND sc.user_id = $2) AS is_cohost
+                       FROM sessions s WHERE s.id = $1`,
+                    [sessionId, userId],
+                  );
+                  const r = hcRow.rows[0];
+                  isHostOrCohostDc = !!r && (r.host_user_id === userId || r.is_cohost);
+                } catch { /* on lookup failure, default to applying LEFT — safer for non-hosts */ }
+                if (isHostOrCohostDc) {
+                  logger.info({ sessionId, userId },
+                    'Bug 36: skipping LEFT transition for host/cohost on disconnect timeout');
+                } else {
+                  try {
+                    await transitionParticipant(sessionId, userId, ParticipantState.LEFT);
+                  } catch (transErr) {
+                    logger.warn({ err: transErr, sessionId, userId },
+                      'Phase 2.7: state-machine LEFT transition failed in disconnect timeout (continuing with reassignment)');
+                  }
+                  void maybeRepairFutureRounds(io, sessionId, 'left');
                 }
-                void maybeRepairFutureRounds(io, sessionId, 'left');
 
                 // Determine terminal status based on actual conversation state:
                 //   >30s OR ratings submitted → completed (real conversation)
@@ -1690,13 +1784,34 @@ export function startHeartbeatStaleDetection(io: SocketServer): void {
           // Phase 2.7 — stale-heartbeat path also transitions to LEFT and
           // triggers future-rounds repair so the user is consistently
           // removed from the system, not stranded in DISCONNECTED state.
+          //
+          // Bug 36 (19 May Ali) — same host/cohost guard as the
+          // disconnect-timeout path above. A flaky network on the host
+          // side must never auto-mark them LEFT on their own event.
+          let isHostOrCohostStale = false;
           try {
-            await transitionParticipant(sessionId, userId, ParticipantState.LEFT);
-          } catch (err) {
-            logger.warn({ err, sessionId, userId },
-              'Phase 2.7: stale-heartbeat LEFT transition failed (continuing)');
+            const hcRow = await query<{ host_user_id: string; is_cohost: boolean }>(
+              `SELECT s.host_user_id,
+                      EXISTS(SELECT 1 FROM session_cohosts sc
+                              WHERE sc.session_id = $1 AND sc.user_id = $2) AS is_cohost
+                 FROM sessions s WHERE s.id = $1`,
+              [sessionId, userId],
+            );
+            const r = hcRow.rows[0];
+            isHostOrCohostStale = !!r && (r.host_user_id === userId || r.is_cohost);
+          } catch { /* default to applying LEFT — safer for non-hosts */ }
+          if (isHostOrCohostStale) {
+            logger.info({ sessionId, userId },
+              'Bug 36: skipping LEFT transition for host/cohost on stale heartbeat');
+          } else {
+            try {
+              await transitionParticipant(sessionId, userId, ParticipantState.LEFT);
+            } catch (err) {
+              logger.warn({ err, sessionId, userId },
+                'Phase 2.7: stale-heartbeat LEFT transition failed (continuing)');
+            }
+            void maybeRepairFutureRounds(io, sessionId, 'left');
           }
-          void maybeRepairFutureRounds(io, sessionId, 'left');
           io.to(sessionRoom(sessionId)).emit('participant:left', { userId });
           // Phase 2 dual-emit — every viewer's participants surface refetches.
           fanSessionRoomEntities(

@@ -743,7 +743,13 @@ export async function getParticipantStatusCounts(sessionId: string): Promise<{
   total: number;
   pendingInvites: number;
 }> {
-  // Get host user ID so we can exclude them from participant counts
+  // Bug 37.3 (19 May Ali) — include the director exactly once. Pre-fix
+  // the host was excluded entirely (`user_id != $2`), so HCC counts and
+  // any "Total attendees" surface read N-1. The director attends their
+  // own event — they should appear in the count. They appear once and
+  // only once: if a session_participants row exists for them, count
+  // that row's status; if not, synthesize one as IN_LOBBY (mirrors the
+  // host-participants-view UNION ALL fallback for the same case).
   const sessionResult = await query<{ host_user_id: string }>(
     `SELECT host_user_id FROM sessions WHERE id = $1`, [sessionId]
   );
@@ -752,9 +758,9 @@ export async function getParticipantStatusCounts(sessionId: string): Promise<{
   const statusResult = await query<{ status: string; count: string }>(
     `SELECT status, COUNT(*)::text AS count
      FROM session_participants
-     WHERE session_id = $1${hostUserId ? ` AND user_id != $2` : ''}
+     WHERE session_id = $1
      GROUP BY status`,
-    hostUserId ? [sessionId, hostUserId] : [sessionId]
+    [sessionId]
   );
 
   const counts: Record<string, number> = {};
@@ -763,6 +769,23 @@ export async function getParticipantStatusCounts(sessionId: string): Promise<{
     counts[row.status] = parseInt(row.count, 10);
     if (row.status !== 'removed') {
       activeTotal += parseInt(row.count, 10);
+    }
+  }
+
+  // Synthesize the director row when missing. Counted once: either we
+  // already counted them above (the SELECT used to filter them out,
+  // post-fix it doesn't) OR we add one IN_LOBBY here when they have
+  // no session_participants row yet. The EXISTS check below is the
+  // dedupe — never both.
+  if (hostUserId) {
+    const hostRow = await query<{ status: string }>(
+      `SELECT status::text AS status FROM session_participants
+        WHERE session_id = $1 AND user_id = $2`,
+      [sessionId, hostUserId],
+    );
+    if (hostRow.rows.length === 0) {
+      counts['in_lobby'] = (counts['in_lobby'] || 0) + 1;
+      activeTotal += 1;
     }
   }
 

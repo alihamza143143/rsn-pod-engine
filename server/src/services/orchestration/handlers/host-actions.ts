@@ -1970,6 +1970,20 @@ export async function handlePromoteCohost(
         capabilities: [],
       });
 
+      // Bug 33 (19 May Ali) — host transfer changes the matching pool:
+      // the previous director is now a participant (re-enters the pool)
+      // and the new director leaves the pool. Plan must recompute. Reuse
+      // the same maybeRepairFutureRounds wrapper used by assign/remove
+      // cohost above (which itself fires host:event_plan_repaired plus
+      // the session+plan entity emit). Bug 44 (19 May Ali) — and the
+      // host dashboard must refresh so the new director's HCC and the
+      // demoted host's view both show the post-transfer roster + plan.
+      maybeRepairFutureRounds(io, sessionId).catch(err =>
+        logger.warn({ err, sessionId }, 'Host-transfer plan repair failed (non-fatal)')
+      );
+      if (_emitHostDashboardForce) await _emitHostDashboardForce(sessionId).catch(() => {});
+      else if (_emitHostDashboard) await _emitHostDashboard(sessionId).catch(() => {});
+
       logger.info({ sessionId, previousHostId: hostId, newHostId: cohostUserId }, 'Host transferred');
     } catch (err) {
       logger.error({ err }, 'Error promoting co-host');
