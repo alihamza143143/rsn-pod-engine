@@ -384,6 +384,81 @@ export async function notifyPodMembershipChanged(
   });
 }
 
+/**
+ * Bug 19 (18 May Stefan) — fan-out variant: notify EVERY current member
+ * of a pod that something on the pod changed (member added/removed/role
+ * change, pod archived, etc). Every member's UI invalidates the pod
+ * queries on receipt so the member list, role badges, and pending counts
+ * stay in sync across all open clients without a refresh.
+ *
+ * Uses a single query to find members, then emits one event per user's
+ * room. Cheap at typical pod sizes (under a few hundred members).
+ */
+export async function notifyPodChanged(podId: string, cause: string): Promise<void> {
+  if (!io) return;
+  try {
+    const { userRoom } = await import('./state/session-state');
+    const { query } = await import('../../db');
+    const result = await query<{ user_id: string }>(
+      // status NOT IN ('removed','declined') — keep notifying members who
+      // are 'invited' or 'pending_approval' too so their UI reflects the
+      // change immediately.
+      `SELECT user_id FROM pod_members
+       WHERE pod_id = $1 AND status NOT IN ('removed', 'declined')`,
+      [podId],
+    );
+    for (const row of result.rows) {
+      io.to(userRoom(row.user_id)).emit('pod:membership_updated', {
+        podId,
+        userId: row.user_id,
+        cause,
+      });
+    }
+  } catch (err) {
+    logger.warn({ err, podId, cause }, 'notifyPodChanged: failed to fan out');
+  }
+}
+
+/**
+ * Bug 20 (18 May Stefan) — broadcast that a session list / detail has
+ * changed (new session created, started, ended, registration count
+ * shifted, etc). Every pod member's UI invalidates the my-sessions /
+ * pod-sessions / session-detail queries on receipt. Same fan-out
+ * pattern as notifyPodChanged so a single event covers everyone who
+ * could be looking at the affected list.
+ */
+export async function notifySessionListChanged(
+  podId: string | null,
+  sessionId: string,
+  cause: string,
+): Promise<void> {
+  if (!io) return;
+  try {
+    const { userRoom } = await import('./state/session-state');
+    const { query } = await import('../../db');
+    // Fan-out: anyone who is a pod member OR registered for this session
+    // gets the event. The UNION DISTINCT keeps the loop small.
+    const result = await query<{ user_id: string }>(
+      `SELECT user_id FROM session_participants
+         WHERE session_id = $1 AND status NOT IN ('removed', 'left', 'no_show')
+       UNION
+       SELECT user_id FROM pod_members
+         WHERE pod_id = COALESCE($2, '00000000-0000-0000-0000-000000000000'::uuid)
+           AND status NOT IN ('removed', 'declined')`,
+      [sessionId, podId],
+    );
+    for (const row of result.rows) {
+      io.to(userRoom(row.user_id)).emit('session:list_changed', {
+        sessionId,
+        podId,
+        cause,
+      });
+    }
+  } catch (err) {
+    logger.warn({ err, sessionId, cause }, 'notifySessionListChanged: failed to fan out');
+  }
+}
+
 export async function notifyPermissionsUpdated(
   sessionId: string,
   userId: string,

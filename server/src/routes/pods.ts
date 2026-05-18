@@ -314,6 +314,9 @@ router.post(
         }
       }
       const member = await podService.addMember(req.params.id, req.body.userId, req.body.role || PodMemberRole.MEMBER);
+      // Bug 19 (18 May Stefan) — broadcast so every current member's UI
+      // refetches the pod queries and sees the new row immediately.
+      orchestrationService.notifyPodChanged(req.params.id, 'member_added').catch(() => {});
       const response: ApiResponse = { success: true, data: member };
       res.status(201).json(response);
     } catch (err) {
@@ -331,6 +334,12 @@ router.delete(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await podService.removeMember(req.params.id, req.params.userId, req.user!.userId, req.user!.role);
+      // Bug 19 — fan out before AND notify the removed user too so their
+      // own UI flips. notifyPodChanged only emits to current members
+      // (`status NOT IN ('removed', 'declined')`), so call the personal
+      // notifier first while the row is still present in the result set.
+      orchestrationService.notifyPodMembershipChanged(req.params.id, req.params.userId, 'removed').catch(() => {});
+      orchestrationService.notifyPodChanged(req.params.id, 'member_removed').catch(() => {});
       const response: ApiResponse = { success: true, data: { message: 'Member removed' } };
       res.json(response);
     } catch (err) {
@@ -352,6 +361,8 @@ router.patch(
         throw new ForbiddenError('Role must be "host" or "member"');
       }
       const member = await podService.updateMemberRole(req.params.id, req.params.userId, role, req.user!.userId, req.user!.role);
+      // Bug 19 — broadcast role change to every pod member.
+      orchestrationService.notifyPodChanged(req.params.id, 'role_changed').catch(() => {});
       const response: ApiResponse = { success: true, data: member };
       res.json(response);
     } catch (err) {
@@ -368,6 +379,10 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const member = await podService.joinPod(req.params.id, req.user!.userId);
+      // Bug 19 — broadcast: someone joined (could be direct join for
+      // public pods, or pending for invite-only). Every member's UI
+      // sees the count update.
+      orchestrationService.notifyPodChanged(req.params.id, 'member_joined').catch(() => {});
       const response: ApiResponse = { success: true, data: member };
       res.status(201).json(response);
     } catch (err) {
@@ -428,6 +443,10 @@ router.post(
       orchestrationService
         .notifyPodMembershipChanged(req.params.id, req.params.userId, 'approved')
         .catch(() => { /* best-effort */ });
+      // Bug 19 (18 May Stefan) — fan out to all pod members too so the
+      // member list everyone sees updates immediately (new approved
+      // member appears, pending count decrements).
+      orchestrationService.notifyPodChanged(req.params.id, 'member_approved').catch(() => {});
       const response: ApiResponse = { success: true, data: member };
       res.json(response);
     } catch (err) {
@@ -450,6 +469,8 @@ router.post(
       orchestrationService
         .notifyPodMembershipChanged(req.params.id, req.params.userId, 'rejected')
         .catch(() => { /* best-effort */ });
+      // Bug 19 — fan out: pending count decrements for every admin viewing.
+      orchestrationService.notifyPodChanged(req.params.id, 'member_rejected').catch(() => {});
       const response: ApiResponse = { success: true, data: { message: 'Request rejected' } };
       res.json(response);
     } catch (err) {

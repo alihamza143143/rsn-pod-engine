@@ -103,9 +103,21 @@ export default function NotificationBell() {
       fetchNotifications();
     };
     socket.on('pod:membership_updated', membershipHandler);
+    // Bug 20 (18 May Stefan) — sessions list / detail mutations trigger a
+    // global broadcast. NotificationBell mounts on every authenticated
+    // page so the my-sessions list, pod-sessions list, and session
+    // detail all stay live without per-page socket wiring.
+    const sessionListHandler = () => {
+      qc.invalidateQueries({ queryKey: ['my-sessions'] });
+      qc.invalidateQueries({ queryKey: ['pod-sessions'] });
+      qc.invalidateQueries({ queryKey: ['session-detail'] });
+      qc.invalidateQueries({ queryKey: ['session-participants'] });
+    };
+    socket.on('session:list_changed', sessionListHandler);
     return () => {
       socket.off('notification:new', handler);
       socket.off('pod:membership_updated', membershipHandler);
+      socket.off('session:list_changed', sessionListHandler);
     };
   }, []);
 

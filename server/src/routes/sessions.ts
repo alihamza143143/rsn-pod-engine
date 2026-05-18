@@ -73,6 +73,14 @@ router.post(
         await sessionService.registerParticipant(session.id, req.user!.userId);
       } catch { /* ignore if already registered */ }
 
+      // Bug 20 (18 May Stefan) — broadcast so every pod member's events
+      // list refetches and sees the new session immediately (no refresh
+      // needed). Dynamic import keeps this route's import graph light.
+      try {
+        const { notifySessionListChanged } = await import('../services/orchestration/orchestration.service');
+        notifySessionListChanged(session.podId ?? null, session.id, 'session_created').catch(() => {});
+      } catch { /* best-effort */ }
+
       const response: ApiResponse = { success: true, data: session };
       res.status(201).json(response);
     } catch (err) {

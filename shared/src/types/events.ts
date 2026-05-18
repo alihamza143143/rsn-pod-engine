@@ -142,6 +142,11 @@ export interface ServerToClientEvents {
   // refreshes because the host's same listener re-fetches the pods
   // pending-list query.
   'pod:membership_updated': (data: { podId: string; userId: string; cause: string }) => void;
+  // Bug 20 (18 May Stefan) — a session list or detail has changed (new
+  // session, started, ended, etc). Every pod member + registered
+  // participant receives this on their personal room; client invalidates
+  // my-sessions / pod-sessions / session-detail queries.
+  'session:list_changed': (data: { sessionId: string; podId: string | null; cause: string }) => void;
 
   // Reactions
   'reaction:received': (data: { userId: string; displayName: string; type: string; timestamp: string }) => void;
