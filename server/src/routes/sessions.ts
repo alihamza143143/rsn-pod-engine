@@ -7,6 +7,7 @@ import { requireRole } from '../middleware/rbac';
 import { auditMiddleware } from '../middleware/audit';
 import * as sessionService from '../services/session/session.service';
 import * as podService from '../services/pod/pod.service';
+import * as orchestrationService from '../services/orchestration/orchestration.service';
 import { canViewSession } from '../services/session/session-access';
 import { buildSessionStateSnapshot } from '../services/session/session-state-snapshot.service';
 import { ApiResponse, SessionStatus, UserRole, hasRoleAtLeast } from '@rsn/shared';
@@ -269,6 +270,19 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const participant = await sessionService.registerParticipant(req.params.id, req.user!.userId, req.user!.role);
+      // Phase May-19 realtime — broadcast so every pod member +
+      // registered participant sees the new self-registration without
+      // a refresh (badge counts, "Registered" pill on the event card).
+      try {
+        const sessRow = await query<{ pod_id: string | null }>(
+          `SELECT pod_id FROM sessions WHERE id = $1`,
+          [req.params.id],
+        );
+        const podId = sessRow.rows[0]?.pod_id ?? null;
+        orchestrationService
+          .notifySessionListChanged(podId, req.params.id, 'participant_self_registered')
+          .catch(() => {});
+      } catch { /* non-fatal */ }
       const response: ApiResponse = { success: true, data: participant };
       res.status(201).json(response);
     } catch (err) {
@@ -284,7 +298,23 @@ router.delete(
   authenticate,
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Phase May-19 realtime — look up podId BEFORE unregister so
+      // the fanout still resolves the right pod scope (unregister
+      // itself updates session_participants.status='left' which the
+      // notifier query excludes, so this is just to capture pod_id).
+      let podIdForNotify: string | null = null;
+      try {
+        const sessRow = await query<{ pod_id: string | null }>(
+          `SELECT pod_id FROM sessions WHERE id = $1`,
+          [req.params.id],
+        );
+        podIdForNotify = sessRow.rows[0]?.pod_id ?? null;
+      } catch { /* non-fatal */ }
+
       await sessionService.unregisterParticipant(req.params.id, req.user!.userId);
+      orchestrationService
+        .notifySessionListChanged(podIdForNotify, req.params.id, 'participant_self_unregistered')
+        .catch(() => {});
       const response: ApiResponse = { success: true, data: { message: 'Unregistered successfully' } };
       res.json(response);
     } catch (err) {
@@ -373,6 +403,21 @@ router.delete(
   auditMiddleware('hard_delete_session', 'session'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Phase May-19 realtime — fan out BEFORE the hard delete so the
+      // notifier's pod/participant lookup still finds rows. Mirrors
+      // the soft DELETE /sessions/:id pattern above.
+      let podIdForNotify: string | null = null;
+      try {
+        const sessRow = await query<{ pod_id: string | null }>(
+          `SELECT pod_id FROM sessions WHERE id = $1`,
+          [req.params.id],
+        );
+        podIdForNotify = sessRow.rows[0]?.pod_id ?? null;
+      } catch { /* non-fatal */ }
+      orchestrationService
+        .notifySessionListChanged(podIdForNotify, req.params.id, 'session_hard_deleted')
+        .catch(() => {});
+
       await sessionService.hardDeleteSession(req.params.id);
       const response: ApiResponse = { success: true, data: { message: 'Event permanently deleted' } };
       return res.json(response);
@@ -410,6 +455,11 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await sessionService.setPremiumSelections(req.params.id, req.user!.userId, req.body.selectedUserIds);
+      // Phase May-19 realtime — ping the current user's own room so
+      // any other tabs they have open see the updated selections.
+      orchestrationService
+        .notifyUserChanged(req.user!.userId, 'preferred_people_updated')
+        .catch(() => {});
       const response: ApiResponse = { success: true, data: { message: 'Preferred people saved' } };
       res.json(response);
     } catch (err) {
@@ -437,6 +487,23 @@ router.post(
          ON CONFLICT (session_id, user_id) DO UPDATE SET feedback = $3, created_at = NOW()`,
         [req.params.id, req.user!.userId, feedback.trim().slice(0, 2000)]
       );
+
+      // Phase May-19 realtime — fan out so host's "Feedback received"
+      // count + recap view updates instantly. Look up pod_id once so
+      // notifySessionListChanged can address the right scope.
+      try {
+        const sessRow = await query<{ pod_id: string | null }>(
+          `SELECT pod_id FROM sessions WHERE id = $1`,
+          [req.params.id],
+        );
+        orchestrationService
+          .notifySessionListChanged(
+            sessRow.rows[0]?.pod_id ?? null,
+            req.params.id,
+            'feedback_submitted',
+          )
+          .catch(() => {});
+      } catch { /* non-fatal */ }
 
       const response: ApiResponse = { success: true, data: { submitted: true } };
       res.json(response);

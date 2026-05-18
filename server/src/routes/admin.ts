@@ -7,6 +7,7 @@ import { requireRole } from '../middleware/rbac';
 import { query } from '../db';
 import { ApiResponse, UserRole } from '@rsn/shared';
 import * as joinRequestService from '../services/join-request/join-request.service';
+import * as orchestrationService from '../services/orchestration/orchestration.service';
 
 const router = Router();
 
@@ -154,6 +155,11 @@ router.put(
          FROM user_entitlements WHERE user_id = $1`,
         [req.params.id]
       );
+      // Phase May-19 realtime — fanout for the admin-users surface plus
+      // the affected user's own room so their account-settings page
+      // refetches entitlements without a refresh.
+      orchestrationService.notifyAdminListChanged('users', 'entitlements_updated').catch(() => {});
+      orchestrationService.notifyUserChanged(req.params.id, 'entitlements_updated').catch(() => {});
       const response: ApiResponse = { success: true, data: result.rows[0] };
       return res.json(response);
     } catch (err) {
@@ -183,10 +189,16 @@ router.post(
         if (!value || !['member', 'admin', 'super_admin'].includes(value)) {
           return res.status(400).json({ success: false, error: { message: 'Invalid role' } });
         }
-        const result = await query(
+        const result = await query<{ id: string }>(
           `UPDATE users SET role = $1, updated_at = NOW() WHERE id = ANY($2::uuid[]) RETURNING id`,
           [value, userIds]
         );
+        // Phase May-19 realtime — admin-users list refresh + per-user
+        // notify so each affected user's role badge updates immediately.
+        orchestrationService.notifyAdminListChanged('users', 'role_changed').catch(() => {});
+        for (const row of result.rows) {
+          orchestrationService.notifyUserChanged(row.id, 'role_changed').catch(() => {});
+        }
         const response: ApiResponse = { success: true, data: { affected: result.rowCount } };
         return res.json(response);
       }
@@ -209,6 +221,14 @@ router.post(
       // effect immediately (no 60s stale window on reactivation/deactivation).
       for (const row of result.rows) {
         invalidateUserStatusCache(row.id);
+      }
+
+      // Phase May-19 realtime — admin-users list + per-user notify so any
+      // currently-suspended/banned user's session-state listeners can
+      // react immediately.
+      orchestrationService.notifyAdminListChanged('users', `bulk_${action}`).catch(() => {});
+      for (const row of result.rows) {
+        orchestrationService.notifyUserChanged(row.id, `bulk_${action}`).catch(() => {});
       }
 
       const response: ApiResponse = { success: true, data: { affected: result.rowCount } };
@@ -247,6 +267,14 @@ router.post(
           // Skip individual failures (e.g. already reviewed) but continue
           if (err?.statusCode !== 404) throw err;
         }
+      }
+
+      // Phase May-19 realtime — every admin dashboard viewing the
+      // join-requests queue refetches as a batch after a bulk review.
+      if (affected > 0) {
+        orchestrationService
+          .notifyAdminListChanged('join-requests', `bulk_${decision}`)
+          .catch(() => {});
       }
 
       const response: ApiResponse = { success: true, data: { affected } };
@@ -324,8 +352,16 @@ router.post(
           const userStatus = action === 'suspend' ? 'suspended' : 'banned';
           await query(`UPDATE users SET status = $1, updated_at = NOW() WHERE id = $2`, [userStatus, violation.rows[0].reported_user_id]);
           invalidateUserStatusCache(violation.rows[0].reported_user_id);
+          // Phase May-19 realtime — also flip the target user's UI so
+          // their session-state listeners react immediately.
+          orchestrationService.notifyUserChanged(violation.rows[0].reported_user_id, `violation_${action}`).catch(() => {});
+          orchestrationService.notifyAdminListChanged('users', `violation_${action}`).catch(() => {});
         }
       }
+
+      // Phase May-19 realtime — admin-violations list refresh for every
+      // open moderation dashboard.
+      orchestrationService.notifyAdminListChanged('violations', `violation_${newStatus}`).catch(() => {});
 
       const response: ApiResponse = { success: true, data: { message: `Violation ${newStatus}` } };
       res.json(response);
@@ -354,6 +390,9 @@ router.post(
          VALUES ($1, $2, $3, $4)`,
         [req.user!.userId, reportedUserId, reason, details || null]
       );
+      // Phase May-19 realtime — every open admin moderation queue
+      // refetches so the new violation appears without a refresh.
+      orchestrationService.notifyAdminListChanged('violations', 'violation_reported').catch(() => {});
       const response: ApiResponse = { success: true, data: { message: 'Report submitted' } };
       res.json(response);
     } catch (err) {
@@ -426,6 +465,8 @@ router.post(
          b.rematchCooldownRounds ?? 3, b.explorationLevel ?? 0.2,
          b.sameCompanyAllowed ?? false, b.fallbackStrategy ?? 'random', req.user!.userId]
       );
+      // Phase May-19 realtime — admin-templates list refresh.
+      orchestrationService.notifyAdminListChanged('templates', 'template_created').catch(() => {});
       const response: ApiResponse = { success: true, data: result.rows[0] };
       res.json(response);
     } catch (err) {
@@ -453,6 +494,8 @@ router.put(
          b.rematchCooldownRounds ?? 3, b.explorationLevel ?? 0.2,
          b.sameCompanyAllowed ?? false, b.fallbackStrategy ?? 'random', req.params.id]
       );
+      // Phase May-19 realtime — admin-templates list refresh.
+      orchestrationService.notifyAdminListChanged('templates', 'template_updated').catch(() => {});
       const response: ApiResponse = { success: true, data: { message: 'Template updated' } };
       res.json(response);
     } catch (err) {
@@ -469,6 +512,8 @@ router.delete(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await query(`DELETE FROM matching_templates WHERE id = $1 AND is_default = FALSE`, [req.params.id]);
+      // Phase May-19 realtime — admin-templates list refresh.
+      orchestrationService.notifyAdminListChanged('templates', 'template_deleted').catch(() => {});
       const response: ApiResponse = { success: true, data: { message: 'Template deleted' } };
       res.json(response);
     } catch (err) {
@@ -516,6 +561,8 @@ router.put(
         `UPDATE email_config SET enabled = $1, updated_by = $2, updated_at = NOW() WHERE id = $3`,
         [req.body.enabled, req.user!.userId, req.params.id]
       );
+      // Phase May-19 realtime — admin-email-config list refresh.
+      orchestrationService.notifyAdminListChanged('email-config', 'email_config_updated').catch(() => {});
       const response: ApiResponse = { success: true, data: { message: 'Email config updated' } };
       res.json(response);
     } catch (err) {
@@ -605,6 +652,20 @@ router.patch(
       values.push(req.params.id);
       await query(`UPDATE support_tickets SET ${setClauses.join(', ')} WHERE id = $${idx}`, values);
 
+      // Phase May-19 realtime — admin-support-tickets list refresh +
+      // ping the ticket owner's room so their /support/my-tickets page
+      // reflects status changes without a refresh.
+      orchestrationService.notifyAdminListChanged('support-tickets', 'ticket_updated').catch(() => {});
+      try {
+        const ownerResult = await query<{ user_id: string }>(
+          `SELECT user_id FROM support_tickets WHERE id = $1`,
+          [req.params.id],
+        );
+        if (ownerResult.rows[0]?.user_id) {
+          orchestrationService.notifyUserChanged(ownerResult.rows[0].user_id, 'ticket_updated').catch(() => {});
+        }
+      } catch { /* non-fatal */ }
+
       const response: ApiResponse = { success: true, data: { message: 'Ticket updated' } };
       res.json(response);
     } catch (err) {
@@ -630,6 +691,9 @@ router.post(
         `INSERT INTO support_tickets (user_id, subject, message) VALUES ($1, $2, $3) RETURNING id`,
         [req.user!.userId, subject, message]
       );
+      // Phase May-19 realtime — admin-support-tickets queue refresh so a
+      // newly-filed ticket appears for every admin without a refresh.
+      orchestrationService.notifyAdminListChanged('support-tickets', 'ticket_created').catch(() => {});
       const response: ApiResponse = { success: true, data: result.rows[0] };
       res.json(response);
     } catch (err) {

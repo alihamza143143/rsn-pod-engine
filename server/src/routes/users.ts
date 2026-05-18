@@ -7,6 +7,8 @@ import { requireRole } from '../middleware/rbac';
 import * as identityService from '../services/identity/identity.service';
 import { searchConnectedUsers } from '../services/invite/connected-users';
 import * as blockService from '../services/block/block.service';
+import * as orchestrationService from '../services/orchestration/orchestration.service';
+import { query } from '../db';
 import { ApiResponse, UserRole, hasRoleAtLeast } from '@rsn/shared';
 
 const router = Router();
@@ -82,6 +84,23 @@ router.put(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = await identityService.updateUser(req.user!.userId, req.body);
+
+      // Phase May-19 realtime — fan out to every pod the user is an
+      // active member of so the pod member list everywhere sees the
+      // new display name / avatar / bio without a refresh. Bounded by
+      // pod count (typically <10 per user), cheap.
+      try {
+        const podsResult = await query<{ pod_id: string }>(
+          `SELECT pod_id FROM pod_members WHERE user_id = $1 AND status = 'active'`,
+          [req.user!.userId],
+        );
+        for (const row of podsResult.rows) {
+          orchestrationService.notifyPodChanged(row.pod_id, 'profile_updated').catch(() => {});
+        }
+      } catch { /* non-fatal */ }
+      // Also ping the user's own room so other tabs / devices update
+      // their profile-settings surfaces.
+      orchestrationService.notifyUserChanged(req.user!.userId, 'profile_updated').catch(() => {});
 
       const response: ApiResponse = { success: true, data: user };
       res.json(response);
@@ -292,6 +311,10 @@ router.put(
       }
 
       const user = await identityService.updateUserRole(req.params.id, role);
+      // Phase May-19 realtime — admin-users list refresh + per-user
+      // notify so the target's session-state listener flips role.
+      orchestrationService.notifyAdminListChanged('users', 'role_changed').catch(() => {});
+      orchestrationService.notifyUserChanged(req.params.id, 'role_changed').catch(() => {});
       const response: ApiResponse = { success: true, data: user };
       return res.json(response);
     } catch (err) {
@@ -314,6 +337,11 @@ router.put(
       }
 
       const user = await identityService.updateUserStatus(req.params.id, status);
+      // Phase May-19 realtime — admin-users list refresh + per-user
+      // notify so a suspended/banned user's UI reacts immediately
+      // (the auth-cache invalidation happens server-side already).
+      orchestrationService.notifyAdminListChanged('users', 'status_changed').catch(() => {});
+      orchestrationService.notifyUserChanged(req.params.id, 'status_changed').catch(() => {});
       const response: ApiResponse = { success: true, data: user };
       return res.json(response);
     } catch (err) {
@@ -330,6 +358,11 @@ router.delete(
   requireRole(UserRole.SUPER_ADMIN),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Phase May-19 realtime — admin-users list refresh + per-user
+      // notify BEFORE the delete so the affected user's own session
+      // sees the change even if it later disconnects.
+      orchestrationService.notifyAdminListChanged('users', 'user_deleted').catch(() => {});
+      orchestrationService.notifyUserChanged(req.params.id, 'user_deleted').catch(() => {});
       await identityService.deleteUser(req.params.id);
       const response: ApiResponse = { success: true, data: { message: 'User deleted' } };
       res.json(response);
@@ -378,6 +411,10 @@ router.post(
         req.params.id,
         req.body.reason,
       );
+      // Phase May-19 realtime — fan out to BOTH parties so the
+      // blocker's other tabs flip the Block button label and the
+      // blocked user's profile-page Message button disappears.
+      orchestrationService.notifyUserBlocksChanged(req.user!.userId, req.params.id, 'blocked').catch(() => {});
       const response: ApiResponse = { success: true, data: result };
       res.json(response);
     } catch (err) {
@@ -393,6 +430,9 @@ router.delete(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await blockService.unblock(req.user!.userId, req.params.id);
+      // Phase May-19 realtime — same fan-out shape as block: both
+      // parties' UIs flip immediately on unblock.
+      orchestrationService.notifyUserBlocksChanged(req.user!.userId, req.params.id, 'unblocked').catch(() => {});
       const response: ApiResponse = { success: true, data: { message: 'User unblocked' } };
       res.json(response);
     } catch (err) {

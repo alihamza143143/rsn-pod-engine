@@ -9,6 +9,7 @@ import { z } from 'zod';
 import { validate } from '../middleware/validate';
 import { authenticate } from '../middleware/auth';
 import * as groupService from '../services/dm/group.service';
+import * as orchestrationService from '../services/orchestration/orchestration.service';
 import { ApiResponse } from '@rsn/shared';
 
 const router = Router();
@@ -32,6 +33,9 @@ router.post(
       const result = await groupService.createCustomGroup(
         req.user!.userId, req.body.name, req.body.memberIds,
       );
+      // Phase May-19 realtime — fanout to every member's personal
+      // room so the new group appears in their inbox without a refresh.
+      orchestrationService.notifyGroupChanged(result.id, 'group_created').catch(() => {});
       const response: ApiResponse = { success: true, data: result };
       res.status(201).json(response);
     } catch (err) {
@@ -65,6 +69,11 @@ router.post(
       const result = await groupService.sendGroupMessage(
         req.params.id, req.user!.userId, req.body.content,
       );
+      // Phase May-19 realtime — fanout to every group member so their
+      // open thread / inbox surfaces refetch immediately. The actual
+      // message payload is delivered via the React-Query invalidation
+      // triggered by group:changed.
+      orchestrationService.notifyGroupChanged(req.params.id, 'message_sent').catch(() => {});
       const response: ApiResponse = { success: true, data: result };
       res.status(201).json(response);
     } catch (err) {

@@ -187,15 +187,24 @@ export async function buildHostParticipantsView(opts: {
     }
 
     const inMatch = userToMatch.get(r.user_id);
+    const isPresent = opts.presenceMap.has(r.user_id);
     let state: HostParticipantState;
-    if (r.status === 'left' || r.status === 'no_show' || r.status === 'removed') {
-      state = 'left';
-    } else if (inMatch) {
+    // Bug 36 (19 May Ali) — presenceMap is the live source of truth. If
+    // the user has an active socket connection RIGHT NOW, they cannot
+    // be displayed as 'left' or 'disconnected', regardless of what the
+    // session_participants.status DB column says. The DB status is a
+    // projection that lags reality — most commonly because the state
+    // machine transitions to LEFT on a Leave click or disconnect
+    // timeout but doesn't reset on reconnect. UI override here keeps
+    // the "Left" tab honest: it only shows users who are actually gone.
+    if (inMatch) {
       state = 'in_room';
-    } else if (r.status === 'disconnected' || !opts.presenceMap.has(r.user_id)) {
-      state = 'disconnected';
-    } else {
+    } else if (isPresent) {
       state = 'in_main_room';
+    } else if (r.status === 'left' || r.status === 'no_show' || r.status === 'removed') {
+      state = 'left';
+    } else {
+      state = 'disconnected';
     }
 
     const fallback = r.email ? r.email.split('@')[0] : 'Participant';

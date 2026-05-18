@@ -6,6 +6,8 @@ import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
 import { authLimiter } from '../middleware/rateLimit';
 import * as joinRequestService from '../services/join-request/join-request.service';
+import * as orchestrationService from '../services/orchestration/orchestration.service';
+import { query } from '../db';
 import { ApiResponse, UserRole } from '@rsn/shared';
 
 const router = Router();
@@ -39,6 +41,12 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const request = await joinRequestService.createJoinRequest(req.body);
+
+      // Phase May-19 realtime — broadcast to every admin so the
+      // join-requests queue shows the new applicant without a refresh.
+      orchestrationService
+        .notifyAdminListChanged('join-requests', 'join_request_created')
+        .catch(() => {});
 
       const response: ApiResponse = {
         success: true,
@@ -101,6 +109,10 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await joinRequestService.bulkPokeJoinRequests(req.body.requestIds);
+      // Phase May-19 realtime — bulk-poke queue refresh.
+      orchestrationService
+        .notifyAdminListChanged('join-requests', 'bulk_poked')
+        .catch(() => {});
       const response: ApiResponse = { success: true, data: result };
       res.json(response);
     } catch (err) {
@@ -144,6 +156,25 @@ router.patch(
         reviewNotes
       );
 
+      // Phase May-19 realtime — broadcast the queue change for every
+      // open admin dashboard, plus ping the requester's user-room IF
+      // they already have a user account (matched by email). Approve/
+      // decline flows always trigger this fanout.
+      orchestrationService
+        .notifyAdminListChanged('join-requests', `join_request_${decision}`)
+        .catch(() => {});
+      try {
+        const userMatch = await query<{ id: string }>(
+          `SELECT id FROM users WHERE LOWER(email) = LOWER($1) LIMIT 1`,
+          [request.email],
+        );
+        if (userMatch.rows[0]?.id) {
+          orchestrationService
+            .notifyUserChanged(userMatch.rows[0].id, `join_request_${decision}`)
+            .catch(() => {});
+        }
+      } catch { /* non-fatal */ }
+
       const response: ApiResponse = { success: true, data: request };
       res.json(response);
     } catch (err) {
@@ -162,6 +193,11 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const updated = await joinRequestService.updateAdminNotes(req.params.id, req.body.note);
+      // Phase May-19 realtime — admin notes update fanout so every
+      // admin dashboard sees the new note without a refresh.
+      orchestrationService
+        .notifyAdminListChanged('join-requests', 'note_updated')
+        .catch(() => {});
       const response: ApiResponse = { success: true, data: updated };
       res.json(response);
     } catch (err) {
@@ -179,6 +215,10 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const updated = await joinRequestService.pokeJoinRequest(req.params.id);
+      // Phase May-19 realtime — reminder count update fanout.
+      orchestrationService
+        .notifyAdminListChanged('join-requests', 'poked')
+        .catch(() => {});
       const response: ApiResponse = { success: true, data: updated };
       res.json(response);
     } catch (err) {

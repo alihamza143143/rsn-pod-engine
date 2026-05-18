@@ -9,6 +9,7 @@ import { validate } from '../middleware/validate';
 import { authenticate } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
 import * as reportService from '../services/report/report.service';
+import * as orchestrationService from '../services/orchestration/orchestration.service';
 import { ApiResponse, UserRole } from '@rsn/shared';
 
 const router = Router();
@@ -34,6 +35,11 @@ router.post(
         req.user!.userId, req.body.reportedId,
         req.body.reason, req.body.description,
       );
+      // Phase May-19 realtime — fanout so every admin moderation
+      // queue shows the new report without a refresh.
+      orchestrationService
+        .notifyAdminListChanged('violations', 'report_submitted')
+        .catch(() => {});
       const response: ApiResponse = { success: true, data: result };
       res.status(201).json(response);
     } catch (err) {
@@ -67,6 +73,10 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await reportService.resolveReport(req.params.id, req.user!.userId, req.body.notes);
+      // Phase May-19 realtime — admin moderation queue refresh.
+      orchestrationService
+        .notifyAdminListChanged('violations', 'report_resolved')
+        .catch(() => {});
       const response: ApiResponse = { success: true, data: result };
       res.json(response);
     } catch (err) {
@@ -84,6 +94,10 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await reportService.dismissReport(req.params.id, req.user!.userId, req.body.notes);
+      // Phase May-19 realtime — admin moderation queue refresh.
+      orchestrationService
+        .notifyAdminListChanged('violations', 'report_dismissed')
+        .catch(() => {});
       const response: ApiResponse = { success: true, data: result };
       res.json(response);
     } catch (err) {

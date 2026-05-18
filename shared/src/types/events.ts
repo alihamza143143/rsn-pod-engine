@@ -166,6 +166,18 @@ export interface ServerToClientEvents {
   // my-sessions / pod-sessions / session-detail queries.
   'session:list_changed': (data: { sessionId: string; podId: string | null; cause: string }) => void;
 
+  // Phase May-19 realtime sweep — admin-list / own-notifications / blocks /
+  // user / group events introduced when filling in the 12+ REST routes
+  // flagged by the code-reviewer for missing socket fanout. Clients
+  // listening for these invalidate the relevant React-Query keys so any
+  // open admin / notification / DM / group surface refreshes without a
+  // hard reload.
+  'admin:list_changed': (data: { scope: string; cause: string }) => void;
+  'notification:list_changed': (data: { userId: string; cause: string }) => void;
+  'user:blocks_changed': (data: { blockerId: string; blockedId: string; cause: string }) => void;
+  'user:changed': (data: { userId: string; cause: string }) => void;
+  'group:changed': (data: { groupId: string; userId: string; cause: string }) => void;
+
   // Reactions
   'reaction:received': (data: { userId: string; displayName: string; type: string; timestamp: string }) => void;
 

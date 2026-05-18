@@ -497,6 +497,13 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await podService.leavePod(req.params.id, req.user!.userId);
+      // Phase May-19 realtime — fan out so every remaining member's
+      // pod page count + roster updates immediately. Also notify the
+      // leaver's own room so their "My Pods" list flips. leavePod
+      // already updates pod_members.status='left', so the leaver is
+      // excluded from notifyPodChanged's active-member fanout.
+      orchestrationService.notifyPodMembershipChanged(req.params.id, req.user!.userId, 'left').catch(() => {});
+      orchestrationService.notifyPodChanged(req.params.id, 'member_left').catch(() => {});
       const response: ApiResponse = { success: true, data: { message: 'Left pod successfully' } };
       res.json(response);
     } catch (err) {
@@ -514,6 +521,9 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const pod = await podService.reactivatePod(req.params.id, req.user!.userId);
+      // Phase May-19 realtime — fan out so every member's UI flips
+      // back from "archived" to "active" instantly.
+      orchestrationService.notifyPodChanged(req.params.id, 'pod_reactivated').catch(() => {});
       const response: ApiResponse = { success: true, data: pod };
       res.json(response);
     } catch (err) {
@@ -564,6 +574,9 @@ router.put(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       await podService.setJoinConfig(req.params.id, req.user!.userId, req.body.joinConfig, req.user!.role);
+      // Phase May-19 realtime — fan out so the join-page rules text
+      // updates for every member viewing the pod.
+      orchestrationService.notifyPodChanged(req.params.id, 'join_config_updated').catch(() => {});
       const response: ApiResponse = { success: true, data: { message: 'Join config updated' } };
       res.json(response);
     } catch (err) {
@@ -581,6 +594,10 @@ router.delete(
   auditMiddleware('hard_delete_pod', 'pod'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
+      // Phase May-19 realtime — fan out BEFORE the hard delete so
+      // notifyPodChanged's active-member lookup still finds rows. Mirrors
+      // the soft DELETE /pods/:id pattern above.
+      orchestrationService.notifyPodChanged(req.params.id, 'pod_hard_deleted').catch(() => {});
       await podService.hardDeletePod(req.params.id);
       const response: ApiResponse = { success: true, data: { message: 'Pod permanently deleted' } };
       return res.json(response);

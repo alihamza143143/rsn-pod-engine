@@ -498,6 +498,194 @@ export async function notifyPermissionsUpdated(
   }
 }
 
+// ── Phase May-19 realtime gap closures ─────────────────────────────────────
+//
+// Code-reviewer pass flagged 12+ REST routes that mutate state but never
+// emit any socket fanout, causing "I did X and the other screen didn't
+// update" bugs across admin / users / notifications / DM-reactions /
+// join-requests / groups / sessions / reports. The helpers below extend
+// the existing notifyPodChanged / notifySessionListChanged shape (query
+// the affected user rows, then io.to(userRoom(id)).emit(...) per row) so
+// every gap can be patched with the same idiom.
+
+/**
+ * Broadcast that an admin-managed list (users, pods, sessions, violations,
+ * templates, support-tickets, join-requests, email-config) has changed.
+ * Sent to every admin/super_admin user so any open admin dashboard
+ * invalidates its React-Query keys immediately. Best-effort — DB lookup
+ * failures are swallowed because the user-visible mutation already
+ * succeeded.
+ *
+ * scope: one of 'users' | 'pods' | 'sessions' | 'violations' | 'templates'
+ *        | 'support-tickets' | 'join-requests' | 'email-config'. Free-form
+ *        so a new admin list can plug in without changing this signature.
+ * cause: short reason string for analytics + client-side messaging.
+ */
+export async function notifyAdminListChanged(
+  scope: string,
+  cause: string,
+): Promise<void> {
+  if (!io) return;
+  try {
+    const { userRoom } = await import('./state/session-state');
+    const { query } = await import('../../db');
+    const result = await query<{ id: string }>(
+      `SELECT id FROM users WHERE role IN ('admin', 'super_admin')`,
+    );
+    for (const row of result.rows) {
+      io.to(userRoom(row.id)).emit('admin:list_changed', { scope, cause });
+    }
+  } catch (err) {
+    logger.warn({ err, scope, cause }, 'notifyAdminListChanged: failed to fan out');
+  }
+}
+
+/**
+ * Notify a single user that their own notification list changed (mark-read,
+ * mark-all-read, etc) so OTHER tabs / devices the same user has open update
+ * the bell counter without a refresh. The user's own request response
+ * already covers the originating tab; this is for the cross-tab gap.
+ */
+export async function notifyOwnNotificationsChanged(
+  userId: string,
+  cause: string,
+): Promise<void> {
+  if (!io) return;
+  try {
+    const { userRoom } = await import('./state/session-state');
+    io.to(userRoom(userId)).emit('notification:list_changed', { userId, cause });
+  } catch (err) {
+    logger.warn({ err, userId, cause }, 'notifyOwnNotificationsChanged: failed to fan out');
+  }
+}
+
+/**
+ * Fan out a block-relationship change (block / unblock) to BOTH the blocker
+ * and the blocked user's personal rooms. The blocker's UI flips the Block
+ * button label and any open DM conversation surface; the blocked user's
+ * UI removes the now-inaccessible Message button on the blocker's profile.
+ */
+export async function notifyUserBlocksChanged(
+  blockerId: string,
+  blockedId: string,
+  cause: string,
+): Promise<void> {
+  if (!io) return;
+  try {
+    const { userRoom } = await import('./state/session-state');
+    const payload = { blockerId, blockedId, cause };
+    io.to(userRoom(blockerId)).emit('user:blocks_changed', payload);
+    io.to(userRoom(blockedId)).emit('user:blocks_changed', payload);
+  } catch (err) {
+    logger.warn({ err, blockerId, blockedId, cause }, 'notifyUserBlocksChanged: failed to fan out');
+  }
+}
+
+/**
+ * Targeted single-user notify for the user-room. Thin wrapper kept distinct
+ * from notifyOwnNotificationsChanged because the event name differs and
+ * downstream client handlers care about the distinction. Used when admin
+ * routes mutate a specific user (role / status / delete) so that user's
+ * own UI flips state in real time alongside the admin-list broadcast.
+ */
+export async function notifyUserChanged(
+  userId: string,
+  cause: string,
+): Promise<void> {
+  if (!io) return;
+  try {
+    const { userRoom } = await import('./state/session-state');
+    io.to(userRoom(userId)).emit('user:changed', { userId, cause });
+  } catch (err) {
+    logger.warn({ err, userId, cause }, 'notifyUserChanged: failed to fan out');
+  }
+}
+
+/**
+ * Fan out a DM reaction add/remove to BOTH participants in the conversation.
+ * Used by the REST routes for /dm/messages/:id/reactions — the socket
+ * handlers already fan out via the same shape; this keeps the REST path
+ * in lockstep.
+ */
+export async function notifyDmReactionChanged(
+  conversationId: string,
+  messageId: string,
+  userId: string,
+  otherUserId: string,
+  emoji: string,
+  added: boolean,
+): Promise<void> {
+  if (!io) return;
+  try {
+    const { userRoom } = await import('./state/session-state');
+    const event = added ? 'dm:reaction_added' : 'dm:reaction_removed';
+    const payload = { messageId, conversationId, userId, emoji };
+    io.to(userRoom(userId)).emit(event, payload);
+    io.to(userRoom(otherUserId)).emit(event, payload);
+  } catch (err) {
+    logger.warn({ err, conversationId, messageId }, 'notifyDmReactionChanged: failed to fan out');
+  }
+}
+
+/**
+ * Fan out a DM read-receipt to BOTH participants — the reader's other tabs
+ * + the original sender's open thread surface — when the REST path
+ * (POST /dm/conversations/:id/read) is used. Mirrors handleDmRead in
+ * dm-handlers.ts so the two transports stay consistent.
+ */
+export async function notifyDmReadReceipt(
+  conversationId: string,
+  readerId: string,
+  otherUserId: string,
+  readAt: Date,
+  markedCount: number,
+): Promise<void> {
+  if (!io) return;
+  try {
+    const { userRoom } = await import('./state/session-state');
+    const payload = {
+      conversationId,
+      readBy: readerId,
+      readAt,
+      markedCount,
+    };
+    io.to(userRoom(readerId)).emit('dm:read_receipt', payload);
+    io.to(userRoom(otherUserId)).emit('dm:read_receipt', payload);
+  } catch (err) {
+    logger.warn({ err, conversationId }, 'notifyDmReadReceipt: failed to fan out');
+  }
+}
+
+/**
+ * Fan out a group-chat membership/message event to every current member's
+ * personal room so each member's open inbox + thread surfaces refetch.
+ * Mirrors the notifyPodChanged shape: single SELECT against the
+ * dm_group_members table → one emit per row.
+ */
+export async function notifyGroupChanged(
+  groupId: string,
+  cause: string,
+): Promise<void> {
+  if (!io) return;
+  try {
+    const { userRoom } = await import('./state/session-state');
+    const { query } = await import('../../db');
+    const result = await query<{ user_id: string }>(
+      `SELECT user_id FROM dm_group_members WHERE group_id = $1`,
+      [groupId],
+    );
+    for (const row of result.rows) {
+      io.to(userRoom(row.user_id)).emit('group:changed', {
+        groupId,
+        userId: row.user_id,
+        cause,
+      });
+    }
+  } catch (err) {
+    logger.warn({ err, groupId, cause }, 'notifyGroupChanged: failed to fan out');
+  }
+}
+
 // ── Get Active Session State (used by REST routes) ─────────────────────────
 
 export function getActiveSessionState(sessionId: string): {

@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { authenticate } from '../middleware/auth';
 import { query } from '../db';
+import * as orchestrationService from '../services/orchestration/orchestration.service';
 import { ApiResponse } from '@rsn/shared';
 
 const router = Router();
@@ -79,6 +80,12 @@ router.post(
         `UPDATE notifications SET is_read = TRUE WHERE user_id = $1 AND is_read = FALSE`,
         [req.user!.userId]
       );
+      // Phase May-19 realtime — fan out to the user's own personal
+      // room so any other tabs / devices the same user has open reset
+      // the bell counter without a refresh.
+      orchestrationService
+        .notifyOwnNotificationsChanged(req.user!.userId, 'read_all')
+        .catch(() => {});
       res.json({ success: true } as ApiResponse);
     } catch (err) {
       next(err);
@@ -96,6 +103,11 @@ router.post(
         `UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2`,
         [req.params.id, req.user!.userId]
       );
+      // Phase May-19 realtime — same own-room fanout so cross-tab bell
+      // counter stays in sync.
+      orchestrationService
+        .notifyOwnNotificationsChanged(req.user!.userId, 'read_one')
+        .catch(() => {});
       res.json({ success: true } as ApiResponse);
     } catch (err) {
       next(err);
@@ -113,6 +125,11 @@ router.delete(
         `DELETE FROM notifications WHERE user_id = $1`,
         [req.user!.userId]
       );
+      // Phase May-19 realtime — clearing notifications also empties
+      // the bell on other tabs.
+      orchestrationService
+        .notifyOwnNotificationsChanged(req.user!.userId, 'cleared_all')
+        .catch(() => {});
       res.json({ success: true } as ApiResponse);
     } catch (err) {
       next(err);

@@ -195,13 +195,16 @@ describe('Bug 30 — realtime fanout on every invite / pod / session mutation', 
     });
   });
 
-  describe('Client — NotificationBell invalidates invite query keys on socket events', () => {
-    const bellSrc = readClient('components/ui/NotificationBell.tsx');
+  describe('Client — legacy invalidation bridge invalidates invite query keys on socket events', () => {
+    // Bug 32 (19 May Ali) — handlers moved out of NotificationBell into the
+    // app-root bridge so they fire on EVERY page, not just AppLayout-wrapped
+    // pages. The same key inventory the bell used to own now lives here.
+    const bridgeSrc = readClient('realtime/useLegacyInvalidationBridge.ts');
 
     it('pod:membership_updated handler invalidates every pod + invite list query key', () => {
-      const handlerIdx = bellSrc.indexOf('const membershipHandler');
-      const end = bellSrc.indexOf("socket.on('pod:membership_updated'", handlerIdx);
-      const fn = bellSrc.slice(handlerIdx, end > -1 ? end : handlerIdx + 2500);
+      const handlerIdx = bridgeSrc.indexOf('const membershipHandler');
+      const end = bridgeSrc.indexOf("socket.on('pod:membership_updated'", handlerIdx);
+      const fn = bridgeSrc.slice(handlerIdx, end > -1 ? end : handlerIdx + 2500);
       // Bug 31 (19 May Ali) — complete inventory grepped from PodDetailPage
       // / PodsPage / HomePage. Every key the pod surfaces actually use
       // must be invalidated, not just a guessed subset.
@@ -216,9 +219,9 @@ describe('Bug 30 — realtime fanout on every invite / pod / session mutation', 
     });
 
     it('session:list_changed handler invalidates every session + invite query key', () => {
-      const handlerIdx = bellSrc.indexOf('const sessionListHandler');
-      const end = bellSrc.indexOf("socket.on('session:list_changed'", handlerIdx);
-      const fn = bellSrc.slice(handlerIdx, end > -1 ? end : handlerIdx + 2500);
+      const handlerIdx = bridgeSrc.indexOf('const sessionListHandler');
+      const end = bridgeSrc.indexOf("socket.on('session:list_changed'", handlerIdx);
+      const fn = bridgeSrc.slice(handlerIdx, end > -1 ? end : handlerIdx + 2500);
       expect(fn).toMatch(/queryKey:\s*\[\s*['"]my-sessions['"]\s*\]/);
       expect(fn).toMatch(/queryKey:\s*\[\s*['"]session-detail['"]\s*\]/);
       expect(fn).toMatch(/queryKey:\s*\[\s*['"]session-participants['"]\s*\]/);
@@ -229,10 +232,10 @@ describe('Bug 30 — realtime fanout on every invite / pod / session mutation', 
     });
 
     it('notification:new handler invalidates received-invites for the invitee', () => {
-      const handlerIdx = bellSrc.indexOf("socket.on('notification:new'");
+      const handlerIdx = bridgeSrc.indexOf("socket.on('notification:new'");
       // Look at the handler defined right above the .on() registration.
-      const start = bellSrc.lastIndexOf('const handler =', handlerIdx);
-      const fn = bellSrc.slice(start, handlerIdx);
+      const start = bridgeSrc.lastIndexOf('const notificationNewHandler', handlerIdx);
+      const fn = bridgeSrc.slice(start, handlerIdx);
       expect(fn).toMatch(/queryKey:\s*\[\s*['"]received-invites['"]\s*\]/);
     });
   });

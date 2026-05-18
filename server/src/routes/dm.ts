@@ -11,6 +11,8 @@ import { validate } from '../middleware/validate';
 import { authenticate } from '../middleware/auth';
 import * as dmService from '../services/dm/dm.service';
 import { broadcastDmMessage } from '../services/orchestration/handlers/dm-handlers';
+import * as orchestrationService from '../services/orchestration/orchestration.service';
+import { query } from '../db';
 import { ApiResponse } from '@rsn/shared';
 
 const router = Router();
@@ -149,6 +151,33 @@ router.post(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const result = await dmService.markRead(req.params.id, req.user!.userId);
+      // Phase May-19 realtime — REST-path mark-read must mirror the
+      // socket-path handleDmRead fan-out so the original sender's open
+      // thread sees the read receipt without a refresh. Look up the
+      // other party from the conversation row.
+      if (result.markedCount > 0 && result.readAt) {
+        try {
+          const convResult = await query<{ user_a_id: string; user_b_id: string }>(
+            `SELECT user_a_id, user_b_id FROM dm_conversations WHERE id = $1`,
+            [req.params.id],
+          );
+          const conv = convResult.rows[0];
+          if (conv) {
+            const otherUserId = conv.user_a_id === req.user!.userId
+              ? conv.user_b_id
+              : conv.user_a_id;
+            orchestrationService
+              .notifyDmReadReceipt(
+                req.params.id,
+                req.user!.userId,
+                otherUserId,
+                result.readAt,
+                result.markedCount,
+              )
+              .catch(() => {});
+          }
+        } catch { /* non-fatal */ }
+      }
       const response: ApiResponse = { success: true, data: result };
       res.json(response);
     } catch (err) {
@@ -221,6 +250,20 @@ router.post(
         req.user!.userId,
         req.body.emoji,
       );
+      // Phase May-19 realtime — fan out dm:reaction_added to both
+      // participants so the sender's other tab and the recipient's
+      // open thread see the reaction without a refresh. Mirrors
+      // handleDmReact in dm-handlers.ts.
+      orchestrationService
+        .notifyDmReactionChanged(
+          result.conversationId,
+          req.params.id,
+          req.user!.userId,
+          result.otherUserId,
+          req.body.emoji,
+          true,
+        )
+        .catch(() => {});
       const response: ApiResponse = { success: true, data: result };
       res.status(201).json(response);
     } catch (err) {
@@ -241,6 +284,18 @@ router.delete(
         req.user!.userId,
         req.params.emoji,
       );
+      // Phase May-19 realtime — fan out dm:reaction_removed to both
+      // participants. Mirrors handleDmUnreact in dm-handlers.ts.
+      orchestrationService
+        .notifyDmReactionChanged(
+          result.conversationId,
+          req.params.id,
+          req.user!.userId,
+          result.otherUserId,
+          req.params.emoji,
+          false,
+        )
+        .catch(() => {});
       const response: ApiResponse = { success: true, data: result };
       res.json(response);
     } catch (err) {

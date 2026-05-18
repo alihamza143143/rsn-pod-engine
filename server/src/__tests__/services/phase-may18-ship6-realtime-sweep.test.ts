@@ -62,7 +62,10 @@ describe('Stefan 18 May — Ship #6 realtime sweep', () => {
     const orchSrc = readServer('services/orchestration/orchestration.service.ts');
     const sessionsRoutes = readServer('routes/sessions.ts');
     const eventsSrc = readShared('types/events.ts');
-    const bellSrc = readClient('components/ui/NotificationBell.tsx');
+    // Bug 32 (19 May Ali) — the legacy invalidation logic the bell used
+    // to own was extracted into an app-root bridge so it fires on every
+    // page, not just AppLayout-wrapped pages. Test pin moved accordingly.
+    const bridgeSrc = readClient('realtime/useLegacyInvalidationBridge.ts');
 
     it('notifySessionListChanged fans out session:list_changed via session_participants + pod_members union', () => {
       const fnIdx = orchSrc.indexOf('export async function notifySessionListChanged');
@@ -88,11 +91,11 @@ describe('Stefan 18 May — Ship #6 realtime sweep', () => {
       );
     });
 
-    it('NotificationBell subscribes to session:list_changed and invalidates session queries', () => {
-      expect(bellSrc).toMatch(/'session:list_changed'/);
-      expect(bellSrc).toMatch(/sessionListHandler[\s\S]{0,400}invalidateQueries\(\{\s*queryKey:\s*\['my-sessions'\]/);
-      expect(bellSrc).toMatch(/invalidateQueries\(\{\s*queryKey:\s*\['pod-sessions'\]/);
-      expect(bellSrc).toMatch(/invalidateQueries\(\{\s*queryKey:\s*\['session-detail'\]/);
+    it('App-root invalidation bridge subscribes to session:list_changed and invalidates session queries', () => {
+      expect(bridgeSrc).toMatch(/'session:list_changed'/);
+      expect(bridgeSrc).toMatch(/sessionListHandler[\s\S]{0,400}invalidateQueries\(\{\s*queryKey:\s*\['my-sessions'\]/);
+      expect(bridgeSrc).toMatch(/invalidateQueries\(\{\s*queryKey:\s*\['pod-sessions'\]/);
+      expect(bridgeSrc).toMatch(/invalidateQueries\(\{\s*queryKey:\s*\['session-detail'\]/);
     });
   });
 
