@@ -53,7 +53,9 @@ describe('Phase 3 — Host dashboard UI + sync', () => {
       expect(startIdx).toBeGreaterThan(-1);
       // Bug 18 (18 May Stefan) — listener body grew (eventPlanSummary
       // update on repair) so widen the slice past the new code.
-      const slice = src.slice(startIdx, startIdx + 1800);
+      // Bug 27 (19 May Ali) — listener grew again (setTotalRounds path);
+      // widen again so the toast pins still land.
+      const slice = src.slice(startIdx, startIdx + 2800);
       expect(slice).toMatch(/useToastStore\.getState\(\)\.addToast/);
       expect(slice).toMatch(/Plan updated/);
       expect(slice).toMatch(/late_joiner/);

@@ -230,10 +230,9 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
     // Bug 26 (19 May Ali) — if the director has demoted this cohost's
     // tile, we strip the host-tile treatment here while keeping every
     // server-side privilege intact (mute-others, HCC, etc. still work).
-    const identity = trackRef.participant.identity;
-    const isActingHost = !!identity
-      && hostsSet.has(identity)
-      && !tileDemotedSet.has(identity);
+    const isActingHost = !!trackRef.participant.identity
+      && hostsSet.has(trackRef.participant.identity)
+      && !tileDemotedSet.has(trackRef.participant.identity);
     const isMicOn = trackRef.participant.isMicrophoneEnabled;
     return (
       <div
