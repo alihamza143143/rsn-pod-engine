@@ -186,16 +186,25 @@ describe('Stefan 18 May — Ship #1 architectural fixes', () => {
     });
   });
 
-  describe('Bug 5 — "Met one time" counts THIS event, not lifetime', () => {
+  describe('Bug 5 — "Met one time" badge is policy-aware', () => {
     const flowSrc = readServer('services/orchestration/handlers/matching-flow.ts');
 
-    it('sendMatchPreview encounterMap sources from matches (this session, prior rounds), not encounter_history', () => {
-      // The query for "met N times" badge must scope to THIS session and
-      // PRIOR rounds — Stefan's complaint: "Must correctly track who has
-      // already met inside the event."
-      const fnIdx = flowSrc.indexOf('export async function sendMatchPreview');
-      expect(fnIdx).toBeGreaterThan(-1);
-      const fn = flowSrc.slice(fnIdx, fnIdx + 4000);
+    it('sendMatchPreview picks the badge source based on matchingPolicy (lifetime vs in-event)', () => {
+      // Ali's 18 May clarification — the badge must respect the session's
+      // matching policy. Three policies exist (Phase 4 resolver):
+      //   platform_wide → lifetime encounter_history (strict-rule signal)
+      //   within_event   → this event's prior rounds (default)
+      //   none           → this event's prior rounds (badge still useful)
+      // Pin both branches.
+      const fnStart = flowSrc.indexOf('export async function sendMatchPreview');
+      expect(fnStart).toBeGreaterThan(-1);
+      const fn = flowSrc.slice(fnStart, fnStart + 5000);
+      expect(fn).toMatch(/resolveMatchingPolicy/);
+      // platform_wide branch reads lifetime encounter_history.
+      expect(fn).toMatch(
+        /previewPolicy\s*===\s*'platform_wide'[\s\S]{0,400}FROM\s+encounter_history/,
+      );
+      // within_event / none branch reads matches for THIS session, prior rounds.
       expect(fn).toMatch(
         /FROM\s+matches[\s\S]{0,300}session_id\s*=\s*\$1[\s\S]{0,200}round_number\s*<\s*\$2/,
       );
@@ -207,7 +216,10 @@ describe('Stefan 18 May — Ship #1 architectural fixes', () => {
 
     it('encounterMap is built via a pair-bumping helper that handles trios (3 pairs each)', () => {
       const fnIdx = flowSrc.indexOf('export async function sendMatchPreview');
-      const fn = flowSrc.slice(fnIdx, fnIdx + 4000);
+      // Bug 5 (18 May Ali) — body grew with the platform_wide branch;
+      // widen the slice so the trio-bumping helper inside the within_event
+      // branch is still in range.
+      const fn = flowSrc.slice(fnIdx, fnIdx + 6500);
       // The bump() helper handles trios by adding all three pair edges.
       expect(fn).toMatch(/bump\(e\.participant_a_id,\s*e\.participant_b_id\)/);
       expect(fn).toMatch(/if\s*\(e\.participant_c_id\)/);

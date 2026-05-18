@@ -704,38 +704,67 @@ export async function sendMatchPreview(
   // Phase 5 (1 May spec) — single-source displayName helper.
   const nameMap = new Map(namesResult.rows.map(r => [r.id, resolveDisplayName(r.id, r.displayName, r.email)]));
 
-  // Bug 5 (18 May Stefan) — "met one time" badge must count THIS event's
-  // prior rounds, not lifetime cross-event encounter_history. Stefan:
-  // "Must correctly track who has already met inside the event." Pre-fix
-  // a pair who met in any previous event would show "met one time" on
-  // their first round here, which Stefan called incorrect — that's
-  // cross-event memory, not in-event tracking.
-  //
-  // Source: matches table for THIS session, prior rounds, non-cancelled,
-  // non-manual (manual breakouts are independent from algorithm pairings).
-  // Counted by pair-key; trios contribute three pairs.
+  // Bug 5 (18 May Stefan) — "met before" badge must reflect the session's
+  // matching POLICY, not always lifetime. Three policies exist:
+  //   - 'platform_wide'   → strict: pair must never have met anywhere on RSN.
+  //                         Host needs the lifetime count so they can SEE
+  //                         when the engine is forced into a fallback that
+  //                         breaks the rule.
+  //   - 'within_event'    → default: in-event no-rematch only. Lifetime
+  //                         repeats are EXPECTED and not noteworthy; badge
+  //                         should count THIS event's prior rounds only.
+  //   - 'none'            → no constraint. Same as within_event for badge
+  //                         purposes (host still wants to know who's a
+  //                         repeat within this run).
+  // Choosing per-policy keeps the badge meaningful: under within_event a
+  // 'met one time' badge means "they paired earlier in this very event,"
+  // not "they crossed paths months ago elsewhere."
+  const sessionServiceForPreview = await import('../../session/session.service');
+  const previewSession = await sessionServiceForPreview.getSessionById(sessionId).catch(() => null);
+  const previewSessionConfig: any = previewSession
+    ? (typeof previewSession.config === 'string'
+        ? JSON.parse(previewSession.config as unknown as string)
+        : previewSession.config)
+    : null;
+  const previewPolicy = matchingService.resolveMatchingPolicy(previewSessionConfig);
   const userIdsArray = Array.from(allUserIds);
-  const encounterResult = userIdsArray.length > 0
-    ? await query<{ participant_a_id: string; participant_b_id: string; participant_c_id: string | null }>(
-        `SELECT participant_a_id, participant_b_id, participant_c_id
-         FROM matches
-         WHERE session_id = $1
-           AND round_number < $2
-           AND status NOT IN ('cancelled')
-           AND is_manual = FALSE`,
-        [sessionId, roundNumber]
-      )
-    : { rows: [] };
   const encounterMap = new Map<string, number>();
-  const bump = (a: string, b: string) => {
+  const bump = (a: string, b: string, n = 1) => {
     const key = [a, b].sort().join(':');
-    encounterMap.set(key, (encounterMap.get(key) || 0) + 1);
+    encounterMap.set(key, (encounterMap.get(key) || 0) + n);
   };
-  for (const e of encounterResult.rows) {
-    bump(e.participant_a_id, e.participant_b_id);
-    if (e.participant_c_id) {
-      bump(e.participant_a_id, e.participant_c_id);
-      bump(e.participant_b_id, e.participant_c_id);
+  if (previewPolicy === 'platform_wide') {
+    // Lifetime — host needs to see the strict-rule signal.
+    const lifetimeRes = userIdsArray.length > 0
+      ? await query<{ user_a_id: string; user_b_id: string; times_met: number }>(
+          `SELECT user_a_id, user_b_id, times_met
+           FROM encounter_history
+           WHERE user_a_id = ANY($1) AND user_b_id = ANY($1) AND times_met > 0`,
+          [userIdsArray]
+        )
+      : { rows: [] };
+    for (const e of lifetimeRes.rows) {
+      bump(e.user_a_id, e.user_b_id, e.times_met);
+    }
+  } else {
+    // within_event or none — scope to THIS event's prior rounds.
+    const inEventRes = userIdsArray.length > 0
+      ? await query<{ participant_a_id: string; participant_b_id: string; participant_c_id: string | null }>(
+          `SELECT participant_a_id, participant_b_id, participant_c_id
+           FROM matches
+           WHERE session_id = $1
+             AND round_number < $2
+             AND status NOT IN ('cancelled')
+             AND is_manual = FALSE`,
+          [sessionId, roundNumber]
+        )
+      : { rows: [] };
+    for (const e of inEventRes.rows) {
+      bump(e.participant_a_id, e.participant_b_id);
+      if (e.participant_c_id) {
+        bump(e.participant_a_id, e.participant_c_id);
+        bump(e.participant_b_id, e.participant_c_id);
+      }
     }
   }
 
