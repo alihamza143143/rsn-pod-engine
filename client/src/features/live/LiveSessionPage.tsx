@@ -444,7 +444,13 @@ export default function LiveSessionPage() {
             content area so the choice is unambiguous. */}
         {!mustPickRole && (
           <>
-            <div className={`flex-1 flex flex-col overflow-hidden ${chatOpen ? 'hidden sm:flex' : ''}`}>
+            {/* Bug 9 (18 May Stefan) — pre-fix, opening chat on mobile
+                hid the lobby/video entirely (`hidden sm:flex`), which
+                Stefan called out as taking over the whole screen. The
+                content stays visible at all times now; chat sits ON TOP
+                as a positioned overlay on mobile (see chat panel block
+                below) and as a side panel on desktop. */}
+            <div className="flex-1 flex flex-col overflow-hidden">
               {phase === 'lobby' && <SectionErrorBoundary name="Lobby"><Lobby isHost={isHost} sessionId={sessionId} /></SectionErrorBoundary>}
               {phase === 'matched' && <SectionErrorBoundary name="Video"><VideoRoom isHost={isHost} /></SectionErrorBoundary>}
               {phase === 'rating' && <SectionErrorBoundary name="Rating"><RatingPrompt sessionId={sessionId} /></SectionErrorBoundary>}
@@ -458,12 +464,24 @@ export default function LiveSessionPage() {
               </div>
             )}
 
-            {/* Chat panel -- side panel on desktop, full overlay on mobile.
-                Bug 10: hidden once event is complete. */}
+            {/* Chat panel — Bug 9 (18 May Stefan): on mobile, slide in as
+                a right-anchored overlay (75% width, full height) sitting
+                ON TOP of the video so the video stays visible behind +
+                tap-outside closes the panel. On sm+ screens it takes the
+                old layout (side-by-side, pushes content). Bug 10: hidden
+                once event is complete. */}
             {chatOpen && phase !== 'complete' && (
-              <div className="w-full sm:w-80 sm:min-w-[320px] flex-shrink-0 h-full">
-                <SectionErrorBoundary name="Chat"><ChatPanel sessionId={sessionId} onClose={() => setChatOpen(false)} /></SectionErrorBoundary>
-              </div>
+              <>
+                <div
+                  data-testid="chat-mobile-backdrop"
+                  className="sm:hidden absolute inset-0 z-30 bg-black/30"
+                  onClick={() => setChatOpen(false)}
+                  aria-hidden="true"
+                />
+                <div className="absolute right-0 top-0 bottom-0 z-40 w-[78%] max-w-sm h-full shadow-2xl sm:static sm:w-80 sm:min-w-[320px] sm:flex-shrink-0 sm:shadow-none sm:max-w-none">
+                  <SectionErrorBoundary name="Chat"><ChatPanel sessionId={sessionId} onClose={() => setChatOpen(false)} /></SectionErrorBoundary>
+                </div>
+              </>
             )}
 
             {/* Reaction bar — toggleable, bottom-left */}

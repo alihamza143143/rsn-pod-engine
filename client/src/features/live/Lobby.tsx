@@ -112,8 +112,15 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
 
   // Responsive grid based on density preference
   const n = participants.length;
+  // Bug 8 (18 May Stefan) — compact mode on mobile must be visibly more
+  // compact than normal. Pre-fix compact rendered 3 cols at sm: vs
+  // normal's 2 cols, which Stefan said "looked almost the same" on a
+  // phone. Now compact starts at 3 cols on the smallest phones (was 2)
+  // and goes to 4 cols at sm: + reduced gap to gap-1.5 (was gap-2) so
+  // the density change is unmistakable. Normal stays at 2 cols on
+  // mobile so the contrast between the two modes is obvious.
   const gridCols = lobbyDensity === 'compact'
-    ? (n <= 4 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-6')
+    ? (n <= 4 ? 'grid-cols-3 sm:grid-cols-4' : 'grid-cols-3 sm:grid-cols-5 lg:grid-cols-6')
     : lobbyDensity === 'spacious'
     ? (n <= 2 ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2')
     : // normal (default)
@@ -121,7 +128,7 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
       : n <= 4 ? 'grid-cols-2 sm:grid-cols-2'
       : n <= 9 ? 'grid-cols-2 sm:grid-cols-3'
       : 'grid-cols-3 sm:grid-cols-4 lg:grid-cols-5';
-  const gapClass = lobbyDensity === 'compact' ? 'gap-2' : lobbyDensity === 'spacious' ? 'gap-6' : 'gap-3';
+  const gapClass = lobbyDensity === 'compact' ? 'gap-1.5' : lobbyDensity === 'spacious' ? 'gap-6' : 'gap-3';
   const maxWClass = lobbyDensity === 'compact' ? 'max-w-5xl' : lobbyDensity === 'spacious' ? 'max-w-2xl' : 'max-w-4xl';
 
   const handleHostMute = useCallback((targetIdentity: string, mute: boolean) => {
@@ -318,8 +325,14 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
             </button>
           </div>
         )}
-        {/* Mic status indicator */}
-        {!isMicOn && (
+        {/* Mic status indicator. Bug 10 (18 May Stefan) — hidden on the
+            local tile because LobbyMediaControls already renders an
+            explicit Mic Off / Cam Off button right below the name; the
+            duplicate icon at top-left + the labeled button at bottom-left
+            is what Claus called "duplicated mute/camera indicators". For
+            remote tiles the top-left icon is still the only mic signal
+            so it stays. */}
+        {!isMicOn && !isLocal && (
           <div className="absolute top-2 left-2 bg-red-500/90 rounded-full p-1">
             <MicOff className="h-2.5 w-2.5 text-[#1a1a2e]" />
           </div>
@@ -656,6 +669,24 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
                   { label: 'Abstract', mode: 'abstract', img: 'https://images.unsplash.com/photo-1557683316-973673baf926?w=200&q=60' },
                 ].map(preset => (
                   <button key={preset.mode} onClick={async () => {
+                    // Bug 11 (18 May Stefan) — Claus's video went black /
+                    // page hung after toggling a background effect. Two
+                    // root causes the new code defends against:
+                    //   1. setProcessor() can hang forever on devices
+                    //      where the WASM worker fails to start; race it
+                    //      against an 8-second timeout so the UI doesn't
+                    //      freeze waiting for a never-resolving promise.
+                    //   2. After a failure the camera track can be left
+                    //      with a partially-attached processor; force
+                    //      another stopProcessor in the catch path and
+                    //      reset bgMode to 'disabled' so the UI matches
+                    //      reality + the user can recover by toggling
+                    //      camera off/on.
+                    const withTimeout = <T,>(p: Promise<T>, ms = 8000): Promise<T> =>
+                      Promise.race<T>([
+                        p,
+                        new Promise<T>((_, rej) => setTimeout(() => rej(new Error('bg_processor_timeout')), ms)),
+                      ]);
                     try {
                       const mod = await loadBgProcessors();
                       if (!mod) { console.error('Background processors not available'); return; }
@@ -663,12 +694,20 @@ function LobbyMediaControls({ isHost, sessionId }: { isHost: boolean; sessionId?
                       const camPub = Array.from(localParticipant.trackPublications.values()).find(p => p.source === Track.Source.Camera);
                       const camTrack = camPub?.track;
                       if (!camTrack) return;
-                      await (camTrack as any).stopProcessor?.();
+                      await withTimeout((camTrack as any).stopProcessor?.() ?? Promise.resolve(), 5000).catch(() => {});
                       if (preset.mode === 'disabled') { setBgMode('disabled'); }
                       // T2-6 — bumped blur strength 10 → 25 for visible effect
-                      else if (preset.mode === 'blur') { await (camTrack as any).setProcessor(mod.BackgroundBlur(25)); setBgMode('blur'); }
-                      else if (preset.img) { await (camTrack as any).setProcessor(mod.VirtualBackground(preset.img.replace('w=200', 'w=1280'))); setBgMode(preset.mode); }
-                    } catch (err) { console.error('BG effect failed:', err); }
+                      else if (preset.mode === 'blur') { await withTimeout((camTrack as any).setProcessor(mod.BackgroundBlur(25))); setBgMode('blur'); }
+                      else if (preset.img) { await withTimeout((camTrack as any).setProcessor(mod.VirtualBackground(preset.img.replace('w=200', 'w=1280')))); setBgMode(preset.mode); }
+                    } catch (err) {
+                      console.error('BG effect failed:', err);
+                      // Best-effort cleanup so the camera isn't stuck mid-processor.
+                      try {
+                        const camPub = Array.from(localParticipant.trackPublications.values()).find(p => p.source === Track.Source.Camera);
+                        await withTimeout((camPub?.track as any)?.stopProcessor?.() ?? Promise.resolve(), 3000).catch(() => {});
+                      } catch { /* swallow — already in the error path */ }
+                      setBgMode('disabled');
+                    }
                     setShowBgPanel(false);
                   }}
                   className={`rounded-lg border-2 overflow-hidden transition-colors ${bgMode === preset.mode ? 'border-rsn-red ring-2 ring-rsn-red/20' : 'border-gray-200 hover:border-gray-400'}`}>
