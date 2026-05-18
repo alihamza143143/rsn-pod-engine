@@ -113,6 +113,16 @@ export interface SessionStateSnapshot {
   hostMutedUserIds: string[];
 
   /**
+   * Bug 1 (18 May Stefan) — global pin set by an acting host. When non-null,
+   * every participant's lobby renders that user as the big tile (pinned-mode
+   * layout). null means no global pin; participants can use their own local
+   * pin if desired. Updated live via `pin:changed` socket events; the
+   * snapshot carries the latest value so a cold-start client sees the right
+   * layout immediately on page load / reconnect.
+   */
+  pinnedUserId: string | null;
+
+  /**
    * Phase 5B (5 May spec) — test-mode flag. Stefan's #2: when the host is
    * signed in across multiple accounts to test the system, display a
    * banner so it's visually clear this isn't a real production event.
@@ -376,5 +386,9 @@ export async function buildSessionStateSnapshot(
     hostVisibilityModes,
     actingAsHostOverrides,
     hostMutedUserIds,
+    // Bug 1 (18 May Stefan) — global pin from the in-memory activeSession.
+    // Missing on a fresh DB-only fetch (session not yet loaded into memory),
+    // which is correct: there is no live pin when nobody's running it.
+    pinnedUserId: activeSession?.pinnedUserId ?? null,
   };
 }

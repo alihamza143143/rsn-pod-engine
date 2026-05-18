@@ -117,6 +117,10 @@ export interface ServerToClientEvents {
   'permissions:updated': (data: { sessionId: string; effectiveRole: 'pod_admin' | 'event_host' | 'cohost' | 'participant'; capabilities: string[] }) => void;
   // Phase G (10 May spec item 11) — host or co-host visibility mode changed.
   'host:visibility_changed': (data: { sessionId: string; userId: string; mode: 'big_speaker' | 'normal' | 'producer' | 'hidden' }) => void;
+  // Bug 1 (18 May Stefan) — global pin broadcast. An acting host has
+  // pinned (or unpinned, with pinnedUserId=null) a participant. Every
+  // viewer renders that user as the big tile.
+  'pin:changed': (data: { sessionId: string; pinnedUserId: string | null }) => void;
 
   // Reactions
   'reaction:received': (data: { userId: string; displayName: string; type: string; timestamp: string }) => void;
@@ -196,6 +200,10 @@ export interface ClientToServerEvents {
   'host:assign_cohost': (data: { sessionId: string; userId: string; role: 'co_host' | 'moderator' }) => void;
   'host:promote_cohost': (data: { sessionId: string; cohostUserId: string }) => void;
   'host:remove_cohost': (data: { sessionId: string; userId: string }) => void;
+
+  // Bug 1 (18 May Stefan) — global pin. Only acting hosts pass verifyHost;
+  // pinnedUserId=null clears the pin.
+  'host:set_pin': (data: { sessionId: string; pinnedUserId: string | null }) => void;
 
   // Reactions
   'reaction:send': (data: { sessionId: string; type: string; matchId?: string }) => void;

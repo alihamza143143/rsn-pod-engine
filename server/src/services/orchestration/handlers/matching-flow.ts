@@ -704,19 +704,39 @@ export async function sendMatchPreview(
   // Phase 5 (1 May spec) — single-source displayName helper.
   const nameMap = new Map(namesResult.rows.map(r => [r.id, resolveDisplayName(r.id, r.displayName, r.email)]));
 
-  // Fetch encounter history for all matched pairs to show "met before" info
+  // Bug 5 (18 May Stefan) — "met one time" badge must count THIS event's
+  // prior rounds, not lifetime cross-event encounter_history. Stefan:
+  // "Must correctly track who has already met inside the event." Pre-fix
+  // a pair who met in any previous event would show "met one time" on
+  // their first round here, which Stefan called incorrect — that's
+  // cross-event memory, not in-event tracking.
+  //
+  // Source: matches table for THIS session, prior rounds, non-cancelled,
+  // non-manual (manual breakouts are independent from algorithm pairings).
+  // Counted by pair-key; trios contribute three pairs.
   const userIdsArray = Array.from(allUserIds);
   const encounterResult = userIdsArray.length > 0
-    ? await query<{ user_a_id: string; user_b_id: string; times_met: number }>(
-        `SELECT user_a_id, user_b_id, times_met FROM encounter_history
-         WHERE user_a_id = ANY($1) AND user_b_id = ANY($1) AND times_met > 0`,
-        [userIdsArray]
+    ? await query<{ participant_a_id: string; participant_b_id: string; participant_c_id: string | null }>(
+        `SELECT participant_a_id, participant_b_id, participant_c_id
+         FROM matches
+         WHERE session_id = $1
+           AND round_number < $2
+           AND status NOT IN ('cancelled')
+           AND is_manual = FALSE`,
+        [sessionId, roundNumber]
       )
     : { rows: [] };
   const encounterMap = new Map<string, number>();
+  const bump = (a: string, b: string) => {
+    const key = [a, b].sort().join(':');
+    encounterMap.set(key, (encounterMap.get(key) || 0) + 1);
+  };
   for (const e of encounterResult.rows) {
-    const key = [e.user_a_id, e.user_b_id].sort().join(':');
-    encounterMap.set(key, e.times_met);
+    bump(e.participant_a_id, e.participant_b_id);
+    if (e.participant_c_id) {
+      bump(e.participant_a_id, e.participant_c_id);
+      bump(e.participant_b_id, e.participant_c_id);
+    }
   }
 
   // Defensive fallback if a user appears in matches but somehow not in nameMap
@@ -740,14 +760,21 @@ export async function sendMatchPreview(
   });
 
   // Exclude host from bye list — host stays in lobby, not a "bye"
+  //
+  // Bug 4 (18 May Stefan) — bye list now uses the same broader filter as
+  // matching eligibility so the headline count, matched set, and "not
+  // matched" set all reconcile. Pre-fix: a user with status='disconnected'
+  // was counted in the lobby header (NOT IN 'removed/left/no_show') but
+  // appeared in NEITHER matched nor bye list — silently vanishing. Stefan:
+  // "Room showed 10 or 11 participants but only 8 matched."
   const allParticipants = hostUserId
     ? await query<{ user_id: string }>(
-        `SELECT user_id FROM session_participants WHERE session_id = $1 AND status IN ('in_lobby', 'checked_in', 'registered')
+        `SELECT user_id FROM session_participants WHERE session_id = $1 AND status NOT IN ('removed', 'left', 'no_show')
            AND user_id != $2`,
         [sessionId, hostUserId]
       )
     : await query<{ user_id: string }>(
-        `SELECT user_id FROM session_participants WHERE session_id = $1 AND status IN ('in_lobby', 'checked_in', 'registered')`,
+        `SELECT user_id FROM session_participants WHERE session_id = $1 AND status NOT IN ('removed', 'left', 'no_show')`,
         [sessionId]
       );
   // byeParticipants list shows up in the host UI as "Not matched: X, Y, Z" —

@@ -28,6 +28,10 @@ const SOCKET_EVENTS = [
   'permissions:updated',
   // Phase G (10 May spec item 11) — host visibility mode change broadcast.
   'host:visibility_changed',
+  // Bug 1 (18 May Stefan) — global pin broadcast. Acting hosts pin a
+  // participant; everyone's lobby re-renders with that user as the big
+  // tile.
+  'pin:changed',
 ] as const;
 
 // ── LiveKit token fetch with retry ──
@@ -172,6 +176,18 @@ export default function useSessionSocket(sessionId: string) {
     // ── Phase G (10 May spec item 11) — host visibility mode ──
     socket.on('host:visibility_changed', (data: any) => {
       if (data?.userId && data?.mode) store.setHostVisibility(data.userId, data.mode);
+    });
+
+    // ── Bug 1 (18 May Stefan) — global pin broadcast ──
+    // When ANY acting host pins/unpins someone, the server broadcasts
+    // pin:changed to the entire session room. Each viewer's Lobby reads
+    // serverPinnedUserId from the store and switches to pinned-mode
+    // rendering (big tile + thumb strip) with the named user as the
+    // spotlight. The per-viewer local pin (kept in Lobby.tsx useState)
+    // remains as a fallback when the global pin is null.
+    socket.on('pin:changed', (data: any) => {
+      const next = typeof data?.pinnedUserId === 'string' ? data.pinnedUserId : null;
+      store.setServerPinnedUserId(next);
     });
 
     // Phase 8B.1 (8 May spec) — Stefan #4 + #9: a newly-promoted/demoted

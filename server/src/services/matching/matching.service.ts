@@ -194,6 +194,16 @@ export async function generateSingleRound(
   // Get active participants (excluding host/co-hosts and any users currently in
   // active matches — including manual breakout rooms). This guarantees the
   // algorithm never double-pairs someone who's already in a manual room.
+  //
+  // Bug 4 (18 May Stefan) — eligibility filter widened to include
+  // `disconnected`. Pre-fix the narrow `IN ('in_lobby','checked_in',
+  // 'registered')` excluded anyone whose DB status was momentarily
+  // 'disconnected' even though their socket had already reconnected.
+  // Result: the lobby header counted them (status NOT IN
+  // 'removed/left/no_show') but matching skipped them. Shradha Uni and
+  // Wazim were both in the room but not matched until they refreshed.
+  // The broader rule mirrors the header rule; the matching engine
+  // already handles late-no-show via match status='no_show' post-start.
   const participantsResult = excludeUserIds && excludeUserIds.length > 0
     ? await query<MatchingParticipant>(
         `SELECT u.id AS "userId", u.interests, u.reasons_to_connect AS "reasonsToConnect",
@@ -202,7 +212,7 @@ export async function generateSingleRound(
                 COALESCE(u.is_premium, FALSE) AS "isPremium"
          FROM session_participants sp
          JOIN users u ON u.id = sp.user_id
-         WHERE sp.session_id = $1 AND sp.status IN ('in_lobby', 'checked_in', 'registered')
+         WHERE sp.session_id = $1 AND sp.status NOT IN ('removed', 'left', 'no_show')
            AND sp.user_id != ALL($2::uuid[])
            AND NOT EXISTS (
              SELECT 1 FROM matches m
@@ -218,7 +228,7 @@ export async function generateSingleRound(
                 COALESCE(u.is_premium, FALSE) AS "isPremium"
          FROM session_participants sp
          JOIN users u ON u.id = sp.user_id
-         WHERE sp.session_id = $1 AND sp.status IN ('in_lobby', 'checked_in', 'registered')
+         WHERE sp.session_id = $1 AND sp.status NOT IN ('removed', 'left', 'no_show')
            AND NOT EXISTS (
              SELECT 1 FROM matches m
              WHERE m.session_id = $1 AND m.status = 'active'

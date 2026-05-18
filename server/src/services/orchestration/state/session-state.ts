@@ -47,6 +47,17 @@ export interface ActiveSession {
     currentRoomId: string | null;
     updatedAt: Date;
   }>;
+  /**
+   * Bug 1 (18 May Stefan) — global pin set by an acting host. When non-null,
+   * every participant's lobby view switches to pinned-mode with this user as
+   * the big tile. Participant-side local pins (yesterday's per-viewer pin)
+   * are overridden while a server pin is in effect. null means "no global
+   * pin — each viewer can use their own local pin if they want".
+   *
+   * Stored in-memory + persisted on the next persistSessionState call so it
+   * survives server restarts within the Redis TTL window.
+   */
+  pinnedUserId?: string | null;
 }
 
 export interface ChatMessage {
@@ -153,6 +164,9 @@ async function persistToRedis(sessionId: string, session: ActiveSession): Promis
         }])
       ),
       manuallyLeftRound: Array.from(session.manuallyLeftRound),
+      // Bug 1 (18 May Stefan) — survive server restart so the global pin
+      // doesn't reset to null when the API process recycles mid-event.
+      pinnedUserId: session.pinnedUserId ?? null,
     });
     await redis.setex(`${REDIS_SESSION_PREFIX}${sessionId}`, REDIS_TTL, serialized);
   } catch (err) {

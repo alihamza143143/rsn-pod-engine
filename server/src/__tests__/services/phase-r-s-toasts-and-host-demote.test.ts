@@ -210,28 +210,31 @@ describe('Phase S — host-initiated demote/promote endpoint', () => {
       expect(src).toMatch(/code:\s*['"]ADMIN_TARGET['"]/);
     });
 
-    it('handleAssignCohost calls refuseIfAdminTarget on the target userId', () => {
+    it('handleAssignCohost calls refuseIfAdminTarget with the session context', () => {
+      // Bug 2 (18 May Stefan) — refuseIfAdminTarget now takes sessionId so
+      // it can read the director and shortcircuit when the caller IS the
+      // event director (supreme host carve-out).
       const fnStart = src.indexOf('export async function handleAssignCohost');
       expect(fnStart).toBeGreaterThan(-1);
       const fnEnd = src.indexOf('\nexport ', fnStart + 1);
       const fn = src.slice(fnStart, fnEnd);
-      expect(fn).toMatch(/refuseIfAdminTarget\(socket,\s*userId\)/);
+      expect(fn).toMatch(/refuseIfAdminTarget\(socket,\s*sessionId,\s*userId\)/);
     });
 
-    it('handleRemoveCohost calls refuseIfAdminTarget on the target userId', () => {
+    it('handleRemoveCohost calls refuseIfAdminTarget with the session context', () => {
       const fnStart = src.indexOf('export async function handleRemoveCohost');
       expect(fnStart).toBeGreaterThan(-1);
       const fnEnd = src.indexOf('\nexport ', fnStart + 1);
       const fn = src.slice(fnStart, fnEnd);
-      expect(fn).toMatch(/refuseIfAdminTarget\(socket,\s*userId\)/);
+      expect(fn).toMatch(/refuseIfAdminTarget\(socket,\s*sessionId,\s*userId\)/);
     });
 
-    it('handleHostRemoveParticipant calls refuseIfAdminTarget on the target userId', () => {
+    it('handleHostRemoveParticipant calls refuseIfAdminTarget with the session context', () => {
       const fnStart = src.indexOf('export async function handleHostRemoveParticipant');
       expect(fnStart).toBeGreaterThan(-1);
       const fnEnd = src.indexOf('\nexport ', fnStart + 1);
       const fn = src.slice(fnStart, fnEnd);
-      expect(fn).toMatch(/refuseIfAdminTarget\(socket,\s*data\.userId\)/);
+      expect(fn).toMatch(/refuseIfAdminTarget\(socket,\s*data\.sessionId,\s*data\.userId\)/);
     });
   });
 

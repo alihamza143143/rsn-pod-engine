@@ -607,13 +607,18 @@ export default function HostControlCenter({
                             state={p.state}
                             // Bug J (15 May Ali) — disable Make/Remove
                             // co-host and Kick when the target is a
-                            // platform admin or super_admin. They manage
-                            // their own per-event role via the Phase M
-                            // banner; directors cannot promote / demote /
-                            // kick them. Server's refuseIfAdminTarget is
-                            // the defence-in-depth gate.
+                            // platform admin or super_admin; admins
+                            // manage their per-event role via the Phase
+                            // M banner.
+                            // Bug 2 (18 May Stefan) — supreme-host
+                            // carve-out: the event director can act on
+                            // admins. Non-director acting hosts cannot.
+                            // The server enforces the same rule via
+                            // refuseIfAdminTarget's director shortcut;
+                            // this client gate just keeps the UI honest.
                             targetIsAdmin={
-                              p.globalRole === 'admin' || p.globalRole === 'super_admin'
+                              (p.globalRole === 'admin' || p.globalRole === 'super_admin')
+                              && currentUserId !== hostUserId
                             }
                             onMakeCohost={() => makeCohost(p.userId)}
                             onRemoveCohost={() => removeCohost(p.userId)}

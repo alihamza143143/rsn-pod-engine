@@ -159,19 +159,37 @@ export async function verifyHost(socket: Socket, sessionId: string): Promise<boo
 /**
  * Bug J (15 May Ali) — defence-in-depth gate that refuses Make / Remove
  * co-host and Kick when the TARGET is a platform admin or super_admin.
- * The host of an event cannot promote, demote, or kick a platform admin
- * via these controls; admins choose their own per-event role through the
- * Phase M banner. The HCC disables the buttons client-side; this guard
- * stops a forged socket frame from bypassing the rule.
+ * Admins choose their own per-event role through the Phase M banner.
  *
- * Returns true if the action is permitted (target is a regular user),
- * false if it must be refused. Emits an error frame on refusal so the
- * caller's UI can surface it.
+ * Bug 2 (18 May Stefan) — supreme-host carve-out: the EVENT DIRECTOR
+ * (sessions.host_user_id) IS the authority over their own event and
+ * can promote / demote / kick anyone on the roster, including platform
+ * admins. Non-director acting hosts (cohosts, super_admin opt-ins) are
+ * still blocked — only the director gets the override. Stefan's exact
+ * complaint: "Current admin logic blocks too much."
+ *
+ * Returns true if the action is permitted, false if it must be refused.
+ * Emits an error frame on refusal so the caller's UI can surface it.
  */
 async function refuseIfAdminTarget(
   socket: Socket,
+  sessionId: string,
   targetUserId: string,
 ): Promise<boolean> {
+  const callerUserId = getUserIdFromSocket(socket);
+  if (!callerUserId) return false;
+
+  // Bug 2 (18 May Stefan) — director shortcut. Reads the session row
+  // directly to avoid an in-memory cache hit when the session is still
+  // warming up.
+  const sessionRow = await query<{ host_user_id: string }>(
+    `SELECT host_user_id FROM sessions WHERE id = $1`,
+    [sessionId],
+  );
+  if (sessionRow.rows[0]?.host_user_id === callerUserId) {
+    return true;
+  }
+
   const targetRow = await query<{ role: string }>(
     `SELECT role::text AS role FROM users WHERE id = $1`,
     [targetUserId],
@@ -181,7 +199,7 @@ async function refuseIfAdminTarget(
     socket.emit('error', {
       code: 'ADMIN_TARGET',
       message:
-        "Admins manage their own per-event role from the banner — directors can't promote, demote, or kick them.",
+        "Admins manage their own per-event role. Only the event director can override this.",
     });
     return false;
   }
@@ -654,8 +672,10 @@ export async function handleHostRemoveParticipant(
   try {
     if (!await verifyHost(socket, data.sessionId)) return;
     // Bug J (15 May Ali) — admins cannot be kicked from an event by a
-    // director or co-host. They can only leave themselves.
-    if (!await refuseIfAdminTarget(socket, data.userId)) return;
+    // cohost. Only the event director (Bug 2, 18 May Stefan) can — they
+    // hold supreme authority over their own event. Co-hosts and other
+    // acting hosts still can't kick admins.
+    if (!await refuseIfAdminTarget(socket, data.sessionId, data.userId)) return;
 
     await sessionService.updateParticipantStatus(
       data.sessionId, data.userId, ParticipantStatus.REMOVED
@@ -1640,9 +1660,11 @@ export async function handleAssignCohost(
     // routes through canActAsHost which accepts cohost + super_admin
     // (Phase I narrowed regular admin out of the auto-host set).
     if (!await verifyHost(socket, sessionId)) return;
-    // Bug J (15 May Ali) — directors cannot make a platform admin a co-host;
-    // admins manage their per-event role themselves via the Phase M banner.
-    if (!await refuseIfAdminTarget(socket, userId)) return;
+    // Bug J (15 May Ali) — co-hosts cannot make a platform admin a co-host.
+    // Bug 2 (18 May Stefan) — but the event director CAN; they hold
+    // supreme authority over their own event. refuseIfAdminTarget now
+    // shortcircuits to allow when caller === session.host_user_id.
+    if (!await refuseIfAdminTarget(socket, sessionId, userId)) return;
 
     await query(
       `INSERT INTO session_cohosts (session_id, user_id, role, granted_by)
@@ -1710,8 +1732,10 @@ export async function handleRemoveCohost(
     if (!await verifyHost(socket, sessionId)) return;
     // Bug J (15 May Ali) — directors cannot demote a platform admin. The
     // session_cohosts row only exists if the admin opted in themselves
-    // via the Phase M banner; only the admin can revoke it.
-    if (!await refuseIfAdminTarget(socket, userId)) return;
+    // via the Phase M banner. Bug 2 (18 May Stefan) — the event director
+    // can still demote them via the supreme-host carve-out; other acting
+    // hosts cannot.
+    if (!await refuseIfAdminTarget(socket, sessionId, userId)) return;
 
     await query(
       `DELETE FROM session_cohosts WHERE session_id = $1 AND user_id = $2`,
@@ -2531,6 +2555,68 @@ export async function handleHostCreateBreakout(
     } catch (err: any) {
       logger.error({ err }, 'Error in handleHostCreateBreakout');
       socket.emit('error', { code: 'CREATE_BREAKOUT_FAILED', message: err.message || 'Failed to create breakout room' });
+    }
+  });
+}
+
+// ─── Host Set Pin ───────────────────────────────────────────────────────────
+//
+// Bug 1 (18 May Stefan) — global pin. When an acting host clicks the pin
+// icon on a participant, that participant becomes the big tile for EVERY
+// viewer in the event (not just the host who clicked). Pre-fix the pin
+// was local-per-viewer, which Stefan called out as the wrong architecture:
+// "When host pins/highlights someone, that person should become large for
+// all participants, not only for the host."
+//
+// Wire:
+//   client (host clicks pin) → emit host:set_pin { sessionId, pinnedUserId }
+//   server → verifyHost → activeSession.pinnedUserId = ... → persistSessionState
+//   server → emit pin:changed { pinnedUserId } to sessionRoom (everyone)
+//   client → store.setServerPinnedUserId(...) → Lobby re-renders pinned-mode
+//
+// Sending pinnedUserId=null clears the global pin (everyone's view returns
+// to default grid, host auto-elevated). Participants can still set their
+// own local pin while no global pin is active.
+
+export async function handleHostSetPin(
+  io: SocketServer,
+  socket: Socket,
+  data: { sessionId: string; pinnedUserId: string | null },
+): Promise<void> {
+  return withSessionGuard(data.sessionId, async () => {
+    try {
+      if (!await verifyHost(socket, data.sessionId)) return;
+      const { sessionId } = data;
+      const activeSession = activeSessions.get(sessionId);
+      if (!activeSession) {
+        socket.emit('error', { code: 'SESSION_NOT_ACTIVE', message: 'No active session for pin' });
+        return;
+      }
+      // Normalise: empty string / undefined / non-string → null.
+      const pinnedUserId =
+        typeof data.pinnedUserId === 'string' && data.pinnedUserId.length > 0
+          ? data.pinnedUserId
+          : null;
+      // No-op if unchanged — saves a broadcast + DB write.
+      if ((activeSession.pinnedUserId ?? null) === pinnedUserId) return;
+
+      activeSession.pinnedUserId = pinnedUserId;
+      persistSessionState(sessionId, activeSession).catch(() => {});
+
+      // Broadcast to the whole session room — every participant rerenders
+      // their lobby with the new pin (or unpins if pinnedUserId=null).
+      io.to(sessionRoom(sessionId)).emit('pin:changed', {
+        sessionId,
+        pinnedUserId,
+      });
+
+      logger.info(
+        { sessionId, pinnedUserId, by: getUserIdFromSocket(socket) },
+        'Host set/cleared global pin',
+      );
+    } catch (err: any) {
+      logger.error({ err }, 'Error in handleHostSetPin');
+      socket.emit('error', { code: 'SET_PIN_FAILED', message: err.message || 'Failed to set pin' });
     }
   });
 }

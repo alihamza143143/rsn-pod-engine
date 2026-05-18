@@ -48,6 +48,12 @@ interface SessionLiveState {
   // completes before rendering, otherwise refresh flickers the banner on
   // for a frame while the snapshot is in-flight.
   sessionStateLoaded: boolean;
+  // Bug 1 (18 May Stefan) — server-broadcast pin. When non-null, every
+  // viewer's lobby renders this userId as the big tile. Hosts/cohosts
+  // write to it via host:set_pin; participants read it. Per-viewer local
+  // pin (Lobby's pinnedSid useState) still exists but is overridden by
+  // this value whenever it's set.
+  serverPinnedUserId: string | null;
   totalRounds: number;
   participants: Participant[];
   currentMatch: MatchPartner | null;
@@ -218,6 +224,8 @@ interface SessionLiveState {
   setHostVisibilityModes: (modes: Record<string, 'big_speaker' | 'normal' | 'producer' | 'hidden'>) => void;
   setActingAsHostOverrides: (overrides: Record<string, boolean>) => void;
   setHostMutedUserIds: (ids: string[]) => void;
+  // Bug 1 (18 May Stefan) — set/clear the server-broadcast pin.
+  setServerPinnedUserId: (userId: string | null) => void;
   setLeftCurrentRound: (v: boolean) => void;
   setLastRatedRound: (r: number) => void;
   setIsPaused: (v: boolean) => void;
@@ -272,6 +280,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   sessionStatus: 'scheduled',
   hostInLobby: false, hostUserId: null,
   sessionStateLoaded: false,
+  serverPinnedUserId: null,
   totalRounds: 5,
   participants: [],
   currentMatch: null,
@@ -409,6 +418,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   setHostVisibilityModes: (modes) => set({ hostVisibilityModes: modes }),
   setActingAsHostOverrides: (overrides) => set({ actingAsHostOverrides: overrides }),
   setHostMutedUserIds: (ids) => set({ hostMutedUserIds: new Set(ids) }),
+  setServerPinnedUserId: (userId) => set({ serverPinnedUserId: userId }),
   setLeftCurrentRound: (leftCurrentRound) => set({ leftCurrentRound }),
   setLastRatedRound: (lastRatedRound) => set({ lastRatedRound }),
   setIsPaused: (isPaused) => set({ isPaused }),
@@ -454,6 +464,11 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
       actingAsHostOverrides: snapshot.actingAsHostOverrides || {},
       hostMutedUserIds: new Set(snapshot.hostMutedUserIds || []),
       timerVisibility: (snapshot.timerVisibility as any) || 'last_10s',
+      // Bug 1 (18 May Stefan) — pull the live server pin so cold-start
+      // clients (page refresh, reconnect) render the same big tile as
+      // everyone else who's been here longer. Snapshot returns null when
+      // no global pin is set.
+      serverPinnedUserId: (snapshot as any).pinnedUserId ?? null,
       // Bug I (15 May Ali) — mark snapshot hydration complete so any UI
       // gated on "have we heard from the server yet" can render without
       // flickering between empty-state and hydrated state on refresh.
@@ -473,7 +488,7 @@ export const useSessionStore = create<SessionLiveState>((set) => ({
   }),
   reset: () => set({
     phase: 'lobby', connectionStatus: 'connecting', transitionStatus: null,
-    sessionStatus: 'scheduled', hostInLobby: false, hostUserId: null, sessionStateLoaded: false, totalRounds: 5,
+    sessionStatus: 'scheduled', hostInLobby: false, hostUserId: null, sessionStateLoaded: false, serverPinnedUserId: null, totalRounds: 5,
     participants: [], currentMatch: null, currentPartners: [], currentMatchId: null,
     timerSeconds: 0, timerEndsAt: null, currentRound: 0, broadcasts: [], error: null, tileReactions: {},
     isReconnecting: false, isByeRound: false, liveKitToken: null, livekitUrl: null, currentRoomId: null,

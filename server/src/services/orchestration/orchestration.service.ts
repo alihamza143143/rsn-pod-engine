@@ -32,6 +32,7 @@ import {
   handleHostMuteParticipant, handleHostMuteAll, handleHostRemoveFromRoom,
   handleHostMoveToRoom, handleAssignCohost, handleRemoveCohost, handlePromoteCohost, handleHostExtendRound,
   handleHostExtendBreakoutRoom, handleHostCreateBreakout,
+  handleHostSetPin,
   startSession, pauseSession, resumeSession, endSession, broadcastMessage,
   setHostVisibility,
   setHostActionsIo, injectHostActionDeps,
@@ -262,6 +263,9 @@ export function initOrchestration(socketServer: SocketServer): void {
     wrapHandler('host:create_breakout', socket, handleHostCreateBreakout);
     wrapHandler('host:assign_cohost', socket, handleAssignCohost);
     wrapHandler('host:remove_cohost', socket, handleRemoveCohost);
+    // Bug 1 (18 May Stefan) — global pin broadcast. Acting hosts can set
+    // a pin that every participant's lobby honours.
+    wrapHandler('host:set_pin', socket, handleHostSetPin);
     // T1-5 — host can pass the baton to an existing co-host
     wrapHandler('host:promote_cohost', socket, handlePromoteCohost);
     wrapHandler('host:extend_round', socket, handleHostExtendRound);

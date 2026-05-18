@@ -140,9 +140,56 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
   // Pin/spotlight state — client-side only, no server interaction
   const [pinnedSid, setPinnedSid] = useState<string | null>(null);
 
+  // Bug 1 (18 May Stefan) — global pin set by an acting host on the
+  // server. When non-null, this overrides every viewer's local pin: the
+  // named user becomes the big tile for everyone. The server pin is
+  // userId-based (canonical), so we resolve it to a LiveKit sid here.
+  const serverPinnedUserId = useSessionStore(s => s.serverPinnedUserId);
+  const serverPinnedSid = (() => {
+    if (!serverPinnedUserId) return null;
+    const t = cameraTracksSorted.find(
+      tr => tr.participant.identity === serverPinnedUserId,
+    );
+    return t?.participant.sid ?? null;
+  })();
+  // Effective pin: server wins when set, otherwise per-viewer local pin.
+  // The renderer + button-click handlers read this single value so the
+  // two code paths can't drift.
+  const effectivePinnedSid = serverPinnedSid ?? pinnedSid;
+
+  // setEffectivePin handles both branches in one place:
+  //   - Acting host viewer → call host:set_pin (global broadcast)
+  //   - Participant viewer → fall back to per-viewer local pin
+  // Mapping back from sid → userId for the server uses the LiveKit
+  // participant identity (which IS the userId by our token convention).
+  const setEffectivePin = useCallback(
+    (sid: string | null) => {
+      if (isHost && sessionId) {
+        // Global. Find the userId from the sid (or pass null to clear).
+        let targetUserId: string | null = null;
+        if (sid) {
+          const t = cameraTracksSorted.find(tr => tr.participant.sid === sid);
+          targetUserId = t?.participant.identity ?? null;
+        }
+        const socket = getSocket();
+        socket?.emit('host:set_pin', { sessionId, pinnedUserId: targetUserId });
+        // Server will fan out pin:changed to us too; no optimistic local
+        // write needed. Keeping the local-pin slot null avoids confusion
+        // if the host later loses host role mid-event.
+        setPinnedSid(null);
+      } else {
+        // Local-only — yesterday's behaviour preserved for participants.
+        setPinnedSid(sid);
+      }
+    },
+    [isHost, cameraTracksSorted, sessionId],
+  );
+
   // Auto-unpin if pinned participant leaves OR if their visibility mode
   // is now 'hidden' (Phase N — host can hide themselves mid-event; a
-  // pinned-then-hidden user would otherwise leak as the big tile).
+  // pinned-then-hidden user would otherwise leak as the big tile). Only
+  // clears the local pin — the server pin is host-managed and self-
+  // recovers via the server-side cleanup on participant removal.
   useEffect(() => {
     if (!pinnedSid) return;
     const pinned = cameraTracksSorted.find(t => t.participant.sid === pinnedSid);
@@ -228,20 +275,20 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
             ) : null}
           </div>
         )}
-        {/* 18 May (Stefan) — explicit pin / unpin button on every tile.
-            The whole-tile click still pins (legacy behaviour), but this
-            visible affordance makes the feature discoverable and gives
-            users a clear "spotlight this person" control instead of a
-            hidden interaction. Toggles between Pin / PinOff icons; stops
-            propagation so it doesn't double-fire with the tile click.
-            Sits bottom-right so it never collides with the name plate
-            (bottom-left), mic-off badge (top-left), or host mute/kick
-            controls (top-right, hover-revealed). */}
+        {/* Bug 1 (18 May Stefan) — explicit pin / unpin button on every
+            tile. Click semantics depend on viewer role:
+              - Acting host  → emits host:set_pin (broadcast to all
+                participants; server fans out pin:changed).
+              - Participant  → toggles local-only pin (per-viewer).
+            setEffectivePin routes either path; the visible button label
+            stays "Pin / Unpin" for both. The amber ring on the active
+            pin uses the EFFECTIVE pinned sid (whichever path set it)
+            so the button correctly reflects what the viewer sees. */}
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            setPinnedSid(isPinned ? null : trackRef.participant.sid);
+            setEffectivePin(isPinned ? null : trackRef.participant.sid);
           }}
           title={isPinned ? `Unpin ${name}` : `Pin ${name} as spotlight`}
           aria-label={isPinned ? `Unpin ${name}` : `Pin ${name}`}
@@ -284,26 +331,28 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
   };
 
   // Pinned layout: large tile + small row at bottom.
-  // Pin can target any non-hidden user, so resolve against the full
-  // sorted set rather than the normal-only filtered grid array. The
-  // pinned-mode strip includes big_speaker and producer tracks (no
+  // Bug 1 (18 May Stefan) — render against EFFECTIVE pin (server > local)
+  // so a host's global pin shows the same big tile to every participant.
+  // The pinned-mode strip includes big_speaker and producer tracks (no
   // dedicated stage/audio rows render in this layout); hidden tracks
   // stay filtered out everywhere.
-  const pinnedTrack = pinnedSid ? cameraTracksSorted.find(t => t.participant.sid === pinnedSid) : null;
+  const pinnedTrack = effectivePinnedSid
+    ? cameraTracksSorted.find(t => t.participant.sid === effectivePinnedSid)
+    : null;
   if (pinnedTrack) {
     const unpinnedTracks = cameraTracksSorted.filter(
-      t => t.participant.sid !== pinnedSid && visibilityFor(t) !== 'hidden',
+      t => t.participant.sid !== effectivePinnedSid && visibilityFor(t) !== 'hidden',
     );
     return (
       <div className={`flex flex-col gap-3 w-full ${maxWClass} mx-auto h-full`}>
         <div className="flex-1 min-h-0">
-          {renderTile(pinnedTrack, { isPinned: true, onClick: () => setPinnedSid(null) })}
+          {renderTile(pinnedTrack, { isPinned: true, onClick: () => setEffectivePin(null) })}
         </div>
         {unpinnedTracks.length > 0 && (
           <div className="flex gap-2 h-24 shrink-0 overflow-x-auto">
             {unpinnedTracks.map(t => (
               <div key={t.participant.sid} className="flex-shrink-0 w-32">
-                {renderTile(t, { onClick: () => setPinnedSid(t.participant.sid) })}
+                {renderTile(t, { onClick: () => setEffectivePin(t.participant.sid) })}
               </div>
             ))}
           </div>
@@ -332,14 +381,14 @@ function LobbyMosaic({ isHost, sessionId }: { isHost: boolean; sessionId?: strin
           {bigSpeakerTracks.map(trackRef =>
             renderTile(trackRef, {
               isPinned: true,
-              onClick: () => setPinnedSid(trackRef.participant.sid),
+              onClick: () => setEffectivePin(trackRef.participant.sid),
             }),
           )}
         </div>
       )}
       <div className={`grid ${gridCols} ${gapClass} w-full`}>
         {cameraTracks.map(trackRef =>
-          renderTile(trackRef, { onClick: () => setPinnedSid(trackRef.participant.sid) })
+          renderTile(trackRef, { onClick: () => setEffectivePin(trackRef.participant.sid) })
         )}
         {cameraTracks.length === 0 && bigSpeakerTracks.length === 0 && (
           <div className="col-span-full text-center py-12 text-gray-500 text-sm">
